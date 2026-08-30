@@ -79,7 +79,6 @@
     .filter-group label { font-size: 12px; font-weight: bold; color: #004d40; }
     .filter-group input, .filter-group select { padding: 8px; border: 1px solid #004d40; border-radius: 4px; min-width: 120px; }
 
-    /* Missing DSO Box Style */
     .missing-box {
       background: #ffebee;
       border: 2px dashed #c62828;
@@ -143,7 +142,7 @@
     .bg-return { background-color: #ffebee !important; color: #b71c1c; }
     .bg-diff { background-color: #fff3e0 !important; color: #e65100; font-weight: bold; }
 
-    .slip-img-preview { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; display: block; margin: 0 auto; }
+    .slip-img-preview { width: 45px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; display: block; margin: 0 auto; cursor: pointer; }
     .slip-cell { font-size: 10px; text-align: center; }
     .slip-amt { font-weight: bold; color: #00695c; }
 
@@ -219,9 +218,7 @@
           <span>⚠️ রিপোর্ট জমা দিতে বাকি আছে (<span id="missingCount">0</span> জন DSO)</span>
           <span style="font-size: 12px; font-weight: normal; color: #555;" id="missingRangeText">Range: 801 to 845</span>
         </h3>
-        <div class="missing-list" id="missingDsoList">
-          <!-- Missing DSO badges will be injected here -->
-        </div>
+        <div class="missing-list" id="missingDsoList"></div>
       </div>
 
       <div class="summary-cards">
@@ -233,6 +230,7 @@
         <div class="card green"><h3>মোট স্লিপ অ্যামাউন্ট (OCR)</h3><p>৳ <span id="totalSlipOcrSum">0</span></p></div>
       </div>
 
+      <!-- ADMIN REAL-TIME DATA TABLE -->
       <div class="table-container">
         <table id="dataTable">
           <thead>
@@ -262,14 +260,13 @@
 
     <!-- DSO VIEW -->
     <div id="dsoView" style="display: none;">
-      
       <div class="form-grid">
         <!-- RECEIVED SECTION -->
         <div class="section-box section-received">
           <div class="section-title title-received">📥 ১. RECEIVED SECTION</div>
-          <div class="form-group"><label>e-Money Received</label><input type="text" id="emReceived" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
-          <div class="form-group"><label>Cash Received</label><input type="text" id="cashReceived" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
-          <div class="form-group"><label>DSO Received</label><input type="text" id="dsoReceived" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          <div class="form-group"><label>e-Money Received</label><input type="text" id="emReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          <div class="form-group"><label>Cash Received</label><input type="text" id="cashReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          <div class="form-group"><label>DSO Received</label><input type="text" id="dsoReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
           
           <div class="calculation-box">
             <div class="calc-row"><strong>মোট রিসিভড:</strong> <span style="color:#2e7d32; font-weight:bold;">৳ <span id="formTotalReceived">0</span></span></div>
@@ -279,16 +276,16 @@
         <!-- RETURN SECTION -->
         <div class="section-box section-return">
           <div class="section-title title-return">📤 ২. RETURN SECTION</div>
-          <div class="form-group"><label>e-Money Return</label><input type="text" id="emReturn" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
-          <div class="form-group"><label>Bank Deposit Amount</label><input type="text" id="bankDeposit" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          <div class="form-group"><label>e-Money Return</label><input type="text" id="emReturn" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          <div class="form-group"><label>Bank Deposit Amount</label><input type="text" id="bankDeposit" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
           
           <div class="form-group">
             <label style="color:#004d40;">Bank Name (সকল স্লিপের ব্যাংক নাম যুক্ত হবে)</label>
             <input type="text" id="bankName" placeholder="ব্যাংকের নামসমূহ">
           </div>
 
-          <div class="form-group"><label>DSO Transfer</label><input type="text" id="dsoTransfer" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
-          <div class="form-group"><label>Cash Deposit</label><input type="text" id="cashDeposit" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          <div class="form-group"><label>DSO Transfer</label><input type="text" id="dsoTransfer" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          <div class="form-group"><label>Cash Deposit</label><input type="text" id="cashDeposit" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
 
           <div class="calculation-box">
             <div class="calc-row"><strong>মোট রিটার্ন:</strong> <span style="color:#c62828; font-weight:bold;">৳ <span id="formTotalReturn">0</span></span></div>
@@ -317,39 +314,30 @@
 
       <h4>ডিপোজিট স্লিপ আপলোড (Max 4 Slips)</h4>
       <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
-        
-        <!-- SLIP 1 -->
         <div class="form-group">
           <label>Deposit Slip 1</label>
           <input type="file" id="slip1" accept="image/*" onchange="processSlipOCR(event, 1)">
           <input type="hidden" id="slipAmt1" value="0">
           <button type="button" id="clearSlipBtn1" class="btn-clear-slip" onclick="clearSingleSlip(1)">✖ Cancel / Clear</button>
         </div>
-
-        <!-- SLIP 2 -->
         <div class="form-group">
           <label>Deposit Slip 2</label>
           <input type="file" id="slip2" accept="image/*" onchange="processSlipOCR(event, 2)">
           <input type="hidden" id="slipAmt2" value="0">
           <button type="button" id="clearSlipBtn2" class="btn-clear-slip" onclick="clearSingleSlip(2)">✖ Cancel / Clear</button>
         </div>
-
-        <!-- SLIP 3 -->
         <div class="form-group">
           <label>Deposit Slip 3</label>
           <input type="file" id="slip3" accept="image/*" onchange="processSlipOCR(event, 3)">
           <input type="hidden" id="slipAmt3" value="0">
           <button type="button" id="clearSlipBtn3" class="btn-clear-slip" onclick="clearSingleSlip(3)">✖ Cancel / Clear</button>
         </div>
-
-        <!-- SLIP 4 -->
         <div class="form-group">
           <label>Deposit Slip 4</label>
           <input type="file" id="slip4" accept="image/*" onchange="processSlipOCR(event, 4)">
           <input type="hidden" id="slipAmt4" value="0">
           <button type="button" id="clearSlipBtn4" class="btn-clear-slip" onclick="clearSingleSlip(4)">✖ Cancel / Clear</button>
         </div>
-
       </div>
       <div id="ocrStatus" class="ocr-status"></div>
 
@@ -410,10 +398,7 @@
 
     function handleAmountInput(inputEl) {
       let rawVal = inputEl.value.replace(/[^0-9.]/g, ''); 
-      if (rawVal === '') {
-        inputEl.value = '';
-        return;
-      }
+      if (rawVal === '') { inputEl.value = ''; return; }
       let parts = rawVal.split('.');
       let integerPart = parts[0];
       let decimalPart = parts.length > 1 ? '.' + parts[1] : '';
@@ -447,10 +432,8 @@
         document.getElementById("adminView").style.display = "block";
         document.getElementById("dsoView").style.display = "none";
 
-        // Admin-এর ফিল্টারে আজকের তারিখ স্বয়ংক্রিয় সেট করা থাকবে
         let today = new Date().toISOString().split('T')[0];
         document.getElementById("filterDate").value = today;
-
       } else {
         document.getElementById("portalTitle").innerText = "DSO Entry Panel (ID: " + id + ")";
         document.getElementById("dsoView").style.display = "block";
@@ -630,13 +613,7 @@
           bankName: document.getElementById("bankName").value.trim(),
           dsoTransfer: parseRawNumber(document.getElementById("dsoTransfer").value),
           cashDeposit: parseRawNumber(document.getElementById("cashDeposit").value),
-          notes: {
-            n1000: n1000,
-            n500: n500,
-            n200: n200,
-            n100: n100,
-            n50: n50
-          },
+          notes: { n1000, n500, n200, n100, n50 },
           totalCash: totalCashVal,
           slip1: slip1, slip2: slip2, slip3: slip3, slip4: slip4,
           slipAmt1: parseRawNumber(document.getElementById("slipAmt1").value),
@@ -663,9 +640,7 @@
       document.querySelectorAll(".denom").forEach(input => input.value = "");
       document.getElementById("totalCashDisplay").innerText = "0";
 
-      for(let i=1; i<=4; i++){
-        clearSingleSlip(i);
-      }
+      for(let i=1; i<=4; i++){ clearSingleSlip(i); }
       document.getElementById("ocrStatus").innerText = "";
       calcFormTotals();
     }
@@ -689,9 +664,7 @@
 
       if (!data) return;
       let dsoSet = new Set();
-      Object.values(data).forEach(r => {
-        if (r.userId) dsoSet.add(r.userId);
-      });
+      Object.values(data).forEach(r => { if (r.userId) dsoSet.add(r.userId); });
 
       dsoSet.forEach(dso => {
         let opt = document.createElement("option");
@@ -705,6 +678,7 @@
     function applyAdminFilters() {
       if (!globalAllData) {
         renderMissingDsoList(new Set());
+        renderAdminTable(null);
         return;
       }
       
@@ -734,7 +708,6 @@
       renderAdminTable(filteredData);
     }
 
-    // MISSING DSO ID CALCULATOR & RENDERER
     function renderMissingDsoList(submittedSet) {
       let startRange = parseInt(document.getElementById("filterDsoStart").value, 10) || 801;
       let endRange = parseInt(document.getElementById("filterDsoEnd").value, 10) || 845;
@@ -744,9 +717,7 @@
       let missingList = [];
       for (let i = startRange; i <= endRange; i++) {
         let idStr = String(i);
-        if (!submittedSet.has(idStr)) {
-          missingList.push(idStr);
-        }
+        if (!submittedSet.has(idStr)) { missingList.push(idStr); }
       }
 
       const listContainer = document.getElementById("missingDsoList");
@@ -786,7 +757,7 @@
     function makeImageTagWithAmt(url, amt) {
       if (url && url.length > 20) {
         return `<div class="slip-cell">
-                  <a href="${url}" target="_blank"><img src="${url}" class="slip-img-preview"></a>
+                  <a href="${url}" target="_blank"><img src="${url}" class="slip-img-preview" title="বড় করে দেখতে ক্লিক করুন"></a>
                   <span class="slip-amt">৳ ${formatBD(amt)}</span>
                 </div>`;
       }
@@ -900,12 +871,8 @@
       });
     }
 
-    // EXPORT FILTERED DATA TO EXCEL
     function exportToExcel() {
-      if (!globalAllData) {
-        alert("ডাউনলোড করার মত কোনো ডাটা নেই!");
-        return;
-      }
+      if (!globalAllData) { alert("ডাউনলোড করার মত কোনো ডাটা নেই!"); return; }
 
       let filterDate = document.getElementById("filterDate").value;
       let filterMonth = document.getElementById("filterMonth").value;
