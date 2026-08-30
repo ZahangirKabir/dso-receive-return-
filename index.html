@@ -178,7 +178,7 @@
   </div>
 
   <script>
-    // ⚠️ আপনার ফায়ারবেস প্রজেক্টের আসল API ও Key দিয়ে এই অবজেক্টটি আপডেট করুন
+    // ⚠️ আপনার ফায়ারবেস প্রজেক্টের আসল API ও Key নিশ্চিত করুন
     const firebaseConfig = {
       apiKey: "YOUR_API_KEY",
       authDomain: "YOUR_PROJECT.firebaseapp.com",
@@ -189,9 +189,13 @@
       appId: "YOUR_APP_ID"
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
-
+    if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+      firebase.initializeApp(firebaseConfig);
+    } else {
+      console.warn("Firebase Config values not updated!");
+    }
+    
+    const database = firebase.apps.length ? firebase.database() : null;
     let currentUser = null;
 
     function handleLogin() {
@@ -226,6 +230,7 @@
       document.getElementById("totalCashDisplay").innerText = total;
     }
 
+    // অপটিমাইজড ফাস্ট ইমেজ কম্প্রেসর
     function getBase64(file) {
       return new Promise((resolve) => {
         if (!file) { resolve(""); return; }
@@ -238,7 +243,7 @@
             const canvas = document.createElement("canvas");
             let width = img.width;
             let height = img.height;
-            const max_size = 600;
+            const max_size = 400; // সাইজ আরও কমানো হয়েছে যাতে দ্রুত প্রসেস হয়
 
             if (width > height) {
               if (width > max_size) { height *= max_size / width; width = max_size; }
@@ -249,7 +254,7 @@
             canvas.height = height;
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL("image/jpeg", 0.5));
+            resolve(canvas.toDataURL("image/jpeg", 0.4));
           };
           img.onerror = () => resolve("");
         };
@@ -258,30 +263,28 @@
     }
 
     async function submitData() {
+      if (!database) {
+        alert("Firebase Config এ আসল Key ও URL বসানো হয়নি!");
+        return;
+      }
+
       const subBtn = document.getElementById("subBtn");
       subBtn.disabled = true;
-      subBtn.innerText = "Saving Data...";
+      subBtn.innerText = "Processing Slips...";
 
       try {
-        const bankDepositVal = parseFloat(document.getElementById("bankDeposit").value) || 0;
-        const bankNameVal = document.getElementById("bankName").value.trim();
+        let slip1 = await getBase64(document.getElementById("slip1").files[0]);
+        let slip2 = await getBase64(document.getElementById("slip2").files[0]);
+        let slip3 = await getBase64(document.getElementById("slip3").files[0]);
+        let slip4 = await getBase64(document.getElementById("slip4").files[0]);
+
+        subBtn.innerText = "Saving Data...";
 
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
         const monthStr = dateStr.substring(0, 7);
 
-        let file1 = document.getElementById("slip1").files[0];
-        let file2 = document.getElementById("slip2").files[0];
-        let file3 = document.getElementById("slip3").files[0];
-        let file4 = document.getElementById("slip4").files[0];
-
-        let slip1 = await getBase64(file1);
-        let slip2 = await getBase64(file2);
-        let slip3 = await getBase64(file3);
-        let slip4 = await getBase64(file4);
-
-        const newRef = database.ref('collections').push();
-        await newRef.set({
+        const payload = {
           date: dateStr,
           month: monthStr,
           userId: currentUser,
@@ -289,19 +292,29 @@
           cashReceived: parseFloat(document.getElementById("cashReceived").value) || 0,
           dsoReceived: parseFloat(document.getElementById("dsoReceived").value) || 0,
           emReturn: parseFloat(document.getElementById("emReturn").value) || 0,
-          bankDeposit: bankDepositVal,
-          bankName: bankNameVal,
+          bankDeposit: parseFloat(document.getElementById("bankDeposit").value) || 0,
+          bankName: document.getElementById("bankName").value.trim(),
           dsoTransfer: parseFloat(document.getElementById("dsoTransfer").value) || 0,
           cashDeposit: parseFloat(document.getElementById("cashDeposit").value) || 0,
           totalCash: parseFloat(document.getElementById("totalCashDisplay").innerText) || 0,
           slip1: slip1, slip2: slip2, slip3: slip3, slip4: slip4,
           timestamp: Date.now()
-        });
+        };
+
+        // টাইমাউট সেটআপ (ফায়ারবেসে সেভ না হলে বা রেসপন্স আটকে গেলে এরর দিবে)
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Network / Firebase Connection Timeout!")), 10000)
+        );
+
+        await Promise.race([
+          database.ref('collections').push().set(payload),
+          timeoutPromise
+        ]);
 
         alert("ডাটা সফলভাবে সেভ হয়েছে!");
         resetForm();
       } catch (err) {
-        alert("ডাটা সেভ করতে সমস্যা হয়েছে: " + err.message);
+        alert("ডাটা সেভ হয়নি! কারণ: " + err.message);
       } finally {
         subBtn.disabled = false;
         subBtn.innerText = "Submit Data";
@@ -328,6 +341,7 @@
     }
 
     function listenRealtimeData() {
+      if (!database) return;
       database.ref('collections').on('value', (snapshot) => {
         const data = snapshot.val();
         if (currentUser.toLowerCase() === "admin") {
