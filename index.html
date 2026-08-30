@@ -5,14 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DSO & Admin Collection Portal</title>
   
-  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   
-  <!-- OCR Library for Bank & Amount Detection -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-  <!-- SheetJS Library for Excel Export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
   <style>
@@ -121,6 +118,12 @@
     .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; }
     .form-group input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
 
+    /* Multiple DSO Receive Dynamic Field Styles */
+    .dso-rec-row { display: flex; gap: 6px; margin-bottom: 6px; }
+    .dso-rec-row input { flex: 1; }
+    .btn-add-dso { background: #00796b; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; margin-bottom: 8px; }
+    .btn-remove-dso { background: #c62828; color: white; border: none; padding: 0 8px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+
     .calculation-box { background: #ffffff; padding: 10px; border-radius: 6px; border: 1px dashed #777; margin-top: 10px; font-size: 14px; }
     .calc-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
 
@@ -161,7 +164,6 @@
 </head>
 <body>
 
-  <!-- LOGIN SECTION -->
   <div id="loginSection" class="login-box">
     <h2>Login Portal</h2>
     <input type="text" id="loginId" placeholder="User ID / DSO ID (e.g. 801, admin)">
@@ -169,17 +171,14 @@
     <button class="btn" onclick="handleLogin()">Login</button>
   </div>
 
-  <!-- APP MAIN CONTAINER -->
   <div id="appContainer" class="container" style="display: none;">
     <div class="header-bar">
       <h2 id="portalTitle">Collection Portal</h2>
       <button class="btn btn-logout" onclick="logout()">Logout</button>
     </div>
 
-    <!-- ADMIN VIEW -->
     <div id="adminView" style="display: none;">
       
-      <!-- SEARCH & FILTER PANEL -->
       <div class="filter-panel">
         <div class="filter-group">
           <label>তারিখ নির্বাচন করুন</label>
@@ -212,7 +211,6 @@
         <button class="btn-excel" onclick="exportToExcel()">📥 Download Excel Report</button>
       </div>
 
-      <!-- MISSING DSO REPORT DISPLAY -->
       <div class="missing-box" id="missingDsoBox">
         <h3>
           <span>⚠️ রিপোর্ট জমা দিতে বাকি আছে (<span id="missingCount">0</span> জন DSO)</span>
@@ -230,13 +228,12 @@
         <div class="card green"><h3>মোট স্লিপ অ্যামাউন্ট (OCR)</h3><p>৳ <span id="totalSlipOcrSum">0</span></p></div>
       </div>
 
-      <!-- ADMIN REAL-TIME DATA TABLE -->
       <div class="table-container">
         <table id="dataTable">
           <thead>
             <tr>
               <th colspan="3" class="th-info">Basic Info</th>
-              <th colspan="3" class="th-received">RECEIVED SECTION</th>
+              <th colspan="4" class="th-received">RECEIVED SECTION</th>
               <th colspan="5" class="th-return">RETURN SECTION</th>
               <th colspan="3" class="th-diff">CALCULATION & DIFF</th>
               <th class="th-info">Note Quantity (নোটের সংখ্যা)</th>
@@ -245,7 +242,7 @@
             </tr>
             <tr>
               <th class="th-info">Date</th><th class="th-info">Month</th><th class="th-info">DSO ID</th>
-              <th class="th-received">e-Mon Rec</th><th class="th-received">Cash Rec</th><th class="th-received">DSO Rec</th>
+              <th class="th-received">e-Mon Rec</th><th class="th-received">Cash Rec</th><th class="th-received">DSO Rec Total</th><th class="th-received">DSO Received Breakdown</th>
               <th class="th-return">e-Mon Ret</th><th class="th-return">Bank Dep</th><th class="th-return">Bank Name</th><th class="th-return">DSO Trans</th><th class="th-return">Cash Dep</th>
               <th class="th-diff">মোট রিসিভড</th><th class="th-diff">মোট রিটার্ন</th><th class="th-diff">ব্যবধন (Diff)</th>
               <th class="th-info">Cash Breakdown (Qty)</th>
@@ -258,22 +255,32 @@
       </div>
     </div>
 
-    <!-- DSO VIEW -->
     <div id="dsoView" style="display: none;">
       <div class="form-grid">
-        <!-- RECEIVED SECTION -->
         <div class="section-box section-received">
           <div class="section-title title-received">📥 ১. RECEIVED SECTION</div>
           <div class="form-group"><label>e-Money Received</label><input type="text" id="emReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
           <div class="form-group"><label>Cash Received</label><input type="text" id="cashReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
-          <div class="form-group"><label>DSO Received</label><input type="text" id="dsoReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          
+          <div class="form-group">
+            <label style="color:#004d40;">DSO Received (একাধিক DSO ID থেকে রিসিভ)</label>
+            <button type="button" class="btn-add-dso" onclick="addDsoRecRow()">➕ DSO ID ও অ্যামাউন্ট যোগ করুন</button>
+            <div id="dsoRecContainer">
+              <div class="dso-rec-row">
+                <input type="text" class="dso-src-id" placeholder="DSO ID (e.g. 805)">
+                <input type="text" class="dso-src-amt amt-field" placeholder="পরিমাণ" oninput="handleAmountInput(this); calcDsoRecTotal();">
+              </div>
+            </div>
+            <div style="font-size: 12px; font-weight: bold; color: #00695c; margin-top: 5px;">
+              DSO Rec Total: ৳ <span id="dsoRecTotalDisplay">0</span>
+            </div>
+          </div>
           
           <div class="calculation-box">
             <div class="calc-row"><strong>মোট রিসিভড:</strong> <span style="color:#2e7d32; font-weight:bold;">৳ <span id="formTotalReceived">0</span></span></div>
           </div>
         </div>
 
-        <!-- RETURN SECTION -->
         <div class="section-box section-return">
           <div class="section-title title-return">📤 ২. RETURN SECTION</div>
           <div class="form-group"><label>e-Money Return</label><input type="text" id="emReturn" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
@@ -292,7 +299,6 @@
           </div>
         </div>
 
-        <!-- DENOMINATION SECTION -->
         <div class="section-box">
           <div class="section-title" style="color: #37474f;">💵 ৩. ক্যাশ নোট গণনার হিসাব</div>
           <div class="form-group"><label>৳ 1000 ×</label><input type="number" id="note1000" class="denom" data-value="1000" placeholder="টি" oninput="calcCash()"></div>
@@ -304,7 +310,6 @@
         </div>
       </div>
 
-      <!-- LIVE DIFFERENCE DISPLAY -->
       <div class="calculation-box" style="background: #fff3e0; border: 2px solid #ffe0b2; margin-bottom: 20px; font-size: 16px;">
         <div class="calc-row">
           <span><strong>ব্যবধন / পার্থক্য (Received - Return):</strong></span>
@@ -341,7 +346,6 @@
       </div>
       <div id="ocrStatus" class="ocr-status"></div>
 
-      <!-- Action Buttons -->
       <div class="btn-group">
         <button class="btn" id="subBtn" onclick="submitData()">Submit Data</button>
         <button class="btn btn-cancel" onclick="cancelDeposit()">Cancel Deposit</button>
@@ -354,6 +358,7 @@
             <tr>
               <th class="th-info">তারিখ</th>
               <th class="th-received">মোট রিসিভড</th>
+              <th class="th-received">DSO Received ব্রেকডাউন</th>
               <th class="th-return">মোট রিটার্ন ও ডিপোজিট</th>
               <th class="th-diff">ব্যবধন (Diff)</th>
               <th class="th-return">ব্যাংকের নাম</th>
@@ -411,540 +416,12 @@
       }
     }
 
-    const knownBanks = [
-      "Islami Bank", "Dutch-Bangla Bank", "DBBL", "BRAC Bank", "City Bank", 
-      "Eastern Bank", "EBL", "United Commercial Bank", "UCB", "Sonali Bank", 
-      "Janata Bank", "Agrani Bank", "Rupali Bank", "Pubali Bank", "Standard Chartered",
-      "HSBC", "Prime Bank", "Dhaka Bank", "Mutual Trust Bank", "MTB", "Southeast Bank",
-      "Mercantile Bank", "NCC Bank", "NRB Bank", "First Security Islami Bank", "EXIM Bank"
-    ];
-
-    function handleLogin() {
-      const id = document.getElementById("loginId").value.trim();
-      if (!id) { alert("ইউজার আইডি লিখুন!"); return; }
-
-      currentUser = id;
-      document.getElementById("loginSection").style.display = "none";
-      document.getElementById("appContainer").style.display = "block";
-
-      if (id.toLowerCase() === "admin") {
-        document.getElementById("portalTitle").innerText = "Admin Control Dashboard";
-        document.getElementById("adminView").style.display = "block";
-        document.getElementById("dsoView").style.display = "none";
-
-        // ডিফল্টভাবে আজকের তারিখ অটো সেট হবে
-        let today = new Date().toISOString().split('T')[0];
-        document.getElementById("filterDate").value = today;
-      } else {
-        document.getElementById("portalTitle").innerText = "DSO Entry Panel (ID: " + id + ")";
-        document.getElementById("dsoView").style.display = "block";
-        document.getElementById("adminView").style.display = "none";
-      }
-      listenRealtimeData();
-    }
-
-    function logout() { location.reload(); }
-
-    function clearSingleSlip(index) {
-      document.getElementById("slip" + index).value = "";
-      document.getElementById("slipAmt" + index).value = 0;
-      document.getElementById("clearSlipBtn" + index).style.display = "none";
-      document.getElementById("ocrStatus").innerText = `🗑️ স্লিপ ${index} বাতিল করা হয়েছে।`;
-    }
-
-    async function processSlipOCR(event, index) {
-      const file = event.target.files[0];
-      const statusElement = document.getElementById("ocrStatus");
-      const bankInput = document.getElementById("bankName");
-      const amtInput = document.getElementById("slipAmt" + index);
-      const clearBtn = document.getElementById("clearSlipBtn" + index);
-
-      if (!file) {
-        if (clearBtn) clearBtn.style.display = "none";
-        return;
-      }
-
-      if (clearBtn) clearBtn.style.display = "inline-block";
-      statusElement.innerText = `🔍 স্লিপ ${index} রিড করা হচ্ছে... (Bank & Amount)`;
-
-      try {
-        const result = await Tesseract.recognize(file, 'eng');
-        const text = result.data.text;
-        
-        let foundBank = "";
-        for (let bank of knownBanks) {
-          const regex = new RegExp(`\\b${bank}\\b`, 'i');
-          if (regex.test(text)) {
-            foundBank = bank;
-            break;
-          }
-        }
-
-        if (foundBank) {
-          let currentVal = bankInput.value.trim();
-          bankInput.value = currentVal.length === 0 ? foundBank : currentVal + ", " + foundBank;
-        }
-
-        const amountRegex = /(?:TK|BDT|AMT|AMOUNT|TOTAL)?\s*[:\.]?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+)/gi;
-        let matches = [...text.matchAll(amountRegex)];
-        let maxVal = 0;
-
-        matches.forEach(m => {
-          let valStr = m[1].replace(/,/g, '');
-          let val = parseFloat(valStr);
-          if (!isNaN(val) && val > maxVal && val < 5000000) { 
-            maxVal = val; 
-          }
-        });
-
-        amtInput.value = maxVal;
-        statusElement.innerText = `✅ স্লিপ ${index}: ব্যাংক (${foundBank || 'N/A'}), পরিমাণ (৳ ${formatBD(maxVal)})`;
-      } catch (err) {
-        console.error(err);
-        statusElement.innerText = `❌ স্লিপ ${index} স্ক্যান সফল হয়নি।`;
-      }
-    }
-
-    function calcFormTotals() {
-      let emRec = parseRawNumber(document.getElementById("emReceived").value);
-      let cashRec = parseRawNumber(document.getElementById("cashReceived").value);
-      let dsoRec = parseRawNumber(document.getElementById("dsoReceived").value);
-      let totalRec = emRec + cashRec + dsoRec;
-
-      let emRet = parseRawNumber(document.getElementById("emReturn").value);
-      let bankDep = parseRawNumber(document.getElementById("bankDeposit").value);
-      let dsoTrans = parseRawNumber(document.getElementById("dsoTransfer").value);
-      let cashDep = parseRawNumber(document.getElementById("cashDeposit").value);
-      let totalRet = emRet + bankDep + dsoTrans + cashDep;
-
-      let diff = totalRec - totalRet;
-
-      document.getElementById("formTotalReceived").innerText = formatBD(totalRec);
-      document.getElementById("formTotalReturn").innerText = formatBD(totalRet);
-      document.getElementById("formDifference").innerText = formatBD(diff);
-    }
-
-    function calcCash() {
-      let total = 0;
-      document.querySelectorAll(".denom").forEach(input => {
-        let count = parseInt(input.value, 10) || 0;
-        let noteValue = parseInt(input.getAttribute("data-value"), 10) || 0;
-        total += count * noteValue;
-      });
-      document.getElementById("totalCashDisplay").innerText = formatBD(total);
-    }
-
-    function cancelDeposit() {
-      if (confirm("আপনি কি নিশ্চিত যে এই ফর্ম বাতিল করতে চান?")) resetForm();
-    }
-
-    function getBase64(file) {
-      return new Promise((resolve) => {
-        if (!file) { resolve(""); return; }
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-          const img = new Image();
-          img.src = event.target.result;
-          img.onload = () => {
-            const canvas = document.createElement("canvas");
-            let width = img.width, height = img.height, max_size = 400;
-            if (width > height) {
-              if (width > max_size) { height *= max_size / width; width = max_size; }
-            } else {
-              if (height > max_size) { width *= max_size / height; height = max_size; }
-            }
-            canvas.width = width; canvas.height = height;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL("image/jpeg", 0.4));
-          };
-          img.onerror = () => resolve("");
-        };
-        reader.onerror = () => resolve("");
-      });
-    }
-
-    async function submitData() {
-      let bankDepositVal = parseRawNumber(document.getElementById("bankDeposit").value);
-      
-      let f1 = document.getElementById("slip1").files[0];
-      let f2 = document.getElementById("slip2").files[0];
-      let f3 = document.getElementById("slip3").files[0];
-      let f4 = document.getElementById("slip4").files[0];
-
-      if (bankDepositVal > 0 && !f1 && !f2 && !f3 && !f4) {
-        alert("⚠️ আপনি ব্যাংক ডিপোজিট (Bank Deposit Amount) লিখেছেন, তাই অন্তত ১টি ডিপোজিট স্লিপ ছবি আপলোড করা বাধ্যতামূলক!");
-        return;
-      }
-
-      const subBtn = document.getElementById("subBtn");
-      subBtn.disabled = true;
-      subBtn.innerText = "Processing Slips...";
-
-      try {
-        let slip1 = await getBase64(f1);
-        let slip2 = await getBase64(f2);
-        let slip3 = await getBase64(f3);
-        let slip4 = await getBase64(f4);
-
-        subBtn.innerText = "Saving Data...";
-
-        const now = new Date();
-        const dateStr = now.toISOString().split('T')[0];
-        const monthStr = dateStr.substring(0, 7);
-
-        let n1000 = parseInt(document.getElementById("note1000").value, 10) || 0;
-        let n500 = parseInt(document.getElementById("note500").value, 10) || 0;
-        let n200 = parseInt(document.getElementById("note200").value, 10) || 0;
-        let n100 = parseInt(document.getElementById("note100").value, 10) || 0;
-        let n50 = parseInt(document.getElementById("note50").value, 10) || 0;
-
-        let totalCashVal = (n1000*1000) + (n500*500) + (n200*200) + (n100*100) + (n50*50);
-
-        const payload = {
-          date: dateStr,
-          month: monthStr,
-          userId: currentUser,
-          emReceived: parseRawNumber(document.getElementById("emReceived").value),
-          cashReceived: parseRawNumber(document.getElementById("cashReceived").value),
-          dsoReceived: parseRawNumber(document.getElementById("dsoReceived").value),
-          emReturn: parseRawNumber(document.getElementById("emReturn").value),
-          bankDeposit: bankDepositVal,
-          bankName: document.getElementById("bankName").value.trim(),
-          dsoTransfer: parseRawNumber(document.getElementById("dsoTransfer").value),
-          cashDeposit: parseRawNumber(document.getElementById("cashDeposit").value),
-          notes: { n1000, n500, n200, n100, n50 },
-          totalCash: totalCashVal,
-          slip1: slip1, slip2: slip2, slip3: slip3, slip4: slip4,
-          slipAmt1: parseRawNumber(document.getElementById("slipAmt1").value),
-          slipAmt2: parseRawNumber(document.getElementById("slipAmt2").value),
-          slipAmt3: parseRawNumber(document.getElementById("slipAmt3").value),
-          slipAmt4: parseRawNumber(document.getElementById("slipAmt4").value),
-          timestamp: Date.now()
-        };
-
-        await database.ref('collections').push().set(payload);
-        alert("ডাটা সফলভাবে সেভ হয়েছে!");
-        resetForm();
-      } catch (err) {
-        alert("ডাটা সেভ হয়নি! কারণ: " + err.message);
-      } finally {
-        subBtn.disabled = false;
-        subBtn.innerText = "Submit Data";
-      }
-    }
-
-    function resetForm() {
-      document.querySelectorAll(".amt-field").forEach(input => input.value = "");
-      document.getElementById("bankName").value = "";
-      document.querySelectorAll(".denom").forEach(input => input.value = "");
-      document.getElementById("totalCashDisplay").innerText = "0";
-
-      for(let i=1; i<=4; i++){ clearSingleSlip(i); }
-      document.getElementById("ocrStatus").innerText = "";
-      calcFormTotals();
-    }
-
-    function listenRealtimeData() {
-      database.ref('collections').on('value', (snapshot) => {
-        globalAllData = snapshot.val();
-        if (currentUser.toLowerCase() === "admin") {
-          populateDsoDropdown(globalAllData);
-          applyAdminFilters();
-        } else {
-          renderDsoHistory(globalAllData);
-        }
-      });
-    }
-
-    function populateDsoDropdown(data) {
-      const dsoSelect = document.getElementById("filterDso");
-      let selectedVal = dsoSelect.value;
-      dsoSelect.innerHTML = '<option value="">-- All --</option>';
-
-      if (!data) return;
-      let dsoSet = new Set();
-      Object.values(data).forEach(r => { if (r.userId) dsoSet.add(r.userId); });
-
-      dsoSet.forEach(dso => {
-        let opt = document.createElement("option");
-        opt.value = dso;
-        opt.textContent = dso;
-        dsoSelect.appendChild(opt);
-      });
-      dsoSelect.value = selectedVal;
-    }
-
-    // মাস সিলেক্ট করলে যেন নির্দিষ্ট তারিখ ফাকা হয়ে মাসের ডাটা ফিল্টার হয়
-    function onMonthChange() {
-      document.getElementById("filterDate").value = "";
-      applyAdminFilters();
-    }
-
-    function applyAdminFilters() {
-      if (!globalAllData) {
-        renderMissingDsoList(new Set());
-        renderAdminTable(null);
-        return;
-      }
-      
-      let filterDate = document.getElementById("filterDate").value;
-      let filterMonth = document.getElementById("filterMonth").value;
-      let filterDso = document.getElementById("filterDso").value;
-
-      let filteredData = {};
-      let submittedDsoSet = new Set();
-
-      Object.keys(globalAllData).forEach(key => {
-        let item = globalAllData[key];
-        
-        let matchDate = !filterDate || item.date === filterDate;
-        let matchMonth = !filterMonth || item.month === filterMonth;
-        let matchDso = !filterDso || String(item.userId) === String(filterDso);
-
-        if (matchDate && matchMonth) {
-          if (item.userId) submittedDsoSet.add(String(item.userId).trim());
-        }
-
-        if (matchDate && matchMonth && matchDso) {
-          filteredData[key] = item;
-        }
-      });
-
-      renderMissingDsoList(submittedDsoSet);
-      renderAdminTable(filteredData);
-    }
-
-    function renderMissingDsoList(submittedSet) {
-      let startRange = parseInt(document.getElementById("filterDsoStart").value, 10) || 801;
-      let endRange = parseInt(document.getElementById("filterDsoEnd").value, 10) || 845;
-
-      document.getElementById("missingRangeText").innerText = `Range: ${startRange} to ${endRange}`;
-
-      let missingList = [];
-      for (let i = startRange; i <= endRange; i++) {
-        let idStr = String(i);
-        if (!submittedSet.has(idStr)) { missingList.push(idStr); }
-      }
-
-      const listContainer = document.getElementById("missingDsoList");
-      listContainer.innerHTML = "";
-      document.getElementById("missingCount").innerText = missingList.length;
-
-      if (missingList.length === 0) {
-        listContainer.innerHTML = "<span style='color:#2e7d32; font-weight:bold;'>🎉 সকল DSO সফলভাবে রিপোর্ট জমা দিয়েছেন!</span>";
-        return;
-      }
-
-      missingList.forEach(id => {
-        let badge = document.createElement("span");
-        badge.className = "missing-badge";
-        badge.innerText = `ID: ${id}`;
-        listContainer.appendChild(badge);
-      });
-    }
-
-    // আজকের দিনের ডাটায় রিসেট করার ফাংশন
-    function resetAdminFilters() {
-      let today = new Date().toISOString().split('T')[0];
-      document.getElementById("filterDate").value = today;
-      document.getElementById("filterMonth").value = "";
-      document.getElementById("filterDsoStart").value = "801";
-      document.getElementById("filterDsoEnd").value = "845";
-      document.getElementById("filterDso").value = "";
-      applyAdminFilters();
-    }
-
-    function deleteEntry(key) {
-      if (confirm("আপনি কি নিশ্চিত যে এই ডাটাটি ডিলিট করতে চান?")) {
-        database.ref('collections/' + key).remove()
-          .then(() => alert("ডাটা সফলভাবে ডিলিট হয়েছে!"))
-          .catch((err) => alert("ডিলিট করা যায়নি: " + err.message));
-      }
-    }
-
-    function makeImageTagWithAmt(url, amt) {
-      if (url && url.length > 20) {
-        return `<div class="slip-cell">
-                  <a href="${url}" target="_blank"><img src="${url}" class="slip-img-preview" title="বড় করে দেখতে ক্লিক করুন"></a>
-                  <span class="slip-amt">৳ ${formatBD(amt)}</span>
-                </div>`;
-      }
-      return '-';
-    }
-
-    function renderNotesBreakdown(notesObj, totalCash) {
-      if (!notesObj && !totalCash) return '-';
-      let html = `<div style="text-align:left;">`;
-      if (notesObj) {
-        if (notesObj.n1000) html += `<span class="note-badge"><b>1000×</b>${notesObj.n1000}</span> `;
-        if (notesObj.n500)  html += `<span class="note-badge"><b>500×</b>${notesObj.n500}</span> `;
-        if (notesObj.n200)  html += `<span class="note-badge"><b>200×</b>${notesObj.n200}</span> `;
-        if (notesObj.n100)  html += `<span class="note-badge"><b>100×</b>${notesObj.n100}</span> `;
-        if (notesObj.n50)   html += `<span class="note-badge"><b>50×</b>${notesObj.n50}</span> `;
-      }
-      html += `<div style="font-weight:bold; color:#00695c; margin-top:2px;">Total: ৳ ${formatBD(totalCash)}</div></div>`;
-      return html;
-    }
-
-    function renderAdminTable(data) {
-      const tbody = document.getElementById("adminTableBody");
-      tbody.innerHTML = "";
-      if (!data || Object.keys(data).length === 0) {
-        document.getElementById("totalEntriesCount").innerText = "0";
-        document.getElementById("totalReceivedAllSum").innerText = "0";
-        document.getElementById("totalReturnAllSum").innerText = "0";
-        document.getElementById("totalDiffAllSum").innerText = "0";
-        document.getElementById("totalBankDepSum").innerText = "0";
-        document.getElementById("totalSlipOcrSum").innerText = "0";
-        tbody.innerHTML = "<tr><td colspan='21' style='padding:15px; color:#c62828; font-size:14px; font-weight:bold;'>মনোনীত ফিল্টার অনুসারে কোনো তথ্য পাওয়া যায়নি!</td></tr>";
-        return;
-      }
-
-      const keys = Object.keys(data);
-      let totalRec = 0, totalRet = 0, totalBank = 0, grandSlipOcrSum = 0;
-
-      keys.forEach(key => {
-        let r = data[key];
-        let recSum = (parseFloat(r.emReceived)||0) + (parseFloat(r.cashReceived)||0) + (parseFloat(r.dsoReceived)||0);
-        let retSum = (parseFloat(r.emReturn)||0) + (parseFloat(r.bankDeposit)||0) + (parseFloat(r.dsoTransfer)||0) + (parseFloat(r.cashDeposit)||0);
-        let diff = recSum - retSum;
-
-        let rowSlipOcrSum = (parseFloat(r.slipAmt1)||0) + (parseFloat(r.slipAmt2)||0) + (parseFloat(r.slipAmt3)||0) + (parseFloat(r.slipAmt4)||0);
-
-        totalRec += recSum;
-        totalRet += retSum;
-        totalBank += parseFloat(r.bankDeposit) || 0;
-        grandSlipOcrSum += rowSlipOcrSum;
-
-        let row = `<tr>
-          <td>${r.date || ''}</td>
-          <td>${r.month || ''}</td>
-          <td><b>${r.userId || ''}</b></td>
-          <td class="bg-received">${formatBD(r.emReceived)}</td>
-          <td class="bg-received">${formatBD(r.cashReceived)}</td>
-          <td class="bg-received">${formatBD(r.dsoReceived)}</td>
-          <td class="bg-return">${formatBD(r.emReturn)}</td>
-          <td class="bg-return">${formatBD(r.bankDeposit)}</td>
-          <td class="bg-return" style="font-weight:bold; color:#00796b;">${r.bankName || '-'}</td>
-          <td class="bg-return">${formatBD(r.dsoTransfer)}</td>
-          <td class="bg-return">${formatBD(r.cashDeposit)}</td>
-          <td class="bg-received" style="font-weight:bold;">৳ ${formatBD(recSum)}</td>
-          <td class="bg-return" style="font-weight:bold;">৳ ${formatBD(retSum)}</td>
-          <td class="bg-diff">৳ ${formatBD(diff)}</td>
-          <td>${renderNotesBreakdown(r.notes, r.totalCash)}</td>
-          <td>${makeImageTagWithAmt(r.slip1, r.slipAmt1)}</td>
-          <td>${makeImageTagWithAmt(r.slip2, r.slipAmt2)}</td>
-          <td>${makeImageTagWithAmt(r.slip3, r.slipAmt3)}</td>
-          <td>${makeImageTagWithAmt(r.slip4, r.slipAmt4)}</td>
-          <td style="background:#e8f5e9; font-weight:bold; color:#2e7d32;">৳ ${formatBD(rowSlipOcrSum)}</td>
-          <td><button class="btn-delete" onclick="deleteEntry('${key}')">Delete</button></td>
-        </tr>`;
-        tbody.innerHTML += row;
-      });
-
-      document.getElementById("totalEntriesCount").innerText = formatBD(keys.length);
-      document.getElementById("totalReceivedAllSum").innerText = formatBD(totalRec);
-      document.getElementById("totalReturnAllSum").innerText = formatBD(totalRet);
-      document.getElementById("totalDiffAllSum").innerText = formatBD(totalRec - totalRet);
-      document.getElementById("totalBankDepSum").innerText = formatBD(totalBank);
-      document.getElementById("totalSlipOcrSum").innerText = formatBD(grandSlipOcrSum);
-    }
-
-    function renderDsoHistory(data) {
-      const tbody = document.getElementById("dsoHistoryBody");
-      tbody.innerHTML = "";
-      if (!data) return;
-
-      const entries = Object.values(data).filter(r => String(r.userId) === String(currentUser));
-      entries.forEach(r => {
-        let recSum = (parseFloat(r.emReceived)||0)+(parseFloat(r.cashReceived)||0)+(parseFloat(r.dsoReceived)||0);
-        let retSum = (parseFloat(r.emReturn)||0)+(parseFloat(r.bankDeposit)||0)+(parseFloat(r.dsoTransfer)||0)+(parseFloat(r.cashDeposit)||0);
-        let diff = recSum - retSum;
-
-        let slips = [];
-        if (r.slip1) slips.push(makeImageTagWithAmt(r.slip1, r.slipAmt1));
-        if (r.slip2) slips.push(makeImageTagWithAmt(r.slip2, r.slipAmt2));
-        if (r.slip3) slips.push(makeImageTagWithAmt(r.slip3, r.slipAmt3));
-        if (r.slip4) slips.push(makeImageTagWithAmt(r.slip4, r.slipAmt4));
-
-        let row = `<tr>
-          <td>${r.date || ''}</td>
-          <td class="bg-received" style="font-weight:bold;">৳ ${formatBD(recSum)}</td>
-          <td class="bg-return" style="font-weight:bold;">৳ ${formatBD(retSum)}</td>
-          <td class="bg-diff">৳ ${formatBD(diff)}</td>
-          <td class="bg-return" style="font-weight:bold; color:#00796b;">${r.bankName || '-'}</td>
-          <td>${renderNotesBreakdown(r.notes, r.totalCash)}</td>
-          <td style="display:flex; gap:5px; justify-content:center;">${slips.join(' ')}</td>
-        </tr>`;
-        tbody.innerHTML += row;
-      });
-    }
-
-    function exportToExcel() {
-      if (!globalAllData) { alert("ডাউনলোড করার মত কোনো ডাটা নেই!"); return; }
-
-      let filterDate = document.getElementById("filterDate").value;
-      let filterMonth = document.getElementById("filterMonth").value;
-      let filterDso = document.getElementById("filterDso").value;
-
-      let exportRows = [];
-
-      Object.values(globalAllData).forEach(r => {
-        let matchDate = !filterDate || r.date === filterDate;
-        let matchMonth = !filterMonth || r.month === filterMonth;
-        let matchDso = !filterDso || String(r.userId) === String(filterDso);
-
-        if (matchDate && matchMonth && matchDso) {
-          let recSum = (parseFloat(r.emReceived)||0) + (parseFloat(r.cashReceived)||0) + (parseFloat(r.dsoReceived)||0);
-          let retSum = (parseFloat(r.emReturn)||0) + (parseFloat(r.bankDeposit)||0) + (parseFloat(r.dsoTransfer)||0) + (parseFloat(r.cashDeposit)||0);
-          let diff = recSum - retSum;
-
-          let notesText = "";
-          if (r.notes) {
-            let n = r.notes;
-            notesText = `1000x${n.n1000||0}, 500x${n.n500||0}, 200x${n.n200||0}, 100x${n.n100||0}, 50x${n.n50||0}`;
-          }
-
-          exportRows.push({
-            "Date": r.date || '',
-            "Month": r.month || '',
-            "DSO ID": r.userId || '',
-            "e-Money Rec": r.emReceived || 0,
-            "Cash Rec": r.cashReceived || 0,
-            "DSO Rec": r.dsoReceived || 0,
-            "e-Money Return": r.emReturn || 0,
-            "Bank Deposit": r.bankDeposit || 0,
-            "Bank Name": r.bankName || '',
-            "DSO Transfer": r.dsoTransfer || 0,
-            "Cash Deposit": r.cashDeposit || 0,
-            "Total Received": recSum,
-            "Total Return": retSum,
-            "Difference": diff,
-            "Notes Breakdown": notesText,
-            "Total Cash Calc": r.totalCash || 0,
-            "Slip 1 Amt": r.slipAmt1 || 0,
-            "Slip 2 Amt": r.slipAmt2 || 0,
-            "Slip 3 Amt": r.slipAmt3 || 0,
-            "Slip 4 Amt": r.slipAmt4 || 0,
-            "Total Slip OCR": (r.slipAmt1||0)+(r.slipAmt2||0)+(r.slipAmt3||0)+(r.slipAmt4||0)
-          });
-        }
-      });
-
-      if (exportRows.length === 0) {
-        alert("ফিল্টারিং অনুলিপি অনুযায়ী কোনো ডাটা পাওয়া যায়নি!");
-        return;
-      }
-
-      const worksheet = XLSX.utils.json_to_sheet(exportRows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Collection Report");
-
-      let fileName = `Collection_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
-      XLSX.writeFile(workbook, fileName);
-    }
-  </script>
-</body>
-</html>
+    // MULTIPLE DSO RECEIVE DYNAMIC ROW LOGIC
+    function addDsoRecRow() {
+      const container = document.getElementById("dsoRecContainer");
+      const div = document.createElement("div");
+      div.className = "dso-rec-row";
+      div.innerHTML = `
+        <input type="text" class="dso-src-id" placeholder="DSO ID">
+        <input type="text" class="dso-src-amt amt-field" placeholder="পরিমাণ" oninput="handleAmountInput(this); calcDsoRecTotal();">
+        <button type="button" class="btn-remove-dso" onclick="removeDsoRecRow(
