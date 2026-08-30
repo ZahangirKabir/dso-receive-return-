@@ -155,10 +155,10 @@
           <div class="form-group"><label>e-Money Return</label><input type="number" id="emReturn" value="0" oninput="calcFormTotals()"></div>
           <div class="form-group"><label>Bank Deposit Amount</label><input type="number" id="bankDeposit" value="0" oninput="calcFormTotals()"></div>
           
-          <!-- SEPARATE BANK NAME INPUT -->
+          <!-- SEPARATE BANK NAME INPUT FIELD -->
           <div class="form-group">
-            <label style="color:#004d40;">Bank Name (আলাদা ব্যাংক নাম ফিল্ড)</label>
-            <input type="text" id="bankName" placeholder="ব্যাংকের নাম (স্লিপ আপলোড করলে অটোমেটিক বসবে বা নিজে লিখুন)">
+            <label style="color:#004d40;">Bank Name (সকল স্লিপের ব্যাংক নাম যুক্ত হবে)</label>
+            <input type="text" id="bankName" placeholder="ব্যাংকের নামসমূহ (প্রতিটি স্লিপের সাথে সাথে যুক্ত হবে)">
           </div>
 
           <div class="form-group"><label>DSO Transfer</label><input type="number" id="dsoTransfer" value="0" oninput="calcFormTotals()"></div>
@@ -252,7 +252,7 @@
     const database = firebase.database();
     let currentUser = null;
 
-    // বাংলাদেশের সাধারণ ব্যাংকসমূহের তালিকা (কীওয়ার্ড সনাক্তকরণের জন্য)
+    // বাংলাদেশের প্রধান ব্যাংকসমূহের তালিকা
     const knownBanks = [
       "Islami Bank", "Dutch-Bangla Bank", "DBBL", "BRAC Bank", "City Bank", 
       "Eastern Bank", "EBL", "United Commercial Bank", "UCB", "Sonali Bank", 
@@ -283,7 +283,7 @@
 
     function logout() { location.reload(); }
 
-    // স্লিপ থেকে অটোমেটিক ব্যাংক সনাক্তকরণ ফাংশন (OCR)
+    // একাধিক স্লিপের ক্ষেত্রে একই ব্যাংকের নামও বারবার কমা (,) দিয়ে যুক্ত হওয়ার OCR ফাংশন
     async function detectBankFromSlip(event) {
       const file = event.target.files[0];
       const statusElement = document.getElementById("ocrStatus");
@@ -291,7 +291,7 @@
 
       if (!file) return;
 
-      statusElement.innerText = "🔍 স্লিপ থেকে ব্যাংকের নাম রিড করা হচ্ছে...";
+      statusElement.innerText = "🔍 স্লিপ রিড করা হচ্ছে...";
 
       try {
         const result = await Tesseract.recognize(file, 'eng');
@@ -308,18 +308,20 @@
 
         if (foundBank) {
           let currentVal = bankInput.value.trim();
-          if (currentVal.length > 0 && !currentVal.includes(foundBank)) {
-            bankInput.value = currentVal + ", " + foundBank;
-          } else if (!currentVal.includes(foundBank)) {
+          
+          if (currentVal.length === 0) {
             bankInput.value = foundBank;
+          } else {
+            // একই ব্যাংকের নাম হলেও সবসময় সরাসরি কমা দিয়ে যুক্ত হবে
+            bankInput.value = currentVal + ", " + foundBank;
           }
-          statusElement.innerText = "✅ ব্যাংকের নাম অটো-ডিটেক্ট হয়েছে: " + foundBank;
+          statusElement.innerText = "✅ ব্যাংকের নাম যুক্ত হয়েছে: " + foundBank;
         } else {
-          statusElement.innerText = "ℹ️ স্লিপ থেকে ব্যাংকের নাম নিশ্চিত হওয়া যায়নি। অনুগ্রহ করে মানুয়ালি লিখুন।";
+          statusElement.innerText = "ℹ️ স্লিপ থেকে কোনো ব্যাংকের নাম রিড করা যায়নি।";
         }
       } catch (err) {
         console.error(err);
-        statusElement.innerText = "❌ স্লিপ রিড করতে ব্যর্থ হয়েছে।";
+        statusElement.innerText = "❌ স্লিপ রিড করতে সমস্যা হয়েছে।";
       }
     }
 
