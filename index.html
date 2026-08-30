@@ -8,7 +8,6 @@
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
@@ -20,6 +19,7 @@
     .login-box input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }
     .btn { background: #00695c; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; }
     .btn:hover { background: #004d40; }
+    .btn:disabled { background: #999; cursor: not-allowed; }
     .btn-logout { background: #d32f2f; width: auto; float: right; }
 
     .header-bar { overflow: hidden; margin-bottom: 20px; }
@@ -32,28 +32,35 @@
     .card.red { background: #ffebee; } .card.red p { color: #c62828; }
     .card.green { background: #e8f5e9; } .card.green p { color: #2e7d32; }
 
-    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 20px; }
-    .form-section { padding: 15px; border-radius: 6px; border: 1px solid #ddd; }
-    .section-received { background-color: #f1f8e9; border-color: #c8e6c9; }
-    .section-return { background-color: #fbe9e7; border-color: #ffccbc; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
     
-    .form-group { margin-bottom: 10px; }
-    .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
-    .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    .section-box { padding: 18px; border-radius: 8px; border: 2px solid #ccc; background: #fff; }
+    .section-received { border-color: #2e7d32; background-color: #f1f8e9; }
+    .section-return { border-color: #c62828; background-color: #fbe9e7; }
+    
+    .section-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid; }
+    .title-received { color: #2e7d32; border-color: #a5d6a7; }
+    .title-return { color: #c62828; border-color: #ef9a9a; }
+
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; }
+    .form-group input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
 
     .table-container { overflow-x: auto; margin-top: 15px; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: center; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: center; }
     table, th, td { border: 1px solid #ccc; vertical-align: middle; }
-    th { background: #37474f; color: white; padding: 8px; }
+    th { padding: 8px; }
     td { padding: 6px; }
     tr:nth-child(even) { background: #f9f9f9; }
 
-    /* Color styles for Received and Return */
-    .bg-received { background-color: #e8f5e9 !important; color: #2e7d32; }
-    .bg-return { background-color: #ffebee !important; color: #c62828; }
+    .th-info { background: #37474f; color: white; }
+    .th-received { background: #2e7d32; color: white; }
+    .th-return { background: #c62828; color: white; }
+    
+    .bg-received { background-color: #e8f5e9 !important; color: #1b5e20; }
+    .bg-return { background-color: #ffebee !important; color: #b71c1c; }
 
-    .slip-img-preview { width: 45px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; cursor: pointer; }
-    #ocrStatus { background: #fff3e0; padding: 8px; border-radius: 4px; color: #e65100; margin-bottom: 10px; display: none; font-size: 13px; }
+    .slip-img-preview { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; }
     .search-box { width: 100%; max-width: 400px; padding: 8px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; }
   </style>
 </head>
@@ -79,7 +86,7 @@
       <div class="summary-cards">
         <div class="card"><h3>মোট এন্ট্রি</h3><p id="totalEntriesCount">0</p></div>
         <div class="card green"><h3>মোট রিসিভড (All DSO)</h3><p>৳ <span id="totalReceivedAllSum">0</span></p></div>
-        <div class="card red"><h3>মোট রিটার্ন (All DSO + Bank Dep)</h3><p>৳ <span id="totalReturnAllSum">0</span></p></div>
+        <div class="card red"><h3>মোট রিটার্ন (All DSO)</h3><p>৳ <span id="totalReturnAllSum">0</span></p></div>
         <div class="card"><h3>মোট ব্যাংক ডিপোজিট</h3><p>৳ <span id="totalBankDepSum">0</span></p></div>
       </div>
 
@@ -89,11 +96,17 @@
         <table id="dataTable">
           <thead>
             <tr>
-              <th>Date</th><th>Month</th><th>DSO ID</th>
-              <th class="bg-received">e-Mon Rec</th><th class="bg-received">Cash Rec</th><th class="bg-received">DSO Rec</th>
-              <th class="bg-return">e-Mon Ret</th><th class="bg-return">Bank Dep</th><th class="bg-return">Bank Name</th><th class="bg-return">DSO Trans</th><th class="bg-return">Cash Dep</th>
-              <th>Calculated Cash</th>
-              <th>Slip 1</th><th>Slip 2</th><th>Slip 3</th><th>Slip 4</th>
+              <th colspan="3" class="th-info">Basic Info</th>
+              <th colspan="3" class="th-received">RECEIVED SECTION</th>
+              <th colspan="5" class="th-return">RETURN SECTION</th>
+              <th colspan="5" class="th-info">Other Details</th>
+            </tr>
+            <tr>
+              <th class="th-info">Date</th><th class="th-info">Month</th><th class="th-info">DSO ID</th>
+              <th class="th-received">e-Mon Rec</th><th class="th-received">Cash Rec</th><th class="th-received">DSO Rec</th>
+              <th class="th-return">e-Mon Ret</th><th class="th-return">Bank Dep</th><th class="th-return">Bank Name</th><th class="th-return">DSO Trans</th><th class="th-return">Cash Dep</th>
+              <th class="th-info">Calc Cash</th>
+              <th class="th-info">Slip 1</th><th class="th-info">Slip 2</th><th class="th-info">Slip 3</th><th class="th-info">Slip 4</th>
             </tr>
           </thead>
           <tbody id="adminTableBody"></tbody>
@@ -103,20 +116,19 @@
 
     <!-- DSO VIEW -->
     <div id="dsoView" style="display: none;">
-      <div id="ocrStatus"></div>
       
       <div class="form-grid">
-        <!-- RECEIVED SECTION (GREEN BG) -->
-        <div class="form-section section-received">
-          <h4 style="color: #2e7d32; margin-bottom: 10px;">রিসিভড (Received)</h4>
+        <!-- RECEIVED SECTION -->
+        <div class="section-box section-received">
+          <div class="section-title title-received">📥 ১. RECEIVED SECTION (রিসিভড হিসাব)</div>
           <div class="form-group"><label>e-Money Received</label><input type="number" id="emReceived" value="0"></div>
           <div class="form-group"><label>Cash Received</label><input type="number" id="cashReceived" value="0"></div>
           <div class="form-group"><label>DSO Received</label><input type="number" id="dsoReceived" value="0"></div>
         </div>
 
-        <!-- RETURN SECTION (RED BG) -->
-        <div class="form-section section-return">
-          <h4 style="color: #c62828; margin-bottom: 10px;">রিটার্ন (Return & Deposit)</h4>
+        <!-- RETURN SECTION -->
+        <div class="section-box section-return">
+          <div class="section-title title-return">📤 ২. RETURN SECTION (রিটার্ন ও ডিপোজিট)</div>
           <div class="form-group"><label>e-Money Return</label><input type="number" id="emReturn" value="0"></div>
           <div class="form-group"><label>Bank Deposit Amount</label><input type="number" id="bankDeposit" value="0"></div>
           <div class="form-group"><label>Bank Name (কমা দিয়ে একাধিক)</label><input type="text" id="bankName" placeholder="e.g. Pubali Bank, DBBL"></div>
@@ -125,19 +137,19 @@
         </div>
 
         <!-- DENOMINATION SECTION -->
-        <div class="form-section">
-          <h4>নোট এর হিসাব (Denomination)</h4>
+        <div class="section-box">
+          <div class="section-title" style="color: #37474f;">💵 ৩. ক্যাশ নোট গণনার হিসাব (Denomination)</div>
           <div class="form-group"><label>৳ 1000 ×</label><input type="number" class="denom" data-value="1000" value="0" oninput="calcCash()"></div>
           <div class="form-group"><label>৳ 500 ×</label><input type="number" class="denom" data-value="500" value="0" oninput="calcCash()"></div>
           <div class="form-group"><label>৳ 200 ×</label><input type="number" class="denom" data-value="200" value="0" oninput="calcCash()"></div>
           <div class="form-group"><label>৳ 100 ×</label><input type="number" class="denom" data-value="100" value="0" oninput="calcCash()"></div>
           <div class="form-group"><label>৳ 50 ×</label><input type="number" class="denom" data-value="50" value="0" oninput="calcCash()"></div>
-          <p style="margin-top: 10px;"><strong>Total Calculated Cash: ৳ <span id="totalCashDisplay">0</span></strong></p>
+          <p style="margin-top: 10px; font-size: 14px;"><strong>Total Calculated Cash: ৳ <span id="totalCashDisplay">0</span></strong></p>
         </div>
       </div>
 
       <h4>ডিপোজিট স্লিপ আপলোড (Max 4 Slips)</h4>
-      <div class="form-grid">
+      <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
         <div class="form-group"><label>Deposit Slip 1</label><input type="file" id="slip1" accept="image/*"></div>
         <div class="form-group"><label>Deposit Slip 2</label><input type="file" id="slip2" accept="image/*"></div>
         <div class="form-group"><label>Deposit Slip 3</label><input type="file" id="slip3" accept="image/*"></div>
@@ -151,12 +163,12 @@
         <table id="dsoHistoryTable">
           <thead>
             <tr>
-              <th>তারিখ</th>
-              <th class="bg-received">মোট রিসিভড</th>
-              <th class="bg-return">মোট রিটার্ন ও ডিপোজিট</th>
-              <th class="bg-return">ব্যাংকের নাম</th>
-              <th>ক্যাশ হিসাব</th>
-              <th>ডিপোজিট স্লিপ</th>
+              <th class="th-info">তারিখ</th>
+              <th class="th-received">মোট রিসিভড</th>
+              <th class="th-return">মোট রিটার্ন ও ডিপোজিট</th>
+              <th class="th-return">ব্যাংকের নাম</th>
+              <th class="th-info">ক্যাশ হিসাব</th>
+              <th class="th-info">ডিপোজিট স্লিপ</th>
             </tr>
           </thead>
           <tbody id="dsoHistoryBody"></tbody>
@@ -207,9 +219,9 @@
     function calcCash() {
       let total = 0;
       document.querySelectorAll(".denom").forEach(input => {
-        let val = parseFloat(input.value) || 0;
-        let note = parseFloat(input.getAttribute("data-value"));
-        total += val * note;
+        let count = parseInt(input.value, 10) || 0;
+        let noteValue = parseInt(input.getAttribute("data-value"), 10) || 0;
+        total += count * noteValue;
       });
       document.getElementById("totalCashDisplay").innerText = total;
     }
@@ -246,47 +258,73 @@
     }
 
     async function submitData() {
-      const bankDepositVal = parseFloat(document.getElementById("bankDeposit").value) || 0;
-      const bankNameVal = document.getElementById("bankName").value.trim();
-
       const subBtn = document.getElementById("subBtn");
       subBtn.disabled = true;
       subBtn.innerText = "Saving Data...";
 
-      const now = new Date();
-      const dateStr = now.toISOString().split('T')[0];
-      const monthStr = dateStr.substring(0, 7);
+      try {
+        const bankDepositVal = parseFloat(document.getElementById("bankDeposit").value) || 0;
+        const bankNameVal = document.getElementById("bankName").value.trim();
 
-      let file1 = document.getElementById("slip1").files[0];
-      let file2 = document.getElementById("slip2").files[0];
-      let file3 = document.getElementById("slip3").files[0];
-      let file4 = document.getElementById("slip4").files[0];
+        const now = new Date();
+        const dateStr = now.toISOString().split('T')[0];
+        const monthStr = dateStr.substring(0, 7);
 
-      let slip1 = await getBase64(file1);
-      let slip2 = await getBase64(file2);
-      let slip3 = await getBase64(file3);
-      let slip4 = await getBase64(file4);
+        let file1 = document.getElementById("slip1").files[0];
+        let file2 = document.getElementById("slip2").files[0];
+        let file3 = document.getElementById("slip3").files[0];
+        let file4 = document.getElementById("slip4").files[0];
 
-      const newRef = database.ref('collections').push();
-      await newRef.set({
-        date: dateStr,
-        month: monthStr,
-        userId: currentUser,
-        emReceived: document.getElementById("emReceived").value || 0,
-        cashReceived: document.getElementById("cashReceived").value || 0,
-        dsoReceived: document.getElementById("dsoReceived").value || 0,
-        emReturn: document.getElementById("emReturn").value || 0,
-        bankDeposit: bankDepositVal,
-        bankName: bankNameVal,
-        dsoTransfer: document.getElementById("dsoTransfer").value || 0,
-        cashDeposit: document.getElementById("cashDeposit").value || 0,
-        totalCash: document.getElementById("totalCashDisplay").innerText,
-        slip1: slip1, slip2: slip2, slip3: slip3, slip4: slip4,
-        timestamp: Date.now()
-      });
+        let slip1 = await getBase64(file1);
+        let slip2 = await getBase64(file2);
+        let slip3 = await getBase64(file3);
+        let slip4 = await getBase64(file4);
 
-      alert("ডাটা সফলভাবে সেভ হয়েছে!");
-      location.reload();
+        const newRef = database.ref('collections').push();
+        await newRef.set({
+          date: dateStr,
+          month: monthStr,
+          userId: currentUser,
+          emReceived: parseFloat(document.getElementById("emReceived").value) || 0,
+          cashReceived: parseFloat(document.getElementById("cashReceived").value) || 0,
+          dsoReceived: parseFloat(document.getElementById("dsoReceived").value) || 0,
+          emReturn: parseFloat(document.getElementById("emReturn").value) || 0,
+          bankDeposit: bankDepositVal,
+          bankName: bankNameVal,
+          dsoTransfer: parseFloat(document.getElementById("dsoTransfer").value) || 0,
+          cashDeposit: parseFloat(document.getElementById("cashDeposit").value) || 0,
+          totalCash: parseFloat(document.getElementById("totalCashDisplay").innerText) || 0,
+          slip1: slip1, slip2: slip2, slip3: slip3, slip4: slip4,
+          timestamp: Date.now()
+        });
+
+        alert("ডাটা সফলভাবে সেভ হয়েছে!");
+        resetForm();
+      } catch (err) {
+        alert("ডাটা সেভ করতে সমস্যা হয়েছে: " + err.message);
+      } finally {
+        subBtn.disabled = false;
+        subBtn.innerText = "Submit Data";
+      }
+    }
+
+    function resetForm() {
+      document.getElementById("emReceived").value = 0;
+      document.getElementById("cashReceived").value = 0;
+      document.getElementById("dsoReceived").value = 0;
+      document.getElementById("emReturn").value = 0;
+      document.getElementById("bankDeposit").value = 0;
+      document.getElementById("bankName").value = "";
+      document.getElementById("dsoTransfer").value = 0;
+      document.getElementById("cashDeposit").value = 0;
+      
+      document.querySelectorAll(".denom").forEach(input => input.value = 0);
+      document.getElementById("totalCashDisplay").innerText = "0";
+
+      document.getElementById("slip1").value = "";
+      document.getElementById("slip2").value = "";
+      document.getElementById("slip3").value = "";
+      document.getElementById("slip4").value = "";
     }
 
     function listenRealtimeData() {
