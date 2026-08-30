@@ -32,6 +32,21 @@
     .btn-delete { background: #c62828; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
     .btn-delete:hover { background: #b71c1c; }
 
+    /* Slip Cancel Button Styling */
+    .btn-clear-slip {
+      background: #d32f2f;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 12px;
+      display: none;
+      margin-top: 5px;
+    }
+    .btn-clear-slip:hover { background: #b71c1c; }
+
     .header-bar { overflow: hidden; margin-bottom: 20px; }
     .header-bar h2 { float: left; }
 
@@ -196,26 +211,39 @@
 
       <h4>ডিপোজিট স্লিপ আপলোড (Max 4 Slips)</h4>
       <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+        
+        <!-- SLIP 1 -->
         <div class="form-group">
           <label>Deposit Slip 1</label>
           <input type="file" id="slip1" accept="image/*" onchange="processSlipOCR(event, 1)">
           <input type="hidden" id="slipAmt1" value="0">
+          <button type="button" id="clearSlipBtn1" class="btn-clear-slip" onclick="clearSingleSlip(1)">✖ Cancel / Clear</button>
         </div>
+
+        <!-- SLIP 2 -->
         <div class="form-group">
           <label>Deposit Slip 2</label>
           <input type="file" id="slip2" accept="image/*" onchange="processSlipOCR(event, 2)">
           <input type="hidden" id="slipAmt2" value="0">
+          <button type="button" id="clearSlipBtn2" class="btn-clear-slip" onclick="clearSingleSlip(2)">✖ Cancel / Clear</button>
         </div>
+
+        <!-- SLIP 3 -->
         <div class="form-group">
           <label>Deposit Slip 3</label>
           <input type="file" id="slip3" accept="image/*" onchange="processSlipOCR(event, 3)">
           <input type="hidden" id="slipAmt3" value="0">
+          <button type="button" id="clearSlipBtn3" class="btn-clear-slip" onclick="clearSingleSlip(3)">✖ Cancel / Clear</button>
         </div>
+
+        <!-- SLIP 4 -->
         <div class="form-group">
           <label>Deposit Slip 4</label>
           <input type="file" id="slip4" accept="image/*" onchange="processSlipOCR(event, 4)">
           <input type="hidden" id="slipAmt4" value="0">
+          <button type="button" id="clearSlipBtn4" class="btn-clear-slip" onclick="clearSingleSlip(4)">✖ Cancel / Clear</button>
         </div>
+
       </div>
       <div id="ocrStatus" class="ocr-status"></div>
 
@@ -277,7 +305,7 @@
 
     // ইনপুটে টাইপ করার সাথে সাথে অটো কমা ফরম্যাটিং হ্যান্ডলার
     function handleAmountInput(inputEl) {
-      let rawVal = inputEl.value.replace(/[^0-9.]/g, ''); // শুধু সংখ্যা ও ডট রাখবে
+      let rawVal = inputEl.value.replace(/[^0-9.]/g, ''); 
       if (rawVal === '') {
         inputEl.value = '';
         return;
@@ -324,14 +352,29 @@
 
     function logout() { location.reload(); }
 
+    // নির্দিষ্ট কোনো স্লিপ ইনপুট ও অপশন বাতিল/রিসেট করার লাল X বাটনের কাজ
+    function clearSingleSlip(index) {
+      document.getElementById("slip" + index).value = "";
+      document.getElementById("slipAmt" + index).value = 0;
+      document.getElementById("clearSlipBtn" + index).style.display = "none";
+      document.getElementById("ocrStatus").innerText = `🗑️ স্লিপ ${index} বাতিল করা হয়েছে।`;
+    }
+
     // OCR: স্লিপ থেকে ব্যাংকের নাম এবং টাকার পরিমাণ (Amount) সনাক্তকরণ
     async function processSlipOCR(event, index) {
       const file = event.target.files[0];
       const statusElement = document.getElementById("ocrStatus");
       const bankInput = document.getElementById("bankName");
       const amtInput = document.getElementById("slipAmt" + index);
+      const clearBtn = document.getElementById("clearSlipBtn" + index);
 
-      if (!file) return;
+      if (!file) {
+        if (clearBtn) clearBtn.style.display = "none";
+        return;
+      }
+
+      // ফাইল সিলেক্ট করলে লাল ক্যানসেল বাটনটি দৃশ্যমান হবে
+      if (clearBtn) clearBtn.style.display = "inline-block";
 
       statusElement.innerText = `🔍 স্লিপ ${index} রিড করা হচ্ছে... (Bank & Amount)`;
 
@@ -499,8 +542,7 @@
       document.getElementById("totalCashDisplay").innerText = "0";
 
       for(let i=1; i<=4; i++){
-        document.getElementById("slip"+i).value = "";
-        document.getElementById("slipAmt"+i).value = 0;
+        clearSingleSlip(i);
       }
       document.getElementById("ocrStatus").innerText = "";
       calcFormTotals();
