@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Dashboard Summary</title>
   <style>
-    /* ১. লেআউট ও কন্টেইনার স্টাইল */
+    /* ১. কন্টেইনার লেআউট */
     .summary-cards-container {
       display: flex;
       flex-wrap: wrap;
@@ -16,7 +16,7 @@
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
 
-    /* ২. ইন্ডিভিজুয়াল কার্ড স্টাইল */
+    /* ২. কার্ড বেসিক স্টাইল */
     .card {
       flex: 1 1 calc(12.5% - 12px);
       min-width: 130px;
@@ -40,17 +40,19 @@
       font-weight: 700;
     }
 
-    /* ৩. কালার স্কিম (ছবি ও নতুন কার্ড অনুযায়ী) */
+    /* ৩. থিম কালারসমূহ */
     .card-teal { background-color: #e6f4f1; color: #0f6259; }
     .card-green { background-color: #eaf5ea; color: #1e7039; }
     .card-pink { background-color: #fdeaea; color: #a91d3a; }
     .card-orange { background-color: #fef4e5; color: #c06000; }
     .card-blue { background-color: #e8f4f8; color: #136a8a; }
     .card-light-green { background-color: #eaf6ec; color: #1f6b3e; }
+    
+    /* নতুন কার্ড ২টি কালার */
     .card-cyan { background-color: #e0f7fa; color: #00838f; }
     .card-purple { background-color: #f3e5f5; color: #6a1b9a; }
 
-    /* ৪. রেসপন্সিভ ডিজাইন */
+    /* ৪. রেসপন্সিভ স্টাইল */
     @media (max-width: 1024px) {
       .card { flex: 1 1 calc(25% - 12px); }
     }
@@ -67,19 +69,19 @@
     <!-- ১. মোট এন্ট্রি সংখ্যা -->
     <div class="card card-teal">
       <div class="card-title">মোট এন্ট্রি সংখ্যা</div>
-      <div class="card-value" id="totalEntries">4</div>
+      <div class="card-value" id="totalEntries">0</div>
     </div>
 
     <!-- ২. মোট রিসিভড -->
     <div class="card card-green">
       <div class="card-title">মোট রিসিভড</div>
-      <div class="card-value" id="totalReceived">৳ 12,10,000</div>
+      <div class="card-value" id="totalReceived">৳ 0</div>
     </div>
 
     <!-- ৩. মোট রিটার্ন -->
     <div class="card card-pink">
       <div class="card-title">মোট রিটার্ন</div>
-      <div class="card-value" id="totalReturn">৳ 12,10,000</div>
+      <div class="card-value" id="totalReturn">৳ 0</div>
     </div>
 
     <!-- ৪. মোট ব্যবধান (Diff) -->
@@ -91,13 +93,13 @@
     <!-- ৫. মোট ব্যাংক ডিপোজিট -->
     <div class="card card-blue">
       <div class="card-title">মোট ব্যাংক ডিপোজিট</div>
-      <div class="card-value" id="totalBankDeposit">৳ 1,00,000</div>
+      <div class="card-value" id="totalBankDeposit">৳ 0</div>
     </div>
 
     <!-- ৬. মোট স্লিপ অ্যামাউন্ট (OCR) -->
     <div class="card card-light-green">
       <div class="card-title">মোট স্লিপ অ্যামাউন্ট (OCR)</div>
-      <div class="card-value" id="totalSlipAmount">৳ 1,00,010</div>
+      <div class="card-value" id="totalSlipAmount">৳ 0</div>
     </div>
 
     <!-- ৭. নতুন: মোট DSO রিসিভড -->
@@ -115,7 +117,7 @@
   </div>
 
   <script>
-    // আগের সকল ফিল্ড ঠিক রেখে নতুন ২টি ফিল্ড হিসাব ও প্রদর্শন করার ফাংশন
+    // আগের সমস্ত ক্যালকুলেশন ও ফিল্টার ঠিক রেখে নতুন ডাটা হিসাব করার লজিক
     function updateAdminDashboardTotals(dataList) {
       if (!dataList || !Array.isArray(dataList)) return;
 
@@ -125,37 +127,39 @@
       let totalDiff = 0;
       let totalBankDeposit = 0;
       let totalSlipAmount = 0;
+      
+      // নতুন ফিল্ড ২টি
       let totalDsoReceived = 0;
       let totalDsoTransfer = 0;
 
-      // ডাটা লিস্ট লুপ করে সবগুলোর সমষ্টি বের করা
+      // ডাটা সাম বা যোগ করার লুপ
       dataList.forEach(item => {
         totalReceived += parseFloat(item.received || item.totalReceived || 0);
         totalReturn += parseFloat(item.returnAmount || item.totalReturn || 0);
         totalDiff += parseFloat(item.diff || item.totalDiff || 0);
         totalBankDeposit += parseFloat(item.bankDeposit || item.totalBankDeposit || 0);
         totalSlipAmount += parseFloat(item.slipAmount || item.totalSlipAmount || 0);
-        
-        // নতুন যুক্ত করা DSO ফিল্ড
+
+        // নতুন ২টি ফিল্ডের হিসাব
         totalDsoReceived += parseFloat(item.dsoReceived || item.totalDsoReceived || 0);
         totalDsoTransfer += parseFloat(item.dsoTransfer || item.totalDsoTransfer || 0);
       });
 
-      // HTML DOM Elements আপডেট
+      // DOM Value আপডেট
       document.getElementById('totalEntries').innerText = totalEntries;
       document.getElementById('totalReceived').innerText = '৳ ' + totalReceived.toLocaleString('en-IN');
       document.getElementById('totalReturn').innerText = '৳ ' + totalReturn.toLocaleString('en-IN');
       document.getElementById('totalDiff').innerText = '৳ ' + totalDiff.toLocaleString('en-IN');
       document.getElementById('totalBankDeposit').innerText = '৳ ' + totalBankDeposit.toLocaleString('en-IN');
       document.getElementById('totalSlipAmount').innerText = '৳ ' + totalSlipAmount.toLocaleString('en-IN');
-      
-      // নতুন ২টি কার্ড আপডেট
+
+      // নতুন ২টি কার্ডের মান সেট
       document.getElementById('totalDsoReceived').innerText = '৳ ' + totalDsoReceived.toLocaleString('en-IN');
       document.getElementById('totalDsoTransfer').innerText = '৳ ' + totalDsoTransfer.toLocaleString('en-IN');
     }
 
-    // আপনার ডাইনামিক ডাটা পাস করে ফাংশনটি কল করুন:
-    // updateAdminDashboardTotals(yourDataArray);
+    // আপনার মূল ডাটা অ্যারে ফিল্টার হওয়ার পর এভাবে পাস করবেন:
+    // updateAdminDashboardTotals(filteredDataList);
   </script>
 
 </body>
