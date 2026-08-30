@@ -188,7 +188,7 @@
         
         <div class="filter-group">
           <label>মাস নির্বাচন করুন</label>
-          <input type="month" id="filterMonth" onchange="onMonthChange()">
+          <input type="month" id="filterMonth" onchange="applyAdminFilters()">
         </div>
 
         <div class="filter-group">
@@ -208,7 +208,7 @@
           </select>
         </div>
 
-        <button class="btn-reset" onclick="resetAdminFilters()">🔄 আজ দিনের হিসাব (Today)</button>
+        <button class="btn-reset" onclick="resetAdminFilters()">🔄 Reset Filters</button>
         <button class="btn-excel" onclick="exportToExcel()">📥 Download Excel Report</button>
       </div>
 
@@ -432,7 +432,6 @@
         document.getElementById("adminView").style.display = "block";
         document.getElementById("dsoView").style.display = "none";
 
-        // ডিফল্টভাবে আজকের তারিখ অটো সেট হবে
         let today = new Date().toISOString().split('T')[0];
         document.getElementById("filterDate").value = today;
       } else {
@@ -676,12 +675,6 @@
       dsoSelect.value = selectedVal;
     }
 
-    // মাস সিলেক্ট করলে যেন নির্দিষ্ট তারিখ ফাকা হয়ে মাসের ডাটা ফিল্টার হয়
-    function onMonthChange() {
-      document.getElementById("filterDate").value = "";
-      applyAdminFilters();
-    }
-
     function applyAdminFilters() {
       if (!globalAllData) {
         renderMissingDsoList(new Set());
@@ -698,7 +691,6 @@
 
       Object.keys(globalAllData).forEach(key => {
         let item = globalAllData[key];
-        
         let matchDate = !filterDate || item.date === filterDate;
         let matchMonth = !filterMonth || item.month === filterMonth;
         let matchDso = !filterDso || String(item.userId) === String(filterDso);
@@ -745,10 +737,8 @@
       });
     }
 
-    // আজকের দিনের ডাটায় রিসেট করার ফাংশন
     function resetAdminFilters() {
-      let today = new Date().toISOString().split('T')[0];
-      document.getElementById("filterDate").value = today;
+      document.getElementById("filterDate").value = "";
       document.getElementById("filterMonth").value = "";
       document.getElementById("filterDsoStart").value = "801";
       document.getElementById("filterDsoEnd").value = "845";
@@ -791,14 +781,13 @@
     function renderAdminTable(data) {
       const tbody = document.getElementById("adminTableBody");
       tbody.innerHTML = "";
-      if (!data || Object.keys(data).length === 0) {
+      if (!data) {
         document.getElementById("totalEntriesCount").innerText = "0";
         document.getElementById("totalReceivedAllSum").innerText = "0";
         document.getElementById("totalReturnAllSum").innerText = "0";
         document.getElementById("totalDiffAllSum").innerText = "0";
         document.getElementById("totalBankDepSum").innerText = "0";
         document.getElementById("totalSlipOcrSum").innerText = "0";
-        tbody.innerHTML = "<tr><td colspan='21' style='padding:15px; color:#c62828; font-size:14px; font-weight:bold;'>মনোনীত ফিল্টার অনুসারে কোনো তথ্য পাওয়া যায়নি!</td></tr>";
         return;
       }
 
