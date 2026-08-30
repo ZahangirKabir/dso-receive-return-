@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin DSO Summary Dashboard</title>
+  <title>Admin Dashboard Summary</title>
   <style>
-    /* ১. মেইন কন্টেইনার স্টাইল */
+    /* ১. লেআউট ও কন্টেইনার স্টাইল */
     .summary-cards-container {
       display: flex;
       flex-wrap: wrap;
@@ -16,9 +16,9 @@
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
 
-    /* ২. কার্ডের বেসিক স্টাইল */
+    /* ২. ইন্ডিভিজুয়াল কার্ড স্টাইল */
     .card {
-      flex: 1 1 calc(12.5% - 12px); /* ৮টি কার্ড যাতে এক সারিতে বা রেসপন্সিভভাবে সুন্দরভাবে বসে */
+      flex: 1 1 calc(12.5% - 12px);
       min-width: 130px;
       padding: 12px 10px;
       border-radius: 6px;
@@ -40,19 +40,17 @@
       font-weight: 700;
     }
 
-    /* ৩. কালার থিম (ইমেজ অনুযায়ী) */
+    /* ৩. কালার স্কিম (ছবি ও নতুন কার্ড অনুযায়ী) */
     .card-teal { background-color: #e6f4f1; color: #0f6259; }
     .card-green { background-color: #eaf5ea; color: #1e7039; }
     .card-pink { background-color: #fdeaea; color: #a91d3a; }
     .card-orange { background-color: #fef4e5; color: #c06000; }
     .card-blue { background-color: #e8f4f8; color: #136a8a; }
     .card-light-green { background-color: #eaf6ec; color: #1f6b3e; }
-    
-    /* নতুন ২টি কার্ডের ব্যাকগ্রাউন্ড ও টেক্সট কালার */
     .card-cyan { background-color: #e0f7fa; color: #00838f; }
     .card-purple { background-color: #f3e5f5; color: #6a1b9a; }
 
-    /* ৪. ছোট স্ক্রিনের জন্য রেসপন্সিভ ডিজাইন */
+    /* ৪. রেসপন্সিভ ডিজাইন */
     @media (max-width: 1024px) {
       .card { flex: 1 1 calc(25% - 12px); }
     }
@@ -69,19 +67,19 @@
     <!-- ১. মোট এন্ট্রি সংখ্যা -->
     <div class="card card-teal">
       <div class="card-title">মোট এন্ট্রি সংখ্যা</div>
-      <div class="card-value" id="totalEntries">0</div>
+      <div class="card-value" id="totalEntries">4</div>
     </div>
 
     <!-- ২. মোট রিসিভড -->
     <div class="card card-green">
       <div class="card-title">মোট রিসিভড</div>
-      <div class="card-value" id="totalReceived">৳ 0</div>
+      <div class="card-value" id="totalReceived">৳ 12,10,000</div>
     </div>
 
     <!-- ৩. মোট রিটার্ন -->
     <div class="card card-pink">
       <div class="card-title">মোট রিটার্ন</div>
-      <div class="card-value" id="totalReturn">৳ 0</div>
+      <div class="card-value" id="totalReturn">৳ 12,10,000</div>
     </div>
 
     <!-- ৪. মোট ব্যবধান (Diff) -->
@@ -93,13 +91,13 @@
     <!-- ৫. মোট ব্যাংক ডিপোজিট -->
     <div class="card card-blue">
       <div class="card-title">মোট ব্যাংক ডিপোজিট</div>
-      <div class="card-value" id="totalBankDeposit">৳ 0</div>
+      <div class="card-value" id="totalBankDeposit">৳ 1,00,000</div>
     </div>
 
     <!-- ৬. মোট স্লিপ অ্যামাউন্ট (OCR) -->
     <div class="card card-light-green">
       <div class="card-title">মোট স্লিপ অ্যামাউন্ট (OCR)</div>
-      <div class="card-value" id="totalSlipAmount">৳ 0</div>
+      <div class="card-value" id="totalSlipAmount">৳ 1,00,010</div>
     </div>
 
     <!-- ৭. নতুন: মোট DSO রিসিভড -->
@@ -117,8 +115,8 @@
   </div>
 
   <script>
-    // মূল হিসাব ও ডাটা আপডেটের ফাংশন
-    function calculateAdminTotals(dataList) {
+    // আগের সকল ফিল্ড ঠিক রেখে নতুন ২টি ফিল্ড হিসাব ও প্রদর্শন করার ফাংশন
+    function updateAdminDashboardTotals(dataList) {
       if (!dataList || !Array.isArray(dataList)) return;
 
       let totalEntries = dataList.length;
@@ -127,61 +125,37 @@
       let totalDiff = 0;
       let totalBankDeposit = 0;
       let totalSlipAmount = 0;
-      
-      // নতুন ২টি ফিল্ডের ভেরিয়েবল
       let totalDsoReceived = 0;
       let totalDsoTransfer = 0;
 
-      // ডাটা লুপের মাধ্যমে যোগফল বের করা
+      // ডাটা লিস্ট লুপ করে সবগুলোর সমষ্টি বের করা
       dataList.forEach(item => {
         totalReceived += parseFloat(item.received || item.totalReceived || 0);
         totalReturn += parseFloat(item.returnAmount || item.totalReturn || 0);
         totalDiff += parseFloat(item.diff || item.totalDiff || 0);
         totalBankDeposit += parseFloat(item.bankDeposit || item.totalBankDeposit || 0);
         totalSlipAmount += parseFloat(item.slipAmount || item.totalSlipAmount || 0);
-
-        // DSO রিসিভড ও ট্রান্সফার সাম করা
+        
+        // নতুন যুক্ত করা DSO ফিল্ড
         totalDsoReceived += parseFloat(item.dsoReceived || item.totalDsoReceived || 0);
         totalDsoTransfer += parseFloat(item.dsoTransfer || item.totalDsoTransfer || 0);
       });
 
-      // UI (DOM) এ মানগুলো প্রদর্শন করা
+      // HTML DOM Elements আপডেট
       document.getElementById('totalEntries').innerText = totalEntries;
       document.getElementById('totalReceived').innerText = '৳ ' + totalReceived.toLocaleString('en-IN');
       document.getElementById('totalReturn').innerText = '৳ ' + totalReturn.toLocaleString('en-IN');
       document.getElementById('totalDiff').innerText = '৳ ' + totalDiff.toLocaleString('en-IN');
       document.getElementById('totalBankDeposit').innerText = '৳ ' + totalBankDeposit.toLocaleString('en-IN');
       document.getElementById('totalSlipAmount').innerText = '৳ ' + totalSlipAmount.toLocaleString('en-IN');
-
-      // নতুন ২টি কার্ডে মান আপডেট
+      
+      // নতুন ২টি কার্ড আপডেট
       document.getElementById('totalDsoReceived').innerText = '৳ ' + totalDsoReceived.toLocaleString('en-IN');
       document.getElementById('totalDsoTransfer').innerText = '৳ ' + totalDsoTransfer.toLocaleString('en-IN');
     }
 
-    // নমুনা টেস্ট ডাটা (এটি আপনার মূল DSO ডাটা অ্যারে থেকে রান হবে)
-    const dsoDataArray = [
-      {
-        received: 605000,
-        returnAmount: 605000,
-        diff: 0,
-        bankDeposit: 50000,
-        slipAmount: 50005,
-        dsoReceived: 200000,
-        dsoTransfer: 150000
-      },
-      {
-        received: 605000,
-        returnAmount: 605000,
-        diff: 0,
-        bankDeposit: 50000,
-        slipAmount: 50005,
-        dsoReceived: 300000,
-        dsoTransfer: 100000
-      }
-    ];
-
-    // টেস্ট ডাটা দিয়ে হিসাব কল করার উদাহরণ
-    calculateAdminTotals(dsoDataArray);
+    // আপনার ডাইনামিক ডাটা পাস করে ফাংশনটি কল করুন:
+    // updateAdminDashboardTotals(yourDataArray);
   </script>
 
 </body>
