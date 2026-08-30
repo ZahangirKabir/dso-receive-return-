@@ -43,8 +43,12 @@
     .btn-cancel { background: #d32f2f; color: white; }
     .btn-cancel:hover { background: #b71c1c; }
     .btn-logout { background: #d32f2f; width: auto; float: right; padding: 8px 15px; font-weight: normal; }
-    .btn-delete { background: #c62828; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    
+    .btn-delete { background: #c62828; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-left: 3px; }
     .btn-delete:hover { background: #b71c1c; }
+
+    .btn-details { background: #0288d1; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; }
+    .btn-details:hover { background: #01579b; }
 
     .btn-clear-slip {
       background: #d32f2f; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; display: none; margin-top: 5px;
@@ -116,6 +120,25 @@
 
     .note-badge { display: inline-block; background: #eceff1; border: 1px solid #b0bec5; padding: 2px 5px; margin: 1px; border-radius: 3px; font-size: 11px; text-align: left; white-space: nowrap; }
     .dso-badge { display: inline-block; background: #e0f2f1; border: 1px solid #80cbc4; color: #004d40; padding: 2px 5px; margin: 1px; border-radius: 3px; font-size: 11px; font-weight: bold; }
+
+    /* Modal Styles for Details Popup */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000;
+    }
+    .modal-content {
+      background: white; width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto;
+      border-radius: 8px; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative;
+    }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00695c; padding-bottom: 10px; margin-bottom: 15px; }
+    .modal-header h3 { color: #00695c; }
+    .modal-close { background: #c62828; color: white; border: none; font-size: 16px; font-weight: bold; padding: 4px 10px; border-radius: 4px; cursor: pointer; }
+    .detail-section { margin-bottom: 15px; padding: 12px; border-radius: 6px; background: #f9f9f9; border: 1px solid #ddd; }
+    .detail-section h4 { color: #37474f; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 4px; }
+    .detail-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 13px; }
+    .slip-grid-modal { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-top: 8px; }
+    .slip-card-modal { border: 1px solid #ccc; padding: 5px; border-radius: 4px; text-align: center; background: #fff; }
+    .slip-card-modal img { width: 100%; height: 100px; object-fit: cover; border-radius: 4px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -344,6 +367,19 @@
           </thead>
           <tbody id="dsoHistoryBody"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAILS MODAL POPUP -->
+  <div id="detailsModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle">Collection Details</h3>
+        <button class="modal-close" onclick="closeDetailsModal()">✖ Close</button>
+      </div>
+      <div id="modalBody">
+        <!-- Dynamic content will be injected here -->
       </div>
     </div>
   </div>
@@ -903,12 +939,145 @@
           <td class="slip-cell">${renderSlipTd(item.slip3, slipAmt3)}</td>
           <td class="slip-cell">${renderSlipTd(item.slip4, slipAmt4)}</td>
           <td style="font-weight:bold; color:#00695c;">৳ ${formatBD(totalSlipAmt)}</td>
-          <td><button class="btn-delete" onclick="deleteEntry('${key}')">🗑️ Delete</button></td>
+          <td style="white-space: nowrap;">
+            <button class="btn-details" onclick="showDetailsModal('${key}')">ℹ️ Details</button>
+            <button class="btn-delete" onclick="deleteEntry('${key}')">🗑️ Delete</button>
+          </td>
         `;
         tbody.appendChild(tr);
       });
 
       updateSummaryCards(count, totalRecSum, totalRetSum, totalDiffSum, totalBankDepSum, totalSlipOcrSum);
+    }
+
+    /* SHOW DETAILS POPUP MODAL FUNCTION */
+    function showDetailsModal(key) {
+      if (!globalAllData || !globalAllData[key]) return;
+      const item = globalAllData[key];
+
+      document.getElementById("modalTitle").innerText = `Details Report - DSO: ${item.userId} (${item.date})`;
+
+      // Received Calculations
+      let emRec = item.emReceived || 0;
+      let cashRec = item.cashReceived || 0;
+      let dsoRecSum = 0;
+      let dsoRecHtml = "";
+      if (Array.isArray(item.dsoReceivedList) && item.dsoReceivedList.length > 0) {
+        item.dsoReceivedList.forEach(d => {
+          dsoRecSum += d.amount || 0;
+          dsoRecHtml += `<div class="detail-row"><span>• DSO ${d.dsoId} হতে গ্রহণ:</span><b>৳ ${formatBD(d.amount)}</b></div>`;
+        });
+      } else if (item.dsoReceived) {
+        dsoRecSum = item.dsoReceived;
+        dsoRecHtml = `<div class="detail-row"><span>• DSO হতে গ্রহণ:</span><b>৳ ${formatBD(dsoRecSum)}</b></div>`;
+      } else {
+        dsoRecHtml = `<div class="detail-row" style="color:#777;"><span>• অন্য DSO হতে গ্রহণ নাই</span><b>৳ 0</b></div>`;
+      }
+      let totalRec = emRec + cashRec + dsoRecSum;
+
+      // Return Calculations
+      let emRet = item.emReturn || 0;
+      let bankDep = item.bankDeposit || 0;
+      let cashDep = item.cashDeposit || 0;
+      let dsoTransSum = 0;
+      let dsoTransHtml = "";
+      if (Array.isArray(item.dsoTransferList) && item.dsoTransferList.length > 0) {
+        item.dsoTransferList.forEach(d => {
+          dsoTransSum += d.amount || 0;
+          dsoTransHtml += `<div class="detail-row"><span>• DSO ${d.dsoId}-কে প্রদান:</span><b>৳ ${formatBD(d.amount)}</b></div>`;
+        });
+      } else if (item.dsoTransfer) {
+        dsoTransSum = item.dsoTransfer;
+        dsoTransHtml = `<div class="detail-row"><span>• DSO-কে প্রদান:</span><b>৳ ${formatBD(dsoTransSum)}</b></div>`;
+      } else {
+        dsoTransHtml = `<div class="detail-row" style="color:#777;"><span>• অন্য DSO-কে প্রদান নাই</span><b>৳ 0</b></div>`;
+      }
+      let totalRet = emRet + bankDep + dsoTransSum + cashDep;
+      let diff = totalRec - totalRet;
+
+      // Notes Calculation
+      let notes = item.notes || {};
+      let n1000 = notes.n1000 || 0, n500 = notes.n500 || 0, n200 = notes.n200 || 0, n100 = notes.n100 || 0, n50 = notes.n50 || 0;
+      let notesTotal = (n1000*1000) + (n500*500) + (n200*200) + (n100*100) + (n50*50);
+
+      // Slips
+      let slips = [
+        { img: item.slip1, amt: item.slipAmt1 },
+        { img: item.slip2, amt: item.slipAmt2 },
+        { img: item.slip3, amt: item.slipAmt3 },
+        { img: item.slip4, amt: item.slipAmt4 }
+      ];
+      let slipsHtml = "";
+      let slipCount = 0;
+      slips.forEach((s, idx) => {
+        if (s.img || s.amt) {
+          slipCount++;
+          slipsHtml += `
+            <div class="slip-card-modal">
+              <div style="font-size:11px; font-weight:bold; margin-bottom:3px;">Slip ${idx+1}</div>
+              ${s.img ? `<img src="${s.img}" onclick="openImageModal('${s.img}')">` : '<div style="height:100px; line-height:100px; color:#aaa; font-size:12px;">No Image</div>'}
+              <div style="font-size:11px; font-weight:bold; color:#00695c; margin-top:3px;">৳ ${formatBD(s.amt || 0)}</div>
+            </div>
+          `;
+        }
+      });
+      if (slipCount === 0) slipsHtml = `<div style="font-size:13px; color:#777;">কোনো স্লিপ আপলোড করা হয়নি।</div>`;
+
+      let modalContentHtml = `
+        <div class="detail-section" style="background: #e8f5e9;">
+          <h4 style="color: #2e7d32;">📥 Received Section Breakdown</h4>
+          <div class="detail-row"><span>e-Money Received:</span><b>৳ ${formatBD(emRec)}</b></div>
+          <div class="detail-row"><span>Cash Received:</span><b>৳ ${formatBD(cashRec)}</b></div>
+          ${dsoRecHtml}
+          <div class="detail-row" style="border-top:1px dashed #a5d6a7; padding-top:4px; margin-top:4px; color:#2e7d32;">
+            <span><b>মোট রিসিভড (Total Received):</b></span><b>৳ ${formatBD(totalRec)}</b>
+          </div>
+        </div>
+
+        <div class="detail-section" style="background: #ffebee;">
+          <h4 style="color: #c62828;">📤 Return Section Breakdown</h4>
+          <div class="detail-row"><span>e-Money Return:</span><b>৳ ${formatBD(emRet)}</b></div>
+          <div class="detail-row"><span>Bank Deposit Amount:</span><b>৳ ${formatBD(bankDeposit)}</b></div>
+          <div class="detail-row"><span>Bank Name(s):</span><b>${item.bankName || 'N/A'}</b></div>
+          ${dsoTransHtml}
+          <div class="detail-row"><span>Cash Deposit:</span><b>৳ ${formatBD(cashDep)}</b></div>
+          <div class="detail-row" style="border-top:1px dashed #ef9a9a; padding-top:4px; margin-top:4px; color:#c62828;">
+            <span><b>মোট রিটার্ন (Total Return):</b></span><b>৳ ${formatBD(totalRet)}</b>
+          </div>
+        </div>
+
+        <div class="detail-section" style="background: #fff3e0; border-color: #ffe0b2;">
+          <h4 style="color: #e65100;">⚖️ Calculation & Difference</h4>
+          <div class="detail-row" style="font-size: 15px; color: #e65100;">
+            <span><b>ব্যবধন (Received - Return):</b></span>
+            <span><b>৳ ${formatBD(diff)}</b></span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>💵 ক্যাশ নোটের বিস্তারিত (Cash Notes Breakdown)</h4>
+          <div class="detail-row"><span>৳ 1000 × ${n1000} টি:</span><b>৳ ${formatBD(n1000*1000)}</b></div>
+          <div class="detail-row"><span>৳ 500 × ${n500} টি:</span><b>৳ ${formatBD(n500*500)}</b></div>
+          <div class="detail-row"><span>৳ 200 × ${n200} টি:</span><b>৳ ${formatBD(n200*200)}</b></div>
+          <div class="detail-row"><span>৳ 100 × ${n100} টি:</span><b>৳ ${formatBD(n100*100)}</b></div>
+          <div class="detail-row"><span>৳ 50 × ${n50} টি:</span><b>৳ ${formatBD(n50*50)}</b></div>
+          <div class="detail-row" style="border-top:1px dashed #ccc; padding-top:4px; margin-top:4px;">
+            <span><b>মোট ক্যাশ নোট গণনার হিসাব:</b></span><b>৳ ${formatBD(notesTotal)}</b>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>🧾 ব্যাংক স্লিপ ও OCR তথ্য</h4>
+          <div class="slip-grid-modal">${slipsHtml}</div>
+        </div>
+      `;
+
+      document.getElementById("modalBody").innerHTML = modalContentHtml;
+      document.getElementById("detailsModal").style.display = "flex";
+    }
+
+    function closeDetailsModal() {
+      document.getElementById("detailsModal").style.display = "none";
     }
 
     function renderSlipTd(imgBase64, amt) {
