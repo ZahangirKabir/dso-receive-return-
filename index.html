@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Dashboard Summary</title>
   <style>
-    /* ১. কন্টেইনার লেআউট */
+    /* মেইন কার্ড কন্টেইনার */
     .summary-cards-container {
       display: flex;
       flex-wrap: wrap;
@@ -16,7 +16,7 @@
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
 
-    /* ২. কার্ড বেসিক স্টাইল */
+    /* কার্ডের লেআউট */
     .card {
       flex: 1 1 calc(12.5% - 12px);
       min-width: 130px;
@@ -40,7 +40,7 @@
       font-weight: 700;
     }
 
-    /* ৩. থিম কালারসমূহ */
+    /* থিম কালারসমূহ */
     .card-teal { background-color: #e6f4f1; color: #0f6259; }
     .card-green { background-color: #eaf5ea; color: #1e7039; }
     .card-pink { background-color: #fdeaea; color: #a91d3a; }
@@ -48,11 +48,11 @@
     .card-blue { background-color: #e8f4f8; color: #136a8a; }
     .card-light-green { background-color: #eaf6ec; color: #1f6b3e; }
     
-    /* নতুন কার্ড ২টি কালার */
+    /* নতুন ২টি কার্ডের কালার */
     .card-cyan { background-color: #e0f7fa; color: #00838f; }
     .card-purple { background-color: #f3e5f5; color: #6a1b9a; }
 
-    /* ৪. রেসপন্সিভ স্টাইল */
+    /* রেসপন্সিভ স্টাইল */
     @media (max-width: 1024px) {
       .card { flex: 1 1 calc(25% - 12px); }
     }
@@ -69,19 +69,19 @@
     <!-- ১. মোট এন্ট্রি সংখ্যা -->
     <div class="card card-teal">
       <div class="card-title">মোট এন্ট্রি সংখ্যা</div>
-      <div class="card-value" id="totalEntries">0</div>
+      <div class="card-value" id="totalEntries">4</div>
     </div>
 
     <!-- ২. মোট রিসিভড -->
     <div class="card card-green">
       <div class="card-title">মোট রিসিভড</div>
-      <div class="card-value" id="totalReceived">৳ 0</div>
+      <div class="card-value" id="totalReceived">৳ 12,10,000</div>
     </div>
 
     <!-- ৩. মোট রিটার্ন -->
     <div class="card card-pink">
       <div class="card-title">মোট রিটার্ন</div>
-      <div class="card-value" id="totalReturn">৳ 0</div>
+      <div class="card-value" id="totalReturn">৳ 12,10,000</div>
     </div>
 
     <!-- ৪. মোট ব্যবধান (Diff) -->
@@ -93,22 +93,22 @@
     <!-- ৫. মোট ব্যাংক ডিপোজিট -->
     <div class="card card-blue">
       <div class="card-title">মোট ব্যাংক ডিপোজিট</div>
-      <div class="card-value" id="totalBankDeposit">৳ 0</div>
+      <div class="card-value" id="totalBankDeposit">৳ 1,00,000</div>
     </div>
 
     <!-- ৬. মোট স্লিপ অ্যামাউন্ট (OCR) -->
     <div class="card card-light-green">
       <div class="card-title">মোট স্লিপ অ্যামাউন্ট (OCR)</div>
-      <div class="card-value" id="totalSlipAmount">৳ 0</div>
+      <div class="card-value" id="totalSlipAmount">৳ 1,00,010</div>
     </div>
 
-    <!-- ৭. নতুন: মোট DSO রিসিভড -->
+    <!-- ৭. মোট DSO রিসিভড -->
     <div class="card card-cyan">
       <div class="card-title">মোট DSO রিসিভড</div>
       <div class="card-value" id="totalDsoReceived">৳ 0</div>
     </div>
 
-    <!-- ৮. নতুন: মোট DSO ট্রান্সফার -->
+    <!-- ৮. মোট DSO ট্রান্সফার -->
     <div class="card card-purple">
       <div class="card-title">মোট DSO ট্রান্সফার</div>
       <div class="card-value" id="totalDsoTransfer">৳ 0</div>
@@ -117,8 +117,13 @@
   </div>
 
   <script>
-    // আগের সমস্ত ক্যালকুলেশন ও ফিল্টার ঠিক রেখে নতুন ডাটা হিসাব করার লজিক
-    function updateAdminDashboardTotals(dataList) {
+    // নিরাপদ ক্যালকুলেশন ফাংশন
+    function safeParseNumber(val) {
+      let num = parseFloat(val);
+      return isNaN(num) ? 0 : num;
+    }
+
+    function calculateAdminTotals(dataList) {
       if (!dataList || !Array.isArray(dataList)) return;
 
       let totalEntries = dataList.length;
@@ -127,39 +132,33 @@
       let totalDiff = 0;
       let totalBankDeposit = 0;
       let totalSlipAmount = 0;
-      
-      // নতুন ফিল্ড ২টি
       let totalDsoReceived = 0;
       let totalDsoTransfer = 0;
 
-      // ডাটা সাম বা যোগ করার লুপ
       dataList.forEach(item => {
-        totalReceived += parseFloat(item.received || item.totalReceived || 0);
-        totalReturn += parseFloat(item.returnAmount || item.totalReturn || 0);
-        totalDiff += parseFloat(item.diff || item.totalDiff || 0);
-        totalBankDeposit += parseFloat(item.bankDeposit || item.totalBankDeposit || 0);
-        totalSlipAmount += parseFloat(item.slipAmount || item.totalSlipAmount || 0);
-
-        // নতুন ২টি ফিল্ডের হিসাব
-        totalDsoReceived += parseFloat(item.dsoReceived || item.totalDsoReceived || 0);
-        totalDsoTransfer += parseFloat(item.dsoTransfer || item.totalDsoTransfer || 0);
+        totalReceived += safeParseNumber(item.received || item.totalReceived);
+        totalReturn += safeParseNumber(item.returnAmount || item.totalReturn);
+        totalDiff += safeParseNumber(item.diff || item.totalDiff);
+        totalBankDeposit += safeParseNumber(item.bankDeposit || item.totalBankDeposit);
+        totalSlipAmount += safeParseNumber(item.slipAmount || item.totalSlipAmount);
+        
+        // নতুন ফিল্ড ২টি নিরাপদভাবে হিসাব করা হচ্ছে
+        totalDsoReceived += safeParseNumber(item.dsoReceived || item.totalDsoReceived);
+        totalDsoTransfer += safeParseNumber(item.dsoTransfer || item.totalDsoTransfer);
       });
 
-      // DOM Value আপডেট
-      document.getElementById('totalEntries').innerText = totalEntries;
-      document.getElementById('totalReceived').innerText = '৳ ' + totalReceived.toLocaleString('en-IN');
-      document.getElementById('totalReturn').innerText = '৳ ' + totalReturn.toLocaleString('en-IN');
-      document.getElementById('totalDiff').innerText = '৳ ' + totalDiff.toLocaleString('en-IN');
-      document.getElementById('totalBankDeposit').innerText = '৳ ' + totalBankDeposit.toLocaleString('en-IN');
-      document.getElementById('totalSlipAmount').innerText = '৳ ' + totalSlipAmount.toLocaleString('en-IN');
+      // UI আপডেট
+      if(document.getElementById('totalEntries')) document.getElementById('totalEntries').innerText = totalEntries;
+      if(document.getElementById('totalReceived')) document.getElementById('totalReceived').innerText = '৳ ' + totalReceived.toLocaleString('en-IN');
+      if(document.getElementById('totalReturn')) document.getElementById('totalReturn').innerText = '৳ ' + totalReturn.toLocaleString('en-IN');
+      if(document.getElementById('totalDiff')) document.getElementById('totalDiff').innerText = '৳ ' + totalDiff.toLocaleString('en-IN');
+      if(document.getElementById('totalBankDeposit')) document.getElementById('totalBankDeposit').innerText = '৳ ' + totalBankDeposit.toLocaleString('en-IN');
+      if(document.getElementById('totalSlipAmount')) document.getElementById('totalSlipAmount').innerText = '৳ ' + totalSlipAmount.toLocaleString('en-IN');
 
-      // নতুন ২টি কার্ডের মান সেট
-      document.getElementById('totalDsoReceived').innerText = '৳ ' + totalDsoReceived.toLocaleString('en-IN');
-      document.getElementById('totalDsoTransfer').innerText = '৳ ' + totalDsoTransfer.toLocaleString('en-IN');
+      // নতুন ২টি কার্ডের মান বসানো
+      if(document.getElementById('totalDsoReceived')) document.getElementById('totalDsoReceived').innerText = '৳ ' + totalDsoReceived.toLocaleString('en-IN');
+      if(document.getElementById('totalDsoTransfer')) document.getElementById('totalDsoTransfer').innerText = '৳ ' + totalDsoTransfer.toLocaleString('en-IN');
     }
-
-    // আপনার মূল ডাটা অ্যারে ফিল্টার হওয়ার পর এভাবে পাস করবেন:
-    // updateAdminDashboardTotals(filteredDataList);
   </script>
 
 </body>
