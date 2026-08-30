@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DSO & Admin Collection Portal</title>
   
-  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
@@ -17,10 +16,15 @@
 
     .login-box { max-width: 400px; margin: 50px auto; padding: 25px; border: 1px solid #ccc; border-radius: 8px; background: #fff; text-align: center; }
     .login-box input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }
-    .btn { background: #00695c; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; }
+    
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    .btn { background: #00695c; color: white; padding: 12px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; font-weight: bold; }
     .btn:hover { background: #004d40; }
     .btn:disabled { background: #999; cursor: not-allowed; }
-    .btn-logout { background: #d32f2f; width: auto; float: right; }
+    
+    .btn-cancel { background: #d32f2f; color: white; }
+    .btn-cancel:hover { background: #b71c1c; }
+    .btn-logout { background: #d32f2f; width: auto; float: right; padding: 8px 15px; font-weight: normal; }
 
     .header-bar { overflow: hidden; margin-bottom: 20px; }
     .header-bar h2 { float: left; }
@@ -66,7 +70,6 @@
 </head>
 <body>
 
-  <!-- LOGIN SECTION -->
   <div id="loginSection" class="login-box">
     <h2>Login Portal</h2>
     <input type="text" id="loginId" placeholder="User ID / DSO ID (e.g. 801, admin)">
@@ -74,14 +77,12 @@
     <button class="btn" onclick="handleLogin()">Login</button>
   </div>
 
-  <!-- APP MAIN CONTAINER -->
   <div id="appContainer" class="container" style="display: none;">
     <div class="header-bar">
       <h2 id="portalTitle">Collection Portal</h2>
       <button class="btn btn-logout" onclick="logout()">Logout</button>
     </div>
 
-    <!-- ADMIN VIEW -->
     <div id="adminView" style="display: none;">
       <div class="summary-cards">
         <div class="card"><h3>মোট এন্ট্রি</h3><p id="totalEntriesCount">0</p></div>
@@ -114,11 +115,9 @@
       </div>
     </div>
 
-    <!-- DSO VIEW -->
     <div id="dsoView" style="display: none;">
       
       <div class="form-grid">
-        <!-- RECEIVED SECTION -->
         <div class="section-box section-received">
           <div class="section-title title-received">📥 ১. RECEIVED SECTION (রিসিভড হিসাব)</div>
           <div class="form-group"><label>e-Money Received</label><input type="number" id="emReceived" value="0"></div>
@@ -126,7 +125,6 @@
           <div class="form-group"><label>DSO Received</label><input type="number" id="dsoReceived" value="0"></div>
         </div>
 
-        <!-- RETURN SECTION -->
         <div class="section-box section-return">
           <div class="section-title title-return">📤 ২. RETURN SECTION (রিটার্ন ও ডিপোজিট)</div>
           <div class="form-group"><label>e-Money Return</label><input type="number" id="emReturn" value="0"></div>
@@ -136,7 +134,6 @@
           <div class="form-group"><label>Cash Deposit</label><input type="number" id="cashDeposit" value="0"></div>
         </div>
 
-        <!-- DENOMINATION SECTION -->
         <div class="section-box">
           <div class="section-title" style="color: #37474f;">💵 ৩. ক্যাশ নোট গণনার হিসাব (Denomination)</div>
           <div class="form-group"><label>৳ 1000 ×</label><input type="number" class="denom" data-value="1000" value="0" oninput="calcCash()"></div>
@@ -156,7 +153,10 @@
         <div class="form-group"><label>Deposit Slip 4</label><input type="file" id="slip4" accept="image/*"></div>
       </div>
 
-      <button class="btn" id="subBtn" onclick="submitData()">Submit Data</button>
+      <div class="btn-group">
+        <button class="btn" id="subBtn" onclick="submitData()">Submit Data</button>
+        <button class="btn btn-cancel" onclick="cancelDeposit()">Cancel Deposit</button>
+      </div>
 
       <h3 style="margin-top: 30px;">আমার পূর্বের জমা হিসাব (My History)</h3>
       <div class="table-container">
@@ -178,24 +178,20 @@
   </div>
 
   <script>
-    // ⚠️ আপনার ফায়ারবেস প্রজেক্টের আসল API ও Key নিশ্চিত করুন
+    // ✅ আপনার দেওয়া সঠিক Firebase Configuration
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-      projectId: "YOUR_PROJECT",
-      storageBucket: "YOUR_PROJECT.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID"
+      apiKey: "AIzaSyAjTNlvbrVyqI30-e1waJT1HKRd6dge43A",
+      authDomain: "collection-app-479e0.firebaseapp.com",
+      databaseURL: "https://collection-app-479e0-default-rtdb.firebaseio.com",
+      projectId: "collection-app-479e0",
+      storageBucket: "collection-app-479e0.firebasestorage.app",
+      messagingSenderId: "351312003148",
+      appId: "1:351312003148:web:825db3df14f3c3453a34e9",
+      measurementId: "G-FM0HDGQT0T"
     };
 
-    if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
-      firebase.initializeApp(firebaseConfig);
-    } else {
-      console.warn("Firebase Config values not updated!");
-    }
-    
-    const database = firebase.apps.length ? firebase.database() : null;
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
     let currentUser = null;
 
     function handleLogin() {
@@ -230,7 +226,13 @@
       document.getElementById("totalCashDisplay").innerText = total;
     }
 
-    // অপটিমাইজড ফাস্ট ইমেজ কম্প্রেসর
+    function cancelDeposit() {
+      const confirmCancel = confirm("আপনি কি নিশ্চিত যে এই ডিপোজিট এন্ট্রিটি বাতিল (Cancel) করতে চান? ফর্মে পূরন করা সব তথ্য মুছে যাবে।");
+      if (confirmCancel) {
+        resetForm();
+      }
+    }
+
     function getBase64(file) {
       return new Promise((resolve) => {
         if (!file) { resolve(""); return; }
@@ -243,7 +245,7 @@
             const canvas = document.createElement("canvas");
             let width = img.width;
             let height = img.height;
-            const max_size = 400; // সাইজ আরও কমানো হয়েছে যাতে দ্রুত প্রসেস হয়
+            const max_size = 400;
 
             if (width > height) {
               if (width > max_size) { height *= max_size / width; width = max_size; }
@@ -263,11 +265,6 @@
     }
 
     async function submitData() {
-      if (!database) {
-        alert("Firebase Config এ আসল Key ও URL বসানো হয়নি!");
-        return;
-      }
-
       const subBtn = document.getElementById("subBtn");
       subBtn.disabled = true;
       subBtn.innerText = "Processing Slips...";
@@ -301,7 +298,6 @@
           timestamp: Date.now()
         };
 
-        // টাইমাউট সেটআপ (ফায়ারবেসে সেভ না হলে বা রেসপন্স আটকে গেলে এরর দিবে)
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error("Network / Firebase Connection Timeout!")), 10000)
         );
@@ -341,7 +337,6 @@
     }
 
     function listenRealtimeData() {
-      if (!database) return;
       database.ref('collections').on('value', (snapshot) => {
         const data = snapshot.val();
         if (currentUser.toLowerCase() === "admin") {
