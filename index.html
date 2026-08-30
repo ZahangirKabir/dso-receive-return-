@@ -161,16 +161,11 @@
     <!-- ADMIN VIEW -->
     <div id="adminView" style="display: none;">
       
-      <!-- SEARCH & FILTER PANEL -->
+      <!-- SEARCH & FILTER PANEL (Month Removed) -->
       <div class="filter-panel">
         <div class="filter-group">
           <label>তারিখ নির্বাচন করুন</label>
           <input type="date" id="filterDate" onchange="applyAdminFilters()">
-        </div>
-        
-        <div class="filter-group">
-          <label>মাস নির্বাচন করুন</label>
-          <input type="month" id="filterMonth" onchange="applyAdminFilters()">
         </div>
 
         <div class="filter-group">
@@ -212,12 +207,12 @@
         <div class="card green"><h3>মোট স্লিপ অ্যামাউন্ট (OCR)</h3><p>৳ <span id="totalSlipOcrSum">0</span></p></div>
       </div>
 
-      <!-- ADMIN REAL-TIME DATA TABLE -->
+      <!-- ADMIN REAL-TIME DATA TABLE (Month Column Removed) -->
       <div class="table-container">
         <table id="dataTable">
           <thead>
             <tr>
-              <th colspan="3" class="th-info">Basic Info</th>
+              <th colspan="2" class="th-info">Basic Info</th>
               <th colspan="3" class="th-received">RECEIVED SECTION</th>
               <th colspan="5" class="th-return">RETURN SECTION</th>
               <th colspan="3" class="th-diff">CALCULATION & DIFF</th>
@@ -226,7 +221,7 @@
               <th class="th-info">Action</th>
             </tr>
             <tr>
-              <th class="th-info">Date</th><th class="th-info">Month</th><th class="th-info">DSO ID</th>
+              <th class="th-info">Date</th><th class="th-info">DSO ID</th>
               <th class="th-received">e-Mon Rec</th><th class="th-received">Cash Rec</th><th class="th-received">DSO Rec Breakdown</th>
               <th class="th-return">e-Mon Ret</th><th class="th-return">Bank Dep</th><th class="th-return">Bank Name</th><th class="th-return">DSO Trans Breakdown</th><th class="th-return">Cash Dep</th>
               <th class="th-diff">মোট রিসিভড</th><th class="th-diff">মোট রিটার্ন</th><th class="th-diff">ব্যবধন (Diff)</th>
@@ -669,7 +664,6 @@
 
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
-        const monthStr = dateStr.substring(0, 7);
 
         let n1000 = parseInt(document.getElementById("note1000").value, 10) || 0;
         let n500 = parseInt(document.getElementById("note500").value, 10) || 0;
@@ -684,7 +678,6 @@
 
         const payload = {
           date: dateStr,
-          month: monthStr,
           userId: currentUser,
           emReceived: parseRawNumber(document.getElementById("emReceived").value),
           cashReceived: parseRawNumber(document.getElementById("cashReceived").value),
@@ -780,7 +773,6 @@
       }
       
       let filterDate = document.getElementById("filterDate").value;
-      let filterMonth = document.getElementById("filterMonth").value;
       let filterDso = document.getElementById("filterDso").value;
 
       let filteredData = {};
@@ -789,14 +781,13 @@
       Object.keys(globalAllData).forEach(key => {
         let item = globalAllData[key];
         let matchDate = !filterDate || item.date === filterDate;
-        let matchMonth = !filterMonth || item.month === filterMonth;
         let matchDso = !filterDso || String(item.userId) === String(filterDso);
 
-        if (matchDate && matchMonth) {
+        if (matchDate) {
           if (item.userId) submittedDsoSet.add(String(item.userId).trim());
         }
 
-        if (matchDate && matchMonth && matchDso) {
+        if (matchDate && matchDso) {
           filteredData[key] = item;
         }
       });
@@ -836,7 +827,6 @@
 
     function resetAdminFilters() {
       document.getElementById("filterDate").value = "";
-      document.getElementById("filterMonth").value = "";
       document.getElementById("filterDso").value = "";
       document.getElementById("filterDsoStart").value = "801";
       document.getElementById("filterDsoEnd").value = "845";
@@ -850,7 +840,7 @@
       let count = 0, totalRecSum = 0, totalRetSum = 0, totalDiffSum = 0, totalBankDepSum = 0, totalSlipOcrSum = 0;
 
       if (!data) {
-        tbody.innerHTML = `<tr><td colspan="21" style="text-align:center;">কোনো ডেটা পাওয়া যায়নি</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;">কোনো ডেটা পাওয়া যায়নি</td></tr>`;
         updateSummaryCards(0, 0, 0, 0, 0, 0);
         return;
       }
@@ -920,7 +910,6 @@
         let tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${item.date || '-'}</td>
-          <td>${item.month || '-'}</td>
           <td><strong>${item.userId || '-'}</strong></td>
           <td>৳ ${formatBD(emRec)}</td>
           <td>৳ ${formatBD(cashRec)}</td>
@@ -1037,7 +1026,7 @@
         <div class="detail-section" style="background: #ffebee;">
           <h4 style="color: #c62828;">📤 Return Section Breakdown</h4>
           <div class="detail-row"><span>e-Money Return:</span><b>৳ ${formatBD(emRet)}</b></div>
-          <div class="detail-row"><span>Bank Deposit Amount:</span><b>৳ ${formatBD(bankDeposit)}</b></div>
+          <div class="detail-row"><span>Bank Deposit Amount:</span><b>৳ ${formatBD(bankDep)}</b></div>
           <div class="detail-row"><span>Bank Name(s):</span><b>${item.bankName || 'N/A'}</b></div>
           ${dsoTransHtml}
           <div class="detail-row"><span>Cash Deposit:</span><b>৳ ${formatBD(cashDep)}</b></div>
