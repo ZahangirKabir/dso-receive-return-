@@ -18,7 +18,7 @@
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
     body { background-color: #f4f7f6; padding: 15px; color: #333; }
-    .container { max-width: 1400px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .container { max-width: 1500px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     h2 { color: #00695c; margin-bottom: 15px; }
 
     .login-box { max-width: 400px; margin: 50px auto; padding: 25px; border: 1px solid #ccc; border-radius: 8px; background: #fff; text-align: center; }
@@ -58,13 +58,15 @@
     .header-bar { overflow: hidden; margin-bottom: 20px; }
     .header-bar h2 { float: left; }
 
-    .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px; }
-    .card { background: #e0f2f1; padding: 15px; border-radius: 6px; text-align: center; }
-    .card h3 { font-size: 13px; color: #004d40; margin-bottom: 5px; }
-    .card p { font-size: 18px; font-weight: bold; color: #00695c; }
+    .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .card { background: #e0f2f1; padding: 12px; border-radius: 6px; text-align: center; }
+    .card h3 { font-size: 12px; color: #004d40; margin-bottom: 5px; }
+    .card p { font-size: 16px; font-weight: bold; color: #00695c; }
     .card.red { background: #ffebee; } .card.red p { color: #c62828; }
     .card.green { background: #e8f5e9; } .card.green p { color: #2e7d32; }
     .card.diff { background: #fff3e0; } .card.diff p { color: #e65100; }
+    .card.cyan { background: #e0f7fa; } .card.cyan p { color: #00838f; }
+    .card.purple { background: #f3e5f5; } .card.purple p { color: #6a1b9a; }
 
     .filter-panel { background: #e0f2f1; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end; }
     .filter-group { display: flex; flex-direction: column; gap: 5px; }
@@ -109,10 +111,12 @@
     .th-received { background: #2e7d32; color: white; }
     .th-return { background: #c62828; color: white; }
     .th-diff { background: #e65100; color: white; }
+    .th-dso { background: #00838f; color: white; }
     
     .bg-received { background-color: #e8f5e9 !important; color: #1b5e20; }
     .bg-return { background-color: #ffebee !important; color: #b71c1c; }
     .bg-diff { background-color: #fff3e0 !important; color: #e65100; font-weight: bold; }
+    .bg-dso-diff { background-color: #e0f7fa !important; color: #00838f; font-weight: bold; }
 
     .slip-img-preview { width: 45px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; display: block; margin: 0 auto; cursor: pointer; }
     .slip-cell { font-size: 10px; text-align: center; }
@@ -161,7 +165,7 @@
     <!-- ADMIN VIEW -->
     <div id="adminView" style="display: none;">
       
-      <!-- SEARCH & FILTER PANEL (Month Removed) -->
+      <!-- SEARCH & FILTER PANEL -->
       <div class="filter-panel">
         <div class="filter-group">
           <label>তারিখ নির্বাচন করুন</label>
@@ -198,16 +202,20 @@
         <div class="missing-list" id="missingDsoList"></div>
       </div>
 
+      <!-- ADMIN SUMMARY CARDS -->
       <div class="summary-cards">
         <div class="card"><h3>মোট এন্ট্রি সংখ্যা</h3><p id="totalEntriesCount">0</p></div>
         <div class="card green"><h3>মোট রিসিভড</h3><p>৳ <span id="totalReceivedAllSum">0</span></p></div>
         <div class="card red"><h3>মোট রিটার্ন</h3><p>৳ <span id="totalReturnAllSum">0</span></p></div>
         <div class="card diff"><h3>মোট ব্যবধান (Diff)</h3><p>৳ <span id="totalDiffAllSum">0</span></p></div>
+        <div class="card cyan"><h3>মোট DSO রিসিভড</h3><p>৳ <span id="totalDsoRecAllSum">0</span></p></div>
+        <div class="card purple"><h3>মোট DSO রিটার্ন (Trans)</h3><p>৳ <span id="totalDsoTransAllSum">0</span></p></div>
+        <div class="card cyan"><h3>DSO ব্যবধান (Diff)</h3><p>৳ <span id="totalDsoDiffAllSum">0</span></p></div>
         <div class="card"><h3>মোট ব্যাংক ডিপোজিট</h3><p>৳ <span id="totalBankDepSum">0</span></p></div>
         <div class="card green"><h3>মোট স্লিপ অ্যামাউন্ট (OCR)</h3><p>৳ <span id="totalSlipOcrSum">0</span></p></div>
       </div>
 
-      <!-- ADMIN REAL-TIME DATA TABLE (Month Column Removed) -->
+      <!-- ADMIN REAL-TIME DATA TABLE -->
       <div class="table-container">
         <table id="dataTable">
           <thead>
@@ -215,6 +223,7 @@
               <th colspan="2" class="th-info">Basic Info</th>
               <th colspan="3" class="th-received">RECEIVED SECTION</th>
               <th colspan="5" class="th-return">RETURN SECTION</th>
+              <th colspan="3" class="th-dso">DSO BREAKDOWN & DIFF</th>
               <th colspan="3" class="th-diff">CALCULATION & DIFF</th>
               <th class="th-info">Note Quantity (নোটের সংখ্যা)</th>
               <th colspan="5" class="th-info">Slips & OCR Amount</th>
@@ -224,6 +233,7 @@
               <th class="th-info">Date</th><th class="th-info">DSO ID</th>
               <th class="th-received">e-Mon Rec</th><th class="th-received">Cash Rec</th><th class="th-received">DSO Rec Breakdown</th>
               <th class="th-return">e-Mon Ret</th><th class="th-return">Bank Dep</th><th class="th-return">Bank Name</th><th class="th-return">DSO Trans Breakdown</th><th class="th-return">Cash Dep</th>
+              <th class="th-dso">DSO Rec Amt</th><th class="th-dso">DSO Trans Amt</th><th class="th-dso">DSO Diff</th>
               <th class="th-diff">মোট রিসিভড</th><th class="th-diff">মোট রিটার্ন</th><th class="th-diff">ব্যবধন (Diff)</th>
               <th class="th-info">Cash Breakdown (Qty)</th>
               <th class="th-info">Slip 1</th><th class="th-info">Slip 2</th><th class="th-info">Slip 3</th><th class="th-info">Slip 4</th><th class="th-info">Total Slip Amt</th>
@@ -837,11 +847,13 @@
       const tbody = document.getElementById("adminTableBody");
       tbody.innerHTML = "";
 
-      let count = 0, totalRecSum = 0, totalRetSum = 0, totalDiffSum = 0, totalBankDepSum = 0, totalSlipOcrSum = 0;
+      let count = 0, totalRecSum = 0, totalRetSum = 0, totalDiffSum = 0;
+      let totalDsoRecSum = 0, totalDsoTransSum = 0, totalDsoDiffSum = 0;
+      let totalBankDepSum = 0, totalSlipOcrSum = 0;
 
       if (!data) {
-        tbody.innerHTML = `<tr><td colspan="20" style="text-align:center;">কোনো ডেটা পাওয়া যায়নি</td></tr>`;
-        updateSummaryCards(0, 0, 0, 0, 0, 0);
+        tbody.innerHTML = `<tr><td colspan="23" style="text-align:center;">কোনো ডেটা পাওয়া যায়নি</td></tr>`;
+        updateSummaryCards(0, 0, 0, 0, 0, 0, 0, 0, 0);
         return;
       }
 
@@ -885,6 +897,7 @@
         let totalRet = emRet + bankDep + dsoTransSum + cashDep;
 
         let diff = totalRec - totalRet;
+        let dsoDiff = dsoRecSum - dsoTransSum;
 
         let slipAmt1 = item.slipAmt1 || 0;
         let slipAmt2 = item.slipAmt2 || 0;
@@ -895,6 +908,11 @@
         totalRecSum += totalRec;
         totalRetSum += totalRet;
         totalDiffSum += diff;
+        
+        totalDsoRecSum += dsoRecSum;
+        totalDsoTransSum += dsoTransSum;
+        totalDsoDiffSum += dsoDiff;
+
         totalBankDepSum += bankDep;
         totalSlipOcrSum += totalSlipAmt;
 
@@ -919,6 +937,9 @@
           <td>${item.bankName || '-'}</td>
           <td style="text-align: left;">${dsoTransText || '-'}</td>
           <td>৳ ${formatBD(cashDep)}</td>
+          <td>৳ ${formatBD(dsoRecSum)}</td>
+          <td>৳ ${formatBD(dsoTransSum)}</td>
+          <td class="bg-dso-diff">৳ ${formatBD(dsoDiff)}</td>
           <td class="bg-received">৳ ${formatBD(totalRec)}</td>
           <td class="bg-return">৳ ${formatBD(totalRet)}</td>
           <td class="bg-diff">৳ ${formatBD(diff)}</td>
@@ -936,7 +957,7 @@
         tbody.appendChild(tr);
       });
 
-      updateSummaryCards(count, totalRecSum, totalRetSum, totalDiffSum, totalBankDepSum, totalSlipOcrSum);
+      updateSummaryCards(count, totalRecSum, totalRetSum, totalDiffSum, totalDsoRecSum, totalDsoTransSum, totalDsoDiffSum, totalBankDepSum, totalSlipOcrSum);
     }
 
     /* SHOW DETAILS POPUP MODAL FUNCTION */
@@ -983,6 +1004,7 @@
       }
       let totalRet = emRet + bankDep + dsoTransSum + cashDep;
       let diff = totalRec - totalRet;
+      let dsoDiff = dsoRecSum - dsoTransSum;
 
       // Notes Calculation
       let notes = item.notes || {};
@@ -1035,6 +1057,15 @@
           </div>
         </div>
 
+        <div class="detail-section" style="background: #e0f7fa; border-color: #b2ebf2;">
+          <h4 style="color: #00838f;">🔄 DSO Exchange Calculation</h4>
+          <div class="detail-row"><span>মোট DSO Received:</span><b>৳ ${formatBD(dsoRecSum)}</b></div>
+          <div class="detail-row"><span>মোট DSO Transfer:</span><b>৳ ${formatBD(dsoTransSum)}</b></div>
+          <div class="detail-row" style="border-top:1px dashed #80deea; padding-top:4px; margin-top:4px; color:#00838f;">
+            <span><b>DSO ব্যবধান (DSO Received - DSO Return):</b></span><b>৳ ${formatBD(dsoDiff)}</b>
+          </div>
+        </div>
+
         <div class="detail-section" style="background: #fff3e0; border-color: #ffe0b2;">
           <h4 style="color: #e65100;">⚖️ Calculation & Difference</h4>
           <div class="detail-row" style="font-size: 15px; color: #e65100;">
@@ -1081,11 +1112,16 @@
       w.document.write(`<img src="${base64Img}" style="max-width:100%; height:auto;">`);
     }
 
-    function updateSummaryCards(count, rec, ret, diff, bank, slip) {
+    function updateSummaryCards(count, rec, ret, diff, dsoRec, dsoTrans, dsoDiff, bank, slip) {
       document.getElementById("totalEntriesCount").innerText = count;
       document.getElementById("totalReceivedAllSum").innerText = formatBD(rec);
       document.getElementById("totalReturnAllSum").innerText = formatBD(ret);
       document.getElementById("totalDiffAllSum").innerText = formatBD(diff);
+      
+      document.getElementById("totalDsoRecAllSum").innerText = formatBD(dsoRec);
+      document.getElementById("totalDsoTransAllSum").innerText = formatBD(dsoTrans);
+      document.getElementById("totalDsoDiffAllSum").innerText = formatBD(dsoDiff);
+
       document.getElementById("totalBankDepSum").innerText = formatBD(bank);
       document.getElementById("totalSlipOcrSum").innerText = formatBD(slip);
     }
