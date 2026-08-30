@@ -9,7 +9,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   
-  <!-- OCR Library for Bank Name Auto-Detection -->
+  <!-- OCR Library for Bank Name Detection -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <style>
@@ -155,10 +155,10 @@
           <div class="form-group"><label>e-Money Return</label><input type="number" id="emReturn" value="0" oninput="calcFormTotals()"></div>
           <div class="form-group"><label>Bank Deposit Amount</label><input type="number" id="bankDeposit" value="0" oninput="calcFormTotals()"></div>
           
-          <!-- SEPARATE BANK NAME FIELD -->
+          <!-- SEPARATE BANK NAME INPUT -->
           <div class="form-group">
-            <label style="color:#004d40;">Bank Name (আলাদা ব্যাংক ফিল্ড)</label>
-            <input type="text" id="bankName" placeholder="ব্যাংকের নাম (স্লিপ আপলোড করলে অটো বসবে বা লিখুন)">
+            <label style="color:#004d40;">Bank Name (আলাদা ব্যাংক নাম ফিল্ড)</label>
+            <input type="text" id="bankName" placeholder="ব্যাংকের নাম (স্লিপ আপলোড করলে অটোমেটিক বসবে বা নিজে লিখুন)">
           </div>
 
           <div class="form-group"><label>DSO Transfer</label><input type="number" id="dsoTransfer" value="0" oninput="calcFormTotals()"></div>
