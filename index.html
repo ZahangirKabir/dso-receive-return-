@@ -289,13 +289,13 @@
     const database = firebase.database();
     let currentUser = null;
 
-    // বাংলাদেশের কারেন্সি ফরম্যাট অনুযায়ী কমা (,) বসানোর ফাংশন (en-IN Format)
+    // বাংলাদেশের কারেন্সি ফরম্যাট (en-IN Format)
     function formatBD(num) {
       if (num === null || num === undefined || isNaN(num) || num === "") return "0";
       return Number(num).toLocaleString('en-IN');
     }
 
-    // ইনপুট ফিল্ডের ভ্যালু থেকে কমা বাদ দিয়ে পিওর নাম্বার পাওয়ার হেলপার
+    // কমা বাদ দিয়ে পিওর নাম্বার পাওয়ার হেলপার
     function parseRawNumber(valStr) {
       if (!valStr) return 0;
       let cleaned = String(valStr).replace(/,/g, '');
@@ -303,7 +303,7 @@
       return isNaN(num) ? 0 : num;
     }
 
-    // ইনপুটে টাইপ করার সাথে সাথে অটো কমা ফরম্যাটিং হ্যান্ডলার
+    // অটো কমা ফরম্যাটিং হ্যান্ডলার
     function handleAmountInput(inputEl) {
       let rawVal = inputEl.value.replace(/[^0-9.]/g, ''); 
       if (rawVal === '') {
@@ -352,7 +352,6 @@
 
     function logout() { location.reload(); }
 
-    // নির্দিষ্ট কোনো স্লিপ ইনপুট ও অপশন বাতিল/রিসেট করার লাল X বাটনের কাজ
     function clearSingleSlip(index) {
       document.getElementById("slip" + index).value = "";
       document.getElementById("slipAmt" + index).value = 0;
@@ -360,7 +359,6 @@
       document.getElementById("ocrStatus").innerText = `🗑️ স্লিপ ${index} বাতিল করা হয়েছে।`;
     }
 
-    // OCR: স্লিপ থেকে ব্যাংকের নাম এবং টাকার পরিমাণ (Amount) সনাক্তকরণ
     async function processSlipOCR(event, index) {
       const file = event.target.files[0];
       const statusElement = document.getElementById("ocrStatus");
@@ -373,7 +371,6 @@
         return;
       }
 
-      // ফাইল সিলেক্ট করলে লাল ক্যানসেল বাটনটি দৃশ্যমান হবে
       if (clearBtn) clearBtn.style.display = "inline-block";
 
       statusElement.innerText = `🔍 স্লিপ ${index} রিড করা হচ্ছে... (Bank & Amount)`;
@@ -382,7 +379,6 @@
         const result = await Tesseract.recognize(file, 'eng');
         const text = result.data.text;
         
-        // 1. Bank Detection
         let foundBank = "";
         for (let bank of knownBanks) {
           const regex = new RegExp(`\\b${bank}\\b`, 'i');
@@ -397,7 +393,6 @@
           bankInput.value = currentVal.length === 0 ? foundBank : currentVal + ", " + foundBank;
         }
 
-        // 2. Amount Detection (Regex)
         const amountRegex = /(?:TK|BDT|AMT|AMOUNT|TOTAL)?\s*[:\.]?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+)/gi;
         let matches = [...text.matchAll(amountRegex)];
         let maxVal = 0;
@@ -479,15 +474,28 @@
     }
 
     async function submitData() {
+      let bankDepositVal = parseRawNumber(document.getElementById("bankDeposit").value);
+      
+      let f1 = document.getElementById("slip1").files[0];
+      let f2 = document.getElementById("slip2").files[0];
+      let f3 = document.getElementById("slip3").files[0];
+      let f4 = document.getElementById("slip4").files[0];
+
+      // ১. ব্যাংক ডিপোজিট অ্যামাউন্ট থাকলে ডিপোজিট স্লিপ বাধ্যতামূলক করার ফিল্টারিং
+      if (bankDepositVal > 0 && !f1 && !f2 && !f3 && !f4) {
+        alert("⚠️ আপনি ব্যাংক ডিপোজিট (Bank Deposit Amount) লিখেছেন, তাই অন্তত ১টি ডিপোজিট স্লিপ ছবি আপলোড করা বাধ্যতামূলক!");
+        return;
+      }
+
       const subBtn = document.getElementById("subBtn");
       subBtn.disabled = true;
       subBtn.innerText = "Processing Slips...";
 
       try {
-        let slip1 = await getBase64(document.getElementById("slip1").files[0]);
-        let slip2 = await getBase64(document.getElementById("slip2").files[0]);
-        let slip3 = await getBase64(document.getElementById("slip3").files[0]);
-        let slip4 = await getBase64(document.getElementById("slip4").files[0]);
+        let slip1 = await getBase64(f1);
+        let slip2 = await getBase64(f2);
+        let slip3 = await getBase64(f3);
+        let slip4 = await getBase64(f4);
 
         subBtn.innerText = "Saving Data...";
 
@@ -510,7 +518,7 @@
           cashReceived: parseRawNumber(document.getElementById("cashReceived").value),
           dsoReceived: parseRawNumber(document.getElementById("dsoReceived").value),
           emReturn: parseRawNumber(document.getElementById("emReturn").value),
-          bankDeposit: parseRawNumber(document.getElementById("bankDeposit").value),
+          bankDeposit: bankDepositVal,
           bankName: document.getElementById("bankName").value.trim(),
           dsoTransfer: parseRawNumber(document.getElementById("dsoTransfer").value),
           cashDeposit: parseRawNumber(document.getElementById("cashDeposit").value),
@@ -559,7 +567,6 @@
       });
     }
 
-    // এডমিন ডাটা ডিলিট ফাংশন
     function deleteEntry(key) {
       if (confirm("আপনি কি নিশ্চিত যে এই ডাটাটি ডিলিট করতে চান?")) {
         database.ref('collections/' + key).remove()
