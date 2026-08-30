@@ -15,7 +15,7 @@
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
     body { background-color: #f4f7f6; padding: 15px; color: #333; }
-    .container { max-width: 1300px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .container { max-width: 1400px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     h2 { color: #00695c; margin-bottom: 15px; }
 
     .login-box { max-width: 400px; margin: 50px auto; padding: 25px; border: 1px solid #ccc; border-radius: 8px; background: #fff; text-align: center; }
@@ -97,6 +97,18 @@
     .slip-cell { font-size: 10px; text-align: center; }
     .slip-amt { font-weight: bold; color: #00695c; }
     .search-box { width: 100%; max-width: 400px; padding: 8px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; }
+
+    .note-badge {
+      display: inline-block;
+      background: #eceff1;
+      border: 1px solid #b0bec5;
+      padding: 2px 5px;
+      margin: 1px;
+      border-radius: 3px;
+      font-size: 11px;
+      text-align: left;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -137,6 +149,7 @@
               <th colspan="3" class="th-received">RECEIVED SECTION</th>
               <th colspan="5" class="th-return">RETURN SECTION</th>
               <th colspan="3" class="th-diff">CALCULATION & DIFF</th>
+              <th class="th-info">Note Quantity (নোটের সংখ্যা)</th>
               <th colspan="5" class="th-info">Slips & OCR Amount</th>
               <th class="th-info">Action</th>
             </tr>
@@ -145,6 +158,7 @@
               <th class="th-received">e-Mon Rec</th><th class="th-received">Cash Rec</th><th class="th-received">DSO Rec</th>
               <th class="th-return">e-Mon Ret</th><th class="th-return">Bank Dep</th><th class="th-return">Bank Name</th><th class="th-return">DSO Trans</th><th class="th-return">Cash Dep</th>
               <th class="th-diff">মোট রিসিভড</th><th class="th-diff">মোট রিটার্ন</th><th class="th-diff">ব্যবধন (Diff)</th>
+              <th class="th-info">Cash Breakdown (Qty)</th>
               <th class="th-info">Slip 1</th><th class="th-info">Slip 2</th><th class="th-info">Slip 3</th><th class="th-info">Slip 4</th><th class="th-info">Total Slip Amt</th>
               <th class="th-info">Action</th>
             </tr>
@@ -192,11 +206,11 @@
         <!-- DENOMINATION SECTION -->
         <div class="section-box">
           <div class="section-title" style="color: #37474f;">💵 ৩. ক্যাশ নোট গণনার হিসাব</div>
-          <div class="form-group"><label>৳ 1000 ×</label><input type="number" class="denom" data-value="1000" placeholder="" oninput="calcCash()"></div>
-          <div class="form-group"><label>৳ 500 ×</label><input type="number" class="denom" data-value="500" placeholder="" oninput="calcCash()"></div>
-          <div class="form-group"><label>৳ 200 ×</label><input type="number" class="denom" data-value="200" placeholder="" oninput="calcCash()"></div>
-          <div class="form-group"><label>৳ 100 ×</label><input type="number" class="denom" data-value="100" placeholder="" oninput="calcCash()"></div>
-          <div class="form-group"><label>৳ 50 ×</label><input type="number" class="denom" data-value="50" placeholder="" oninput="calcCash()"></div>
+          <div class="form-group"><label>৳ 1000 ×</label><input type="number" id="note1000" class="denom" data-value="1000" placeholder="টি" oninput="calcCash()"></div>
+          <div class="form-group"><label>৳ 500 ×</label><input type="number" id="note500" class="denom" data-value="500" placeholder="টি" oninput="calcCash()"></div>
+          <div class="form-group"><label>৳ 200 ×</label><input type="number" id="note200" class="denom" data-value="200" placeholder="টি" oninput="calcCash()"></div>
+          <div class="form-group"><label>৳ 100 ×</label><input type="number" id="note100" class="denom" data-value="100" placeholder="টি" oninput="calcCash()"></div>
+          <div class="form-group"><label>৳ 50 ×</label><input type="number" id="note50" class="denom" data-value="50" placeholder="টি" oninput="calcCash()"></div>
           <p style="margin-top: 10px; font-size: 14px;"><strong>Total Calculated Cash: ৳ <span id="totalCashDisplay">0</span></strong></p>
         </div>
       </div>
@@ -263,7 +277,7 @@
               <th class="th-return">মোট রিটার্ন ও ডিপোজিট</th>
               <th class="th-diff">ব্যবধন (Diff)</th>
               <th class="th-return">ব্যাংকের নাম</th>
-              <th class="th-info">ক্যাশ হিসাব</th>
+              <th class="th-info">ক্যাশ হিসাব (Note Breakdown)</th>
               <th class="th-info">ডিপোজিট স্লিপ</th>
             </tr>
           </thead>
@@ -289,13 +303,11 @@
     const database = firebase.database();
     let currentUser = null;
 
-    // বাংলাদেশের কারেন্সি ফরম্যাট (en-IN Format)
     function formatBD(num) {
       if (num === null || num === undefined || isNaN(num) || num === "") return "0";
       return Number(num).toLocaleString('en-IN');
     }
 
-    // কমা বাদ দিয়ে পিওর নাম্বার পাওয়ার হেলপার
     function parseRawNumber(valStr) {
       if (!valStr) return 0;
       let cleaned = String(valStr).replace(/,/g, '');
@@ -303,7 +315,6 @@
       return isNaN(num) ? 0 : num;
     }
 
-    // অটো কমা ফরম্যাটিং হ্যান্ডলার
     function handleAmountInput(inputEl) {
       let rawVal = inputEl.value.replace(/[^0-9.]/g, ''); 
       if (rawVal === '') {
@@ -481,7 +492,6 @@
       let f3 = document.getElementById("slip3").files[0];
       let f4 = document.getElementById("slip4").files[0];
 
-      // ১. ব্যাংক ডিপোজিট অ্যামাউন্ট থাকলে ডিপোজিট স্লিপ বাধ্যতামূলক করার ফিল্টারিং
       if (bankDepositVal > 0 && !f1 && !f2 && !f3 && !f4) {
         alert("⚠️ আপনি ব্যাংক ডিপোজিট (Bank Deposit Amount) লিখেছেন, তাই অন্তত ১টি ডিপোজিট স্লিপ ছবি আপলোড করা বাধ্যতামূলক!");
         return;
@@ -503,12 +513,14 @@
         const dateStr = now.toISOString().split('T')[0];
         const monthStr = dateStr.substring(0, 7);
 
-        let totalCashVal = 0;
-        document.querySelectorAll(".denom").forEach(input => {
-          let count = parseInt(input.value, 10) || 0;
-          let noteValue = parseInt(input.getAttribute("data-value"), 10) || 0;
-          totalCashVal += count * noteValue;
-        });
+        // নোট সংখ্যার অবজেক্ট তৈরি
+        let n1000 = parseInt(document.getElementById("note1000").value, 10) || 0;
+        let n500 = parseInt(document.getElementById("note500").value, 10) || 0;
+        let n200 = parseInt(document.getElementById("note200").value, 10) || 0;
+        let n100 = parseInt(document.getElementById("note100").value, 10) || 0;
+        let n50 = parseInt(document.getElementById("note50").value, 10) || 0;
+
+        let totalCashVal = (n1000*1000) + (n500*500) + (n200*200) + (n100*100) + (n50*50);
 
         const payload = {
           date: dateStr,
@@ -522,7 +534,17 @@
           bankName: document.getElementById("bankName").value.trim(),
           dsoTransfer: parseRawNumber(document.getElementById("dsoTransfer").value),
           cashDeposit: parseRawNumber(document.getElementById("cashDeposit").value),
+          
+          // নোটের ব্রেকডাউন ডাটাবেজে সেভ
+          notes: {
+            n1000: n1000,
+            n500: n500,
+            n200: n200,
+            n100: n100,
+            n50: n50
+          },
           totalCash: totalCashVal,
+
           slip1: slip1, slip2: slip2, slip3: slip3, slip4: slip4,
           slipAmt1: parseRawNumber(document.getElementById("slipAmt1").value),
           slipAmt2: parseRawNumber(document.getElementById("slipAmt2").value),
@@ -585,6 +607,21 @@
       return '-';
     }
 
+    // নোট কাস্টম ফরম্যাটিং ফাংশন (এডমিন ও ইউজার দুইজায়গাতেই ব্যবহারের জন্য)
+    function renderNotesBreakdown(notesObj, totalCash) {
+      if (!notesObj && !totalCash) return '-';
+      let html = `<div style="text-align:left;">`;
+      if (notesObj) {
+        if (notesObj.n1000) html += `<span class="note-badge"><b>1000×</b>${notesObj.n1000}</span> `;
+        if (notesObj.n500)  html += `<span class="note-badge"><b>500×</b>${notesObj.n500}</span> `;
+        if (notesObj.n200)  html += `<span class="note-badge"><b>200×</b>${notesObj.n200}</span> `;
+        if (notesObj.n100)  html += `<span class="note-badge"><b>100×</b>${notesObj.n100}</span> `;
+        if (notesObj.n50)   html += `<span class="note-badge"><b>50×</b>${notesObj.n50}</span> `;
+      }
+      html += `<div style="font-weight:bold; color:#00695c; margin-top:2px;">Total: ৳ ${formatBD(totalCash)}</div></div>`;
+      return html;
+    }
+
     function renderAdminTable(data) {
       const tbody = document.getElementById("adminTableBody");
       tbody.innerHTML = "";
@@ -621,6 +658,7 @@
           <td class="bg-received" style="font-weight:bold;">৳ ${formatBD(recSum)}</td>
           <td class="bg-return" style="font-weight:bold;">৳ ${formatBD(retSum)}</td>
           <td class="bg-diff">৳ ${formatBD(diff)}</td>
+          <td>${renderNotesBreakdown(r.notes, r.totalCash)}</td>
           <td>${makeImageTagWithAmt(r.slip1, r.slipAmt1)}</td>
           <td>${makeImageTagWithAmt(r.slip2, r.slipAmt2)}</td>
           <td>${makeImageTagWithAmt(r.slip3, r.slipAmt3)}</td>
@@ -662,7 +700,7 @@
           <td class="bg-return" style="font-weight:bold;">৳ ${formatBD(retSum)}</td>
           <td class="bg-diff">৳ ${formatBD(diff)}</td>
           <td class="bg-return" style="font-weight:bold; color:#00796b;">${r.bankName || '-'}</td>
-          <td>৳ ${formatBD(r.totalCash)}</td>
+          <td>${renderNotesBreakdown(r.notes, r.totalCash)}</td>
           <td style="display:flex; gap:5px; justify-content:center;">${slips.join(' ')}</td>
         </tr>`;
         tbody.innerHTML += row;
