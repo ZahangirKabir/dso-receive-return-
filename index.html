@@ -146,9 +146,9 @@
         <!-- RECEIVED SECTION -->
         <div class="section-box section-received">
           <div class="section-title title-received">📥 ১. RECEIVED SECTION</div>
-          <div class="form-group"><label>e-Money Received</label><input type="number" id="emReceived" placeholder="0" oninput="calcFormTotals()"></div>
-          <div class="form-group"><label>Cash Received</label><input type="number" id="cashReceived" placeholder="0" oninput="calcFormTotals()"></div>
-          <div class="form-group"><label>DSO Received</label><input type="number" id="dsoReceived" placeholder="0" oninput="calcFormTotals()"></div>
+          <div class="form-group"><label>e-Money Received</label><input type="text" id="emReceived" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          <div class="form-group"><label>Cash Received</label><input type="text" id="cashReceived" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          <div class="form-group"><label>DSO Received</label><input type="text" id="dsoReceived" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
           
           <div class="calculation-box">
             <div class="calc-row"><strong>মোট রিসিভড:</strong> <span style="color:#2e7d32; font-weight:bold;">৳ <span id="formTotalReceived">0</span></span></div>
@@ -158,16 +158,16 @@
         <!-- RETURN SECTION -->
         <div class="section-box section-return">
           <div class="section-title title-return">📤 ২. RETURN SECTION</div>
-          <div class="form-group"><label>e-Money Return</label><input type="number" id="emReturn" placeholder="0" oninput="calcFormTotals()"></div>
-          <div class="form-group"><label>Bank Deposit Amount</label><input type="number" id="bankDeposit" placeholder="0" oninput="calcFormTotals()"></div>
+          <div class="form-group"><label>e-Money Return</label><input type="text" id="emReturn" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          <div class="form-group"><label>Bank Deposit Amount</label><input type="text" id="bankDeposit" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
           
           <div class="form-group">
             <label style="color:#004d40;">Bank Name (সকল স্লিপের ব্যাংক নাম যুক্ত হবে)</label>
             <input type="text" id="bankName" placeholder="ব্যাংকের নামসমূহ (প্রতিটি স্লিপের সাথে সাথে যুক্ত হবে)">
           </div>
 
-          <div class="form-group"><label>DSO Transfer</label><input type="number" id="dsoTransfer" placeholder="0" oninput="calcFormTotals()"></div>
-          <div class="form-group"><label>Cash Deposit</label><input type="number" id="cashDeposit" placeholder="0" oninput="calcFormTotals()"></div>
+          <div class="form-group"><label>DSO Transfer</label><input type="text" id="dsoTransfer" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          <div class="form-group"><label>Cash Deposit</label><input type="text" id="cashDeposit" class="amt-field" placeholder="" oninput="handleAmountInput(this); calcFormTotals();"></div>
 
           <div class="calculation-box">
             <div class="calc-row"><strong>মোট রিটার্ন:</strong> <span style="color:#c62828; font-weight:bold;">৳ <span id="formTotalReturn">0</span></span></div>
@@ -177,11 +177,11 @@
         <!-- DENOMINATION SECTION -->
         <div class="section-box">
           <div class="section-title" style="color: #37474f;">💵 ৩. ক্যাশ নোট গণনার হিসাব</div>
-          <div class="form-group"><label>৳ 1000 ×</label><input type="number" class="denom" data-value="1000" placeholder="0" oninput="calcCash()"></div>
-          <div class="form-group"><label>৳ 500 ×</label><input type="number" class="denom" data-value="500" placeholder="0" oninput="calcCash()"></div>
-          <div class="form-group"><label>৳ 200 ×</label><input type="number" class="denom" data-value="200" placeholder="0" oninput="calcCash()"></div>
-          <div class="form-group"><label>৳ 100 ×</label><input type="number" class="denom" data-value="100" placeholder="0" oninput="calcCash()"></div>
-          <div class="form-group"><label>৳ 50 ×</label><input type="number" class="denom" data-value="50" placeholder="0" oninput="calcCash()"></div>
+          <div class="form-group"><label>৳ 1000 ×</label><input type="number" class="denom" data-value="1000" placeholder="" oninput="calcCash()"></div>
+          <div class="form-group"><label>৳ 500 ×</label><input type="number" class="denom" data-value="500" placeholder="" oninput="calcCash()"></div>
+          <div class="form-group"><label>৳ 200 ×</label><input type="number" class="denom" data-value="200" placeholder="" oninput="calcCash()"></div>
+          <div class="form-group"><label>৳ 100 ×</label><input type="number" class="denom" data-value="100" placeholder="" oninput="calcCash()"></div>
+          <div class="form-group"><label>৳ 50 ×</label><input type="number" class="denom" data-value="50" placeholder="" oninput="calcCash()"></div>
           <p style="margin-top: 10px; font-size: 14px;"><strong>Total Calculated Cash: ৳ <span id="totalCashDisplay">0</span></strong></p>
         </div>
       </div>
@@ -261,10 +261,37 @@
     const database = firebase.database();
     let currentUser = null;
 
-    // বাংলাদেশের কারেন্সি ফরম্যাট অনুযায়ী কমা (,) বসানোর হেলপার ফাংশন
+    // বাংলাদেশের কারেন্সি ফরম্যাট অনুযায়ী কমা (,) বসানোর ফাংশন (en-IN Format)
     function formatBD(num) {
-      if (num === null || num === undefined || isNaN(num)) return "0";
+      if (num === null || num === undefined || isNaN(num) || num === "") return "0";
       return Number(num).toLocaleString('en-IN');
+    }
+
+    // ইনপুট ফিল্ডের ভ্যালু থেকে কমা বাদ দিয়ে পিওর নাম্বার পাওয়ার হেলপার
+    function parseRawNumber(valStr) {
+      if (!valStr) return 0;
+      let cleaned = String(valStr).replace(/,/g, '');
+      let num = parseFloat(cleaned);
+      return isNaN(num) ? 0 : num;
+    }
+
+    // ইনপুটে টাইপ করার সাথে সাথে অটো কমা ফরম্যাটিং হ্যান্ডলার
+    function handleAmountInput(inputEl) {
+      let rawVal = inputEl.value.replace(/[^0-9.]/g, ''); // শুধু সংখ্যা ও ডট রাখবে
+      if (rawVal === '') {
+        inputEl.value = '';
+        return;
+      }
+      let parts = rawVal.split('.');
+      let integerPart = parts[0];
+      let decimalPart = parts.length > 1 ? '.' + parts[1] : '';
+
+      if (integerPart) {
+        let num = parseInt(integerPart, 10);
+        if (!isNaN(num)) {
+          inputEl.value = num.toLocaleString('en-IN') + decimalPart;
+        }
+      }
     }
 
     const knownBanks = [
@@ -349,15 +376,15 @@
     }
 
     function calcFormTotals() {
-      let emRec = parseFloat(document.getElementById("emReceived").value) || 0;
-      let cashRec = parseFloat(document.getElementById("cashReceived").value) || 0;
-      let dsoRec = parseFloat(document.getElementById("dsoReceived").value) || 0;
+      let emRec = parseRawNumber(document.getElementById("emReceived").value);
+      let cashRec = parseRawNumber(document.getElementById("cashReceived").value);
+      let dsoRec = parseRawNumber(document.getElementById("dsoReceived").value);
       let totalRec = emRec + cashRec + dsoRec;
 
-      let emRet = parseFloat(document.getElementById("emReturn").value) || 0;
-      let bankDep = parseFloat(document.getElementById("bankDeposit").value) || 0;
-      let dsoTrans = parseFloat(document.getElementById("dsoTransfer").value) || 0;
-      let cashDep = parseFloat(document.getElementById("cashDeposit").value) || 0;
+      let emRet = parseRawNumber(document.getElementById("emReturn").value);
+      let bankDep = parseRawNumber(document.getElementById("bankDeposit").value);
+      let dsoTrans = parseRawNumber(document.getElementById("dsoTransfer").value);
+      let cashDep = parseRawNumber(document.getElementById("cashDeposit").value);
       let totalRet = emRet + bankDep + dsoTrans + cashDep;
 
       let diff = totalRec - totalRet;
@@ -425,7 +452,6 @@
         const dateStr = now.toISOString().split('T')[0];
         const monthStr = dateStr.substring(0, 7);
 
-        // Raw numbers extracted for calculations
         let totalCashVal = 0;
         document.querySelectorAll(".denom").forEach(input => {
           let count = parseInt(input.value, 10) || 0;
@@ -437,20 +463,20 @@
           date: dateStr,
           month: monthStr,
           userId: currentUser,
-          emReceived: parseFloat(document.getElementById("emReceived").value) || 0,
-          cashReceived: parseFloat(document.getElementById("cashReceived").value) || 0,
-          dsoReceived: parseFloat(document.getElementById("dsoReceived").value) || 0,
-          emReturn: parseFloat(document.getElementById("emReturn").value) || 0,
-          bankDeposit: parseFloat(document.getElementById("bankDeposit").value) || 0,
+          emReceived: parseRawNumber(document.getElementById("emReceived").value),
+          cashReceived: parseRawNumber(document.getElementById("cashReceived").value),
+          dsoReceived: parseRawNumber(document.getElementById("dsoReceived").value),
+          emReturn: parseRawNumber(document.getElementById("emReturn").value),
+          bankDeposit: parseRawNumber(document.getElementById("bankDeposit").value),
           bankName: document.getElementById("bankName").value.trim(),
-          dsoTransfer: parseFloat(document.getElementById("dsoTransfer").value) || 0,
-          cashDeposit: parseFloat(document.getElementById("cashDeposit").value) || 0,
+          dsoTransfer: parseRawNumber(document.getElementById("dsoTransfer").value),
+          cashDeposit: parseRawNumber(document.getElementById("cashDeposit").value),
           totalCash: totalCashVal,
           slip1: slip1, slip2: slip2, slip3: slip3, slip4: slip4,
-          slipAmt1: parseFloat(document.getElementById("slipAmt1").value) || 0,
-          slipAmt2: parseFloat(document.getElementById("slipAmt2").value) || 0,
-          slipAmt3: parseFloat(document.getElementById("slipAmt3").value) || 0,
-          slipAmt4: parseFloat(document.getElementById("slipAmt4").value) || 0,
+          slipAmt1: parseRawNumber(document.getElementById("slipAmt1").value),
+          slipAmt2: parseRawNumber(document.getElementById("slipAmt2").value),
+          slipAmt3: parseRawNumber(document.getElementById("slipAmt3").value),
+          slipAmt4: parseRawNumber(document.getElementById("slipAmt4").value),
           timestamp: Date.now()
         };
 
@@ -466,14 +492,8 @@
     }
 
     function resetForm() {
-      document.getElementById("emReceived").value = "";
-      document.getElementById("cashReceived").value = "";
-      document.getElementById("dsoReceived").value = "";
-      document.getElementById("emReturn").value = "";
-      document.getElementById("bankDeposit").value = "";
+      document.querySelectorAll(".amt-field").forEach(input => input.value = "");
       document.getElementById("bankName").value = "";
-      document.getElementById("dsoTransfer").value = "";
-      document.getElementById("cashDeposit").value = "";
       
       document.querySelectorAll(".denom").forEach(input => input.value = "");
       document.getElementById("totalCashDisplay").innerText = "0";
