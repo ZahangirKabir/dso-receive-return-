@@ -208,8 +208,8 @@
         <div class="card green"><h3>মোট রিসিভড</h3><p>৳ <span id="totalReceivedAllSum">0</span></p></div>
         <div class="card red"><h3>মোট রিটার্ন</h3><p>৳ <span id="totalReturnAllSum">0</span></p></div>
         <div class="card diff"><h3>মোট ব্যবধান (Diff)</h3><p>৳ <span id="totalDiffAllSum">0</span></p></div>
-        <div class="card cyan"><h3>মোট DSO রিসিভড</h3><p>৳ <span id="totalDsoRecAllSum">0</span></p></div>
-        <div class="card purple"><h3>মোট DSO রিটার্ন (Trans)</h3><p>৳ <span id="totalDsoTransAllSum">0</span></p></div>
+        <div class="card cyan"><h3>Total DSO Rec Breakdown</h3><p>৳ <span id="totalDsoRecAllSum">0</span></p></div>
+        <div class="card purple"><h3>Total DSO Trans Breakdown</h3><p>৳ <span id="totalDsoTransAllSum">0</span></p></div>
         <div class="card cyan"><h3>DSO ব্যবধান (Diff)</h3><p>৳ <span id="totalDsoDiffAllSum">0</span></p></div>
         <div class="card"><h3>মোট ব্যাংক ডিপোজিট</h3><p>৳ <span id="totalBankDepSum">0</span></p></div>
         <div class="card green"><h3>মোট স্লিপ অ্যামাউন্ট (OCR)</h3><p>৳ <span id="totalSlipOcrSum">0</span></p></div>
@@ -956,6 +956,32 @@
         `;
         tbody.appendChild(tr);
       });
+
+      // Total Summary Row at bottom of table
+      let tfootRow = document.createElement("tr");
+      tfootRow.style.fontWeight = "bold";
+      tfootRow.style.background = "#eceff1";
+      tfootRow.innerHTML = `
+        <td colspan="2">TOTAL SUMMARY</td>
+        <td>-</td>
+        <td>-</td>
+        <td style="color:#00838f;">৳ ${formatBD(totalDsoRecSum)}</td>
+        <td>-</td>
+        <td>৳ ${formatBD(totalBankDepSum)}</td>
+        <td>-</td>
+        <td style="color:#6a1b9a;">৳ ${formatBD(totalDsoTransSum)}</td>
+        <td>-</td>
+        <td style="color:#00838f;">৳ ${formatBD(totalDsoRecSum)}</td>
+        <td style="color:#6a1b9a;">৳ ${formatBD(totalDsoTransSum)}</td>
+        <td class="bg-dso-diff">৳ ${formatBD(totalDsoDiffSum)}</td>
+        <td class="bg-received">৳ ${formatBD(totalRecSum)}</td>
+        <td class="bg-return">৳ ${formatBD(totalRetSum)}</td>
+        <td class="bg-diff">৳ ${formatBD(totalDiffSum)}</td>
+        <td colspan="5">-</td>
+        <td style="color:#00695c;">৳ ${formatBD(totalSlipOcrSum)}</td>
+        <td>-</td>
+      `;
+      tbody.appendChild(tfootRow);
 
       updateSummaryCards(count, totalRecSum, totalRetSum, totalDiffSum, totalDsoRecSum, totalDsoTransSum, totalDsoDiffSum, totalBankDepSum, totalSlipOcrSum);
     }
