@@ -12,6 +12,9 @@
   <!-- OCR Library for Bank & Amount Detection -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
+  <!-- SheetJS Library for Excel Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
     body { background-color: #f4f7f6; padding: 15px; color: #333; }
@@ -26,13 +29,17 @@
     .btn:hover { background: #004d40; }
     .btn:disabled { background: #999; cursor: not-allowed; }
     
+    .btn-excel { background: #2e7d32; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .btn-excel:hover { background: #1b5e20; }
+    .btn-reset { background: #757575; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
+    .btn-reset:hover { background: #616161; }
+
     .btn-cancel { background: #d32f2f; color: white; }
     .btn-cancel:hover { background: #b71c1c; }
     .btn-logout { background: #d32f2f; width: auto; float: right; padding: 8px 15px; font-weight: normal; }
     .btn-delete { background: #c62828; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
     .btn-delete:hover { background: #b71c1c; }
 
-    /* Slip Cancel Button Styling */
     .btn-clear-slip {
       background: #d32f2f;
       color: white;
@@ -57,6 +64,20 @@
     .card.red { background: #ffebee; } .card.red p { color: #c62828; }
     .card.green { background: #e8f5e9; } .card.green p { color: #2e7d32; }
     .card.diff { background: #fff3e0; } .card.diff p { color: #e65100; }
+
+    .filter-panel {
+      background: #e0f2f1;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      align-items: flex-end;
+    }
+    .filter-group { display: flex; flex-direction: column; gap: 5px; }
+    .filter-group label { font-size: 12px; font-weight: bold; color: #004d40; }
+    .filter-group input, .filter-group select { padding: 8px; border: 1px solid #004d40; border-radius: 4px; min-width: 150px; }
 
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
     
@@ -96,7 +117,6 @@
     .slip-img-preview { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; display: block; margin: 0 auto; }
     .slip-cell { font-size: 10px; text-align: center; }
     .slip-amt { font-weight: bold; color: #00695c; }
-    .search-box { width: 100%; max-width: 400px; padding: 8px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; }
 
     .note-badge {
       display: inline-block;
@@ -130,16 +150,38 @@
 
     <!-- ADMIN VIEW -->
     <div id="adminView" style="display: none;">
-      <div class="summary-cards">
-        <div class="card"><h3>মোট এন্ট্রি</h3><p id="totalEntriesCount">0</p></div>
-        <div class="card green"><h3>মোট রিসিভড (All DSO)</h3><p>৳ <span id="totalReceivedAllSum">0</span></p></div>
-        <div class="card red"><h3>মোট রিটার্ন (All DSO)</h3><p>৳ <span id="totalReturnAllSum">0</span></p></div>
-        <div class="card diff"><h3>মোট ব্যবধান (Diff)</h3><p>৳ <span id="totalDiffAllSum">0</span></p></div>
-        <div class="card"><h3>মোট ব্যাংক ডিপোজিট</h3><p>৳ <span id="totalBankDepSum">0</span></p></div>
-        <div class="card green"><h3>মোট স্লিপ অ্যামাউন্ট (OCR Sum)</h3><p>৳ <span id="totalSlipOcrSum">0</span></p></div>
+      
+      <!-- SEARCH & FILTER PANEL -->
+      <div class="filter-panel">
+        <div class="filter-group">
+          <label>তারিখ নির্বাচন করুন (Date)</label>
+          <input type="date" id="filterDate" onchange="applyAdminFilters()">
+        </div>
+        
+        <div class="filter-group">
+          <label>মাস নির্বাচন করুন (Month)</label>
+          <input type="month" id="filterMonth" onchange="applyAdminFilters()">
+        </div>
+
+        <div class="filter-group">
+          <label>DSO ID নির্বাচন করুন</label>
+          <select id="filterDso" onchange="applyAdminFilters()">
+            <option value="">-- All DSO --</option>
+          </select>
+        </div>
+
+        <button class="btn-reset" onclick="resetAdminFilters()">🔄 Reset Filters</button>
+        <button class="btn-excel" onclick="exportToExcel()">📥 Download Excel Report</button>
       </div>
 
-      <input type="text" id="searchInput" class="search-box" placeholder="ID/তারিখ দিয়ে খুঁজুন (যেমন: 801 বা 2026-08)" onkeyup="filterAdminTable()">
+      <div class="summary-cards">
+        <div class="card"><h3>মোট এন্ট্রি</h3><p id="totalEntriesCount">0</p></div>
+        <div class="card green"><h3>মোট রিসিভড</h3><p>৳ <span id="totalReceivedAllSum">0</span></p></div>
+        <div class="card red"><h3>মোট রিটার্ন</h3><p>৳ <span id="totalReturnAllSum">0</span></p></div>
+        <div class="card diff"><h3>মোট ব্যবধান (Diff)</h3><p>৳ <span id="totalDiffAllSum">0</span></p></div>
+        <div class="card"><h3>মোট ব্যাংক ডিপোজিট</h3><p>৳ <span id="totalBankDepSum">0</span></p></div>
+        <div class="card green"><h3>মোট স্লিপ অ্যামাউন্ট (OCR)</h3><p>৳ <span id="totalSlipOcrSum">0</span></p></div>
+      </div>
 
       <div class="table-container">
         <table id="dataTable">
@@ -302,6 +344,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     let currentUser = null;
+    let globalAllData = null; // Store all records for admin filtering
 
     function formatBD(num) {
       if (num === null || num === undefined || isNaN(num) || num === "") return "0";
@@ -383,7 +426,6 @@
       }
 
       if (clearBtn) clearBtn.style.display = "inline-block";
-
       statusElement.innerText = `🔍 স্লিপ ${index} রিড করা হচ্ছে... (Bank & Amount)`;
 
       try {
@@ -509,11 +551,11 @@
 
         subBtn.innerText = "Saving Data...";
 
+        // তারিখ স্বয়ংক্রিয়ভাবে কারেন্ট সিস্টেম থেকে ইনসার্ট হবে
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
         const monthStr = dateStr.substring(0, 7);
 
-        // নোট সংখ্যার অবজেক্ট তৈরি
         let n1000 = parseInt(document.getElementById("note1000").value, 10) || 0;
         let n500 = parseInt(document.getElementById("note500").value, 10) || 0;
         let n200 = parseInt(document.getElementById("note200").value, 10) || 0;
@@ -534,8 +576,6 @@
           bankName: document.getElementById("bankName").value.trim(),
           dsoTransfer: parseRawNumber(document.getElementById("dsoTransfer").value),
           cashDeposit: parseRawNumber(document.getElementById("cashDeposit").value),
-          
-          // নোটের ব্রেকডাউন ডাটাবেজে সেভ
           notes: {
             n1000: n1000,
             n500: n500,
@@ -544,7 +584,6 @@
             n50: n50
           },
           totalCash: totalCashVal,
-
           slip1: slip1, slip2: slip2, slip3: slip3, slip4: slip4,
           slipAmt1: parseRawNumber(document.getElementById("slipAmt1").value),
           slipAmt2: parseRawNumber(document.getElementById("slipAmt2").value),
@@ -567,7 +606,6 @@
     function resetForm() {
       document.querySelectorAll(".amt-field").forEach(input => input.value = "");
       document.getElementById("bankName").value = "";
-      
       document.querySelectorAll(".denom").forEach(input => input.value = "");
       document.getElementById("totalCashDisplay").innerText = "0";
 
@@ -580,13 +618,63 @@
 
     function listenRealtimeData() {
       database.ref('collections').on('value', (snapshot) => {
-        const data = snapshot.val();
+        globalAllData = snapshot.val();
         if (currentUser.toLowerCase() === "admin") {
-          renderAdminTable(data);
+          populateDsoDropdown(globalAllData);
+          applyAdminFilters();
         } else {
-          renderDsoHistory(data);
+          renderDsoHistory(globalAllData);
         }
       });
+    }
+
+    function populateDsoDropdown(data) {
+      const dsoSelect = document.getElementById("filterDso");
+      let selectedVal = dsoSelect.value;
+      dsoSelect.innerHTML = '<option value="">-- All DSO --</option>';
+
+      if (!data) return;
+      let dsoSet = new Set();
+      Object.values(data).forEach(r => {
+        if (r.userId) dsoSet.add(r.userId);
+      });
+
+      dsoSet.forEach(dso => {
+        let opt = document.createElement("option");
+        opt.value = dso;
+        opt.textContent = dso;
+        dsoSelect.appendChild(opt);
+      });
+      dsoSelect.value = selectedVal;
+    }
+
+    function applyAdminFilters() {
+      if (!globalAllData) return;
+      
+      let filterDate = document.getElementById("filterDate").value;
+      let filterMonth = document.getElementById("filterMonth").value;
+      let filterDso = document.getElementById("filterDso").value;
+
+      let filteredData = {};
+      Object.keys(globalAllData).forEach(key => {
+        let item = globalAllData[key];
+        let matchDate = !filterDate || item.date === filterDate;
+        let matchMonth = !filterMonth || item.month === filterMonth;
+        let matchDso = !filterDso || String(item.userId) === String(filterDso);
+
+        if (matchDate && matchMonth && matchDso) {
+          filteredData[key] = item;
+        }
+      });
+
+      renderAdminTable(filteredData);
+    }
+
+    function resetAdminFilters() {
+      document.getElementById("filterDate").value = "";
+      document.getElementById("filterMonth").value = "";
+      document.getElementById("filterDso").value = "";
+      applyAdminFilters();
     }
 
     function deleteEntry(key) {
@@ -607,7 +695,6 @@
       return '-';
     }
 
-    // নোট কাস্টম ফরম্যাটিং ফাংশন (এডমিন ও ইউজার দুইজায়গাতেই ব্যবহারের জন্য)
     function renderNotesBreakdown(notesObj, totalCash) {
       if (!notesObj && !totalCash) return '-';
       let html = `<div style="text-align:left;">`;
@@ -625,7 +712,15 @@
     function renderAdminTable(data) {
       const tbody = document.getElementById("adminTableBody");
       tbody.innerHTML = "";
-      if (!data) return;
+      if (!data) {
+        document.getElementById("totalEntriesCount").innerText = "0";
+        document.getElementById("totalReceivedAllSum").innerText = "0";
+        document.getElementById("totalReturnAllSum").innerText = "0";
+        document.getElementById("totalDiffAllSum").innerText = "0";
+        document.getElementById("totalBankDepSum").innerText = "0";
+        document.getElementById("totalSlipOcrSum").innerText = "0";
+        return;
+      }
 
       const keys = Object.keys(data);
       let totalRec = 0, totalRet = 0, totalBank = 0, grandSlipOcrSum = 0;
@@ -707,13 +802,72 @@
       });
     }
 
-    function filterAdminTable() {
-      let q = document.getElementById("searchInput").value.toLowerCase();
-      let rows = document.querySelectorAll("#dataTable tbody tr");
-      rows.forEach(row => {
-        let text = row.innerText.toLowerCase();
-        row.style.display = text.includes(q) ? "" : "none";
+    // EXPORT FILTERED DATA TO EXCEL
+    function exportToExcel() {
+      if (!globalAllData) {
+        alert("ডাউনলোড করার মত কোনো ডাটা নেই!");
+        return;
+      }
+
+      let filterDate = document.getElementById("filterDate").value;
+      let filterMonth = document.getElementById("filterMonth").value;
+      let filterDso = document.getElementById("filterDso").value;
+
+      let exportRows = [];
+
+      Object.values(globalAllData).forEach(r => {
+        let matchDate = !filterDate || r.date === filterDate;
+        let matchMonth = !filterMonth || r.month === filterMonth;
+        let matchDso = !filterDso || String(r.userId) === String(filterDso);
+
+        if (matchDate && matchMonth && matchDso) {
+          let recSum = (parseFloat(r.emReceived)||0) + (parseFloat(r.cashReceived)||0) + (parseFloat(r.dsoReceived)||0);
+          let retSum = (parseFloat(r.emReturn)||0) + (parseFloat(r.bankDeposit)||0) + (parseFloat(r.dsoTransfer)||0) + (parseFloat(r.cashDeposit)||0);
+          let diff = recSum - retSum;
+
+          let notesText = "";
+          if (r.notes) {
+            let n = r.notes;
+            notesText = `1000x${n.n1000||0}, 500x${n.n500||0}, 200x${n.n200||0}, 100x${n.n100||0}, 50x${n.n50||0}`;
+          }
+
+          exportRows.push({
+            "Date": r.date || '',
+            "Month": r.month || '',
+            "DSO ID": r.userId || '',
+            "e-Money Rec": r.emReceived || 0,
+            "Cash Rec": r.cashReceived || 0,
+            "DSO Rec": r.dsoReceived || 0,
+            "e-Money Return": r.emReturn || 0,
+            "Bank Deposit": r.bankDeposit || 0,
+            "Bank Name": r.bankName || '',
+            "DSO Transfer": r.dsoTransfer || 0,
+            "Cash Deposit": r.cashDeposit || 0,
+            "Total Received": recSum,
+            "Total Return": retSum,
+            "Difference": diff,
+            "Notes Breakdown": notesText,
+            "Total Cash Calc": r.totalCash || 0,
+            "Slip 1 Amt": r.slipAmt1 || 0,
+            "Slip 2 Amt": r.slipAmt2 || 0,
+            "Slip 3 Amt": r.slipAmt3 || 0,
+            "Slip 4 Amt": r.slipAmt4 || 0,
+            "Total Slip OCR": (r.slipAmt1||0)+(r.slipAmt2||0)+(r.slipAmt3||0)+(r.slipAmt4||0)
+          });
+        }
       });
+
+      if (exportRows.length === 0) {
+        alert("ফিল্টারিং অনুলিপি অনুযায়ী কোনো ডাটা পাওয়া যায়নি!");
+        return;
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(exportRows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Collection Report");
+
+      let fileName = `Collection_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
     }
   </script>
 </body>
