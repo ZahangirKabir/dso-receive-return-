@@ -34,6 +34,12 @@
     .btn-reset { background: #757575; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
     .btn-reset:hover { background: #616161; }
 
+    .btn-add { background: #0288d1; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; margin-top: 5px; }
+    .btn-add:hover { background: #01579b; }
+
+    .btn-remove-row { background: #e53935; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .btn-remove-row:hover { background: #b71c1c; }
+
     .btn-cancel { background: #d32f2f; color: white; }
     .btn-cancel:hover { background: #b71c1c; }
     .btn-logout { background: #d32f2f; width: auto; float: right; padding: 8px 15px; font-weight: normal; }
@@ -41,16 +47,7 @@
     .btn-delete:hover { background: #b71c1c; }
 
     .btn-clear-slip {
-      background: #d32f2f;
-      color: white;
-      border: none;
-      padding: 4px 8px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 12px;
-      display: none;
-      margin-top: 5px;
+      background: #d32f2f; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; display: none; margin-top: 5px;
     }
     .btn-clear-slip:hover { background: #b71c1c; }
 
@@ -65,47 +62,15 @@
     .card.green { background: #e8f5e9; } .card.green p { color: #2e7d32; }
     .card.diff { background: #fff3e0; } .card.diff p { color: #e65100; }
 
-    .filter-panel {
-      background: #e0f2f1;
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 15px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 15px;
-      align-items: flex-end;
-    }
+    .filter-panel { background: #e0f2f1; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end; }
     .filter-group { display: flex; flex-direction: column; gap: 5px; }
     .filter-group label { font-size: 12px; font-weight: bold; color: #004d40; }
     .filter-group input, .filter-group select { padding: 8px; border: 1px solid #004d40; border-radius: 4px; min-width: 120px; }
 
-    .missing-box {
-      background: #ffebee;
-      border: 2px dashed #c62828;
-      border-radius: 8px;
-      padding: 15px;
-      margin-bottom: 20px;
-    }
-    .missing-box h3 {
-      color: #c62828;
-      font-size: 15px;
-      margin-bottom: 10px;
-      display: flex;
-      justify-content: space-between;
-    }
-    .missing-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .missing-badge {
-      background: #c62828;
-      color: white;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: bold;
-    }
+    .missing-box { background: #ffebee; border: 2px dashed #c62828; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+    .missing-box h3 { color: #c62828; font-size: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; }
+    .missing-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .missing-badge { background: #c62828; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
 
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
     
@@ -120,6 +85,9 @@
     .form-group { margin-bottom: 12px; }
     .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; }
     .form-group input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
+
+    .dynamic-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .dynamic-row input[type="text"] { flex: 1; }
 
     .calculation-box { background: #ffffff; padding: 10px; border-radius: 6px; border: 1px dashed #777; margin-top: 10px; font-size: 14px; }
     .calc-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
@@ -146,17 +114,8 @@
     .slip-cell { font-size: 10px; text-align: center; }
     .slip-amt { font-weight: bold; color: #00695c; }
 
-    .note-badge {
-      display: inline-block;
-      background: #eceff1;
-      border: 1px solid #b0bec5;
-      padding: 2px 5px;
-      margin: 1px;
-      border-radius: 3px;
-      font-size: 11px;
-      text-align: left;
-      white-space: nowrap;
-    }
+    .note-badge { display: inline-block; background: #eceff1; border: 1px solid #b0bec5; padding: 2px 5px; margin: 1px; border-radius: 3px; font-size: 11px; text-align: left; white-space: nowrap; }
+    .dso-badge { display: inline-block; background: #e0f2f1; border: 1px solid #80cbc4; color: #004d40; padding: 2px 5px; margin: 1px; border-radius: 3px; font-size: 11px; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -245,8 +204,8 @@
             </tr>
             <tr>
               <th class="th-info">Date</th><th class="th-info">Month</th><th class="th-info">DSO ID</th>
-              <th class="th-received">e-Mon Rec</th><th class="th-received">Cash Rec</th><th class="th-received">DSO Rec</th>
-              <th class="th-return">e-Mon Ret</th><th class="th-return">Bank Dep</th><th class="th-return">Bank Name</th><th class="th-return">DSO Trans</th><th class="th-return">Cash Dep</th>
+              <th class="th-received">e-Mon Rec</th><th class="th-received">Cash Rec</th><th class="th-received">DSO Rec Breakdown</th>
+              <th class="th-return">e-Mon Ret</th><th class="th-return">Bank Dep</th><th class="th-return">Bank Name</th><th class="th-return">DSO Trans Breakdown</th><th class="th-return">Cash Dep</th>
               <th class="th-diff">মোট রিসিভড</th><th class="th-diff">মোট রিটার্ন</th><th class="th-diff">ব্যবধন (Diff)</th>
               <th class="th-info">Cash Breakdown (Qty)</th>
               <th class="th-info">Slip 1</th><th class="th-info">Slip 2</th><th class="th-info">Slip 3</th><th class="th-info">Slip 4</th><th class="th-info">Total Slip Amt</th>
@@ -266,7 +225,18 @@
           <div class="section-title title-received">📥 ১. RECEIVED SECTION</div>
           <div class="form-group"><label>e-Money Received</label><input type="text" id="emReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
           <div class="form-group"><label>Cash Received</label><input type="text" id="cashReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
-          <div class="form-group"><label>DSO Received</label><input type="text" id="dsoReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          
+          <div class="form-group">
+            <label>DSO Received (একাধিক DSO হতে গ্রহণ)</label>
+            <div id="dsoReceivedContainer">
+              <div class="dynamic-row">
+                <input type="text" placeholder="DSO ID/Name" class="dso-rec-id">
+                <input type="text" placeholder="Amount" class="amt-field dso-rec-amt" oninput="handleAmountInput(this); calcFormTotals();">
+                <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
+              </div>
+            </div>
+            <button type="button" class="btn-add" onclick="addDsoReceivedRow()">+ Add More DSO Received</button>
+          </div>
           
           <div class="calculation-box">
             <div class="calc-row"><strong>মোট রিসিভড:</strong> <span style="color:#2e7d32; font-weight:bold;">৳ <span id="formTotalReceived">0</span></span></div>
@@ -284,7 +254,18 @@
             <input type="text" id="bankName" placeholder="ব্যাংকের নামসমূহ">
           </div>
 
-          <div class="form-group"><label>DSO Transfer</label><input type="text" id="dsoTransfer" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
+          <div class="form-group">
+            <label>DSO Transfer / Return (একাধিক DSO-কে প্রদান)</label>
+            <div id="dsoTransferContainer">
+              <div class="dynamic-row">
+                <input type="text" placeholder="DSO ID/Name" class="dso-trans-id">
+                <input type="text" placeholder="Amount" class="amt-field dso-trans-amt" oninput="handleAmountInput(this); calcFormTotals();">
+                <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
+              </div>
+            </div>
+            <button type="button" class="btn-add" onclick="addDsoTransferRow()">+ Add More DSO Transfer</button>
+          </div>
+
           <div class="form-group"><label>Cash Deposit</label><input type="text" id="cashDeposit" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
 
           <div class="calculation-box">
@@ -444,6 +425,61 @@
 
     function logout() { location.reload(); }
 
+    function addDsoReceivedRow() {
+      const container = document.getElementById("dsoReceivedContainer");
+      const div = document.createElement("div");
+      div.className = "dynamic-row";
+      div.innerHTML = `
+        <input type="text" placeholder="DSO ID/Name" class="dso-rec-id">
+        <input type="text" placeholder="Amount" class="amt-field dso-rec-amt" oninput="handleAmountInput(this); calcFormTotals();">
+        <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
+      `;
+      container.appendChild(div);
+    }
+
+    function addDsoTransferRow() {
+      const container = document.getElementById("dsoTransferContainer");
+      const div = document.createElement("div");
+      div.className = "dynamic-row";
+      div.innerHTML = `
+        <input type="text" placeholder="DSO ID/Name" class="dso-trans-id">
+        <input type="text" placeholder="Amount" class="amt-field dso-trans-amt" oninput="handleAmountInput(this); calcFormTotals();">
+        <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
+      `;
+      container.appendChild(div);
+    }
+
+    function removeDsoRow(btn) {
+      btn.parentElement.remove();
+      calcFormTotals();
+    }
+
+    function getDsoReceivedList() {
+      let list = [];
+      const rows = document.querySelectorAll("#dsoReceivedContainer .dynamic-row");
+      rows.forEach(row => {
+        let id = row.querySelector(".dso-rec-id").value.trim();
+        let amt = parseRawNumber(row.querySelector(".dso-rec-amt").value);
+        if (id || amt > 0) {
+          list.push({ dsoId: id || 'Unknown', amount: amt });
+        }
+      });
+      return list;
+    }
+
+    function getDsoTransferList() {
+      let list = [];
+      const rows = document.querySelectorAll("#dsoTransferContainer .dynamic-row");
+      rows.forEach(row => {
+        let id = row.querySelector(".dso-trans-id").value.trim();
+        let amt = parseRawNumber(row.querySelector(".dso-trans-amt").value);
+        if (id || amt > 0) {
+          list.push({ dsoId: id || 'Unknown', amount: amt });
+        }
+      });
+      return list;
+    }
+
     function clearSingleSlip(index) {
       document.getElementById("slip" + index).value = "";
       document.getElementById("slipAmt" + index).value = 0;
@@ -507,14 +543,20 @@
     function calcFormTotals() {
       let emRec = parseRawNumber(document.getElementById("emReceived").value);
       let cashRec = parseRawNumber(document.getElementById("cashReceived").value);
-      let dsoRec = parseRawNumber(document.getElementById("dsoReceived").value);
-      let totalRec = emRec + cashRec + dsoRec;
+      
+      let dsoRecList = getDsoReceivedList();
+      let dsoRecSum = dsoRecList.reduce((acc, item) => acc + item.amount, 0);
+      
+      let totalRec = emRec + cashRec + dsoRecSum;
 
       let emRet = parseRawNumber(document.getElementById("emReturn").value);
       let bankDep = parseRawNumber(document.getElementById("bankDeposit").value);
-      let dsoTrans = parseRawNumber(document.getElementById("dsoTransfer").value);
+      
+      let dsoTransList = getDsoTransferList();
+      let dsoTransSum = dsoTransList.reduce((acc, item) => acc + item.amount, 0);
+
       let cashDep = parseRawNumber(document.getElementById("cashDeposit").value);
-      let totalRet = emRet + bankDep + dsoTrans + cashDep;
+      let totalRet = emRet + bankDep + dsoTransSum + cashDep;
 
       let diff = totalRec - totalRet;
 
@@ -601,17 +643,20 @@
 
         let totalCashVal = (n1000*1000) + (n500*500) + (n200*200) + (n100*100) + (n50*50);
 
+        let dsoReceivedList = getDsoReceivedList();
+        let dsoTransferList = getDsoTransferList();
+
         const payload = {
           date: dateStr,
           month: monthStr,
           userId: currentUser,
           emReceived: parseRawNumber(document.getElementById("emReceived").value),
           cashReceived: parseRawNumber(document.getElementById("cashReceived").value),
-          dsoReceived: parseRawNumber(document.getElementById("dsoReceived").value),
+          dsoReceivedList: dsoReceivedList,
           emReturn: parseRawNumber(document.getElementById("emReturn").value),
           bankDeposit: bankDepositVal,
           bankName: document.getElementById("bankName").value.trim(),
-          dsoTransfer: parseRawNumber(document.getElementById("dsoTransfer").value),
+          dsoTransferList: dsoTransferList,
           cashDeposit: parseRawNumber(document.getElementById("cashDeposit").value),
           notes: { n1000, n500, n200, n100, n50 },
           totalCash: totalCashVal,
@@ -639,6 +684,22 @@
       document.getElementById("bankName").value = "";
       document.querySelectorAll(".denom").forEach(input => input.value = "");
       document.getElementById("totalCashDisplay").innerText = "0";
+
+      document.getElementById("dsoReceivedContainer").innerHTML = `
+        <div class="dynamic-row">
+          <input type="text" placeholder="DSO ID/Name" class="dso-rec-id">
+          <input type="text" placeholder="Amount" class="amt-field dso-rec-amt" oninput="handleAmountInput(this); calcFormTotals();">
+          <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
+        </div>
+      `;
+
+      document.getElementById("dsoTransferContainer").innerHTML = `
+        <div class="dynamic-row">
+          <input type="text" placeholder="DSO ID/Name" class="dso-trans-id">
+          <input type="text" placeholder="Amount" class="amt-field dso-trans-amt" oninput="handleAmountInput(this); calcFormTotals();">
+          <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
+        </div>
+      `;
 
       for(let i=1; i<=4; i++){ clearSingleSlip(i); }
       document.getElementById("ocrStatus").innerText = "";
@@ -721,19 +782,20 @@
       }
 
       document.getElementById("missingCount").innerText = missingList.length;
-      const missingListContainer = document.getElementById("missingDsoList");
-      missingListContainer.innerHTML = "";
+      const missingContainer = document.getElementById("missingDsoList");
+      missingContainer.innerHTML = "";
 
       if (missingList.length === 0) {
-        missingListContainer.innerHTML = "<span style='color: green; font-weight: bold;'>🎉 সকল DSO সফলভাবে তথ্য জমা দিয়েছেন!</span>";
-      } else {
-        missingList.forEach(dso => {
-          let badge = document.createElement("span");
-          badge.className = "missing-badge";
-          badge.innerText = "DSO " + dso;
-          missingListContainer.appendChild(badge);
-        });
+        missingContainer.innerHTML = '<span style="color: #2e7d32; font-weight: bold; font-size: 13px;">🎉 সকল DSO সফলভাবে রিপোর্ট জমা দিয়েছে!</span>';
+        return;
       }
+
+      missingList.forEach(id => {
+        let badge = document.createElement("span");
+        badge.className = "missing-badge";
+        badge.innerText = `DSO ${id}`;
+        missingContainer.appendChild(badge);
+      });
     }
 
     function resetAdminFilters() {
@@ -749,9 +811,10 @@
       const tbody = document.getElementById("adminTableBody");
       tbody.innerHTML = "";
 
-      let count = 0, sumRec = 0, sumRet = 0, sumDiff = 0, sumBank = 0, sumOcr = 0;
+      let count = 0, totalRecSum = 0, totalRetSum = 0, totalDiffSum = 0, totalBankDepSum = 0, totalSlipOcrSum = 0;
 
       if (!data) {
+        tbody.innerHTML = `<tr><td colspan="21" style="text-align:center;">কোনো ডেটা পাওয়া যায়নি</td></tr>`;
         updateSummaryCards(0, 0, 0, 0, 0, 0);
         return;
       }
@@ -760,81 +823,120 @@
         let item = data[key];
         count++;
 
-        let totalRec = (item.emReceived || 0) + (item.cashReceived || 0) + (item.dsoReceived || 0);
-        let totalRet = (item.emReturn || 0) + (item.bankDeposit || 0) + (item.dsoTransfer || 0) + (item.cashDeposit || 0);
-        let diff = totalRec - totalRet;
-        let slipTotal = (item.slipAmt1 || 0) + (item.slipAmt2 || 0) + (item.slipAmt3 || 0) + (item.slipAmt4 || 0);
+        let emRec = item.emReceived || 0;
+        let cashRec = item.cashReceived || 0;
 
-        sumRec += totalRec;
-        sumRet += totalRet;
-        sumDiff += diff;
-        sumBank += (item.bankDeposit || 0);
-        sumOcr += slipTotal;
+        let dsoRecText = "";
+        let dsoRecSum = 0;
+        if (Array.isArray(item.dsoReceivedList)) {
+          item.dsoReceivedList.forEach(d => {
+            dsoRecSum += d.amount || 0;
+            dsoRecText += `<span class="dso-badge">DSO ${d.dsoId}: ৳${formatBD(d.amount)}</span> `;
+          });
+        } else {
+          dsoRecSum = item.dsoReceived || 0;
+          if (dsoRecSum > 0) dsoRecText = `৳ ${formatBD(dsoRecSum)}`;
+        }
+
+        let totalRec = emRec + cashRec + dsoRecSum;
+
+        let emRet = item.emReturn || 0;
+        let bankDep = item.bankDeposit || 0;
+
+        let dsoTransText = "";
+        let dsoTransSum = 0;
+        if (Array.isArray(item.dsoTransferList)) {
+          item.dsoTransferList.forEach(d => {
+            dsoTransSum += d.amount || 0;
+            dsoTransText += `<span class="dso-badge">DSO ${d.dsoId}: ৳${formatBD(d.amount)}</span> `;
+          });
+        } else {
+          dsoTransSum = item.dsoTransfer || 0;
+          if (dsoTransSum > 0) dsoTransText = `৳ ${formatBD(dsoTransSum)}`;
+        }
+
+        let cashDep = item.cashDeposit || 0;
+        let totalRet = emRet + bankDep + dsoTransSum + cashDep;
+
+        let diff = totalRec - totalRet;
+
+        let slipAmt1 = item.slipAmt1 || 0;
+        let slipAmt2 = item.slipAmt2 || 0;
+        let slipAmt3 = item.slipAmt3 || 0;
+        let slipAmt4 = item.slipAmt4 || 0;
+        let totalSlipAmt = slipAmt1 + slipAmt2 + slipAmt3 + slipAmt4;
+
+        totalRecSum += totalRec;
+        totalRetSum += totalRet;
+        totalDiffSum += diff;
+        totalBankDepSum += bankDep;
+        totalSlipOcrSum += totalSlipAmt;
 
         let notes = item.notes || {};
-        let noteHtml = "";
-        if (notes.n1000) noteHtml += `<span class="note-badge">1000×${notes.n1000}</span> `;
-        if (notes.n500)  noteHtml += `<span class="note-badge">500×${notes.n500}</span> `;
-        if (notes.n200)  noteHtml += `<span class="note-badge">200×${notes.n200}</span> `;
-        if (notes.n100)  noteHtml += `<span class="note-badge">100×${notes.n100}</span> `;
-        if (notes.n50)   noteHtml += `<span class="note-badge">50×${notes.n50}</span> `;
+        let notesText = "";
+        if (notes.n1000) notesText += `<span class="note-badge">1000×${notes.n1000}</span>`;
+        if (notes.n500) notesText += `<span class="note-badge">500×${notes.n500}</span>`;
+        if (notes.n200) notesText += `<span class="note-badge">200×${notes.n200}</span>`;
+        if (notes.n100) notesText += `<span class="note-badge">100×${notes.n100}</span>`;
+        if (notes.n50) notesText += `<span class="note-badge">50×${notes.n50}</span>`;
+        if (!notesText) notesText = "-";
 
-        let row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${item.date || ''}</td>
-          <td>${item.month || ''}</td>
-          <td><b>${item.userId || ''}</b></td>
-          <td class="bg-received">৳${formatBD(item.emReceived)}</td>
-          <td class="bg-received">৳${formatBD(item.cashReceived)}</td>
-          <td class="bg-received">৳${formatBD(item.dsoReceived)}</td>
-          <td class="bg-return">৳${formatBD(item.emReturn)}</td>
-          <td class="bg-return">৳${formatBD(item.bankDeposit)}</td>
+        let tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${item.date || '-'}</td>
+          <td>${item.month || '-'}</td>
+          <td><strong>${item.userId || '-'}</strong></td>
+          <td>৳ ${formatBD(emRec)}</td>
+          <td>৳ ${formatBD(cashRec)}</td>
+          <td style="text-align: left;">${dsoRecText || '-'}</td>
+          <td>৳ ${formatBD(emRet)}</td>
+          <td>৳ ${formatBD(bankDep)}</td>
           <td>${item.bankName || '-'}</td>
-          <td class="bg-return">৳${formatBD(item.dsoTransfer)}</td>
-          <td class="bg-return">৳${formatBD(item.cashDeposit)}</td>
-          <td class="bg-received"><b>৳${formatBD(totalRec)}</b></td>
-          <td class="bg-return"><b>৳${formatBD(totalRet)}</b></td>
-          <td class="bg-diff">৳${formatBD(diff)}</td>
-          <td>${noteHtml || '-'}</td>
-          ${renderSlipCell(item.slip1, item.slipAmt1)}
-          ${renderSlipCell(item.slip2, item.slipAmt2)}
-          ${renderSlipCell(item.slip3, item.slipAmt3)}
-          ${renderSlipCell(item.slip4, item.slipAmt4)}
-          <td class="slip-amt">৳${formatBD(slipTotal)}</td>
-          <td><button class="btn-delete" onclick="deleteEntry('${key}')">🗑️</button></td>
+          <td style="text-align: left;">${dsoTransText || '-'}</td>
+          <td>৳ ${formatBD(cashDep)}</td>
+          <td class="bg-received">৳ ${formatBD(totalRec)}</td>
+          <td class="bg-return">৳ ${formatBD(totalRet)}</td>
+          <td class="bg-diff">৳ ${formatBD(diff)}</td>
+          <td style="text-align: left;">${notesText}</td>
+          <td class="slip-cell">${renderSlipTd(item.slip1, slipAmt1)}</td>
+          <td class="slip-cell">${renderSlipTd(item.slip2, slipAmt2)}</td>
+          <td class="slip-cell">${renderSlipTd(item.slip3, slipAmt3)}</td>
+          <td class="slip-cell">${renderSlipTd(item.slip4, slipAmt4)}</td>
+          <td style="font-weight:bold; color:#00695c;">৳ ${formatBD(totalSlipAmt)}</td>
+          <td><button class="btn-delete" onclick="deleteEntry('${key}')">🗑️ Delete</button></td>
         `;
-        tbody.appendChild(row);
+        tbody.appendChild(tr);
       });
 
-      updateSummaryCards(count, sumRec, sumRet, sumDiff, sumBank, sumOcr);
+      updateSummaryCards(count, totalRecSum, totalRetSum, totalDiffSum, totalBankDepSum, totalSlipOcrSum);
     }
 
-    function renderSlipCell(slipBase64, slipAmt) {
-      if (!slipBase64) return `<td>-</td>`;
-      return `
-        <td class="slip-cell">
-          <a href="${slipBase64}" target="_blank">
-            <img src="${slipBase64}" class="slip-img-preview" alt="Slip">
-          </a>
-          ${slipAmt ? `<span class="slip-amt">৳${formatBD(slipAmt)}</span>` : ''}
-        </td>
-      `;
+    function renderSlipTd(imgBase64, amt) {
+      if (!imgBase64 && !amt) return "-";
+      let imgHtml = imgBase64 ? `<img src="${imgBase64}" class="slip-img-preview" onclick="openImageModal('${imgBase64}')" title="Click to view full image">` : "";
+      let amtHtml = amt ? `<div class="slip-amt">৳ ${formatBD(amt)}</div>` : "";
+      return imgHtml + amtHtml;
     }
 
-    function updateSummaryCards(count, rec, ret, diff, bank, ocr) {
+    function openImageModal(base64Img) {
+      let w = window.open("");
+      w.document.write(`<img src="${base64Img}" style="max-width:100%; height:auto;">`);
+    }
+
+    function updateSummaryCards(count, rec, ret, diff, bank, slip) {
       document.getElementById("totalEntriesCount").innerText = count;
       document.getElementById("totalReceivedAllSum").innerText = formatBD(rec);
       document.getElementById("totalReturnAllSum").innerText = formatBD(ret);
       document.getElementById("totalDiffAllSum").innerText = formatBD(diff);
       document.getElementById("totalBankDepSum").innerText = formatBD(bank);
-      document.getElementById("totalSlipOcrSum").innerText = formatBD(ocr);
+      document.getElementById("totalSlipOcrSum").innerText = formatBD(slip);
     }
 
     async function deleteEntry(key) {
-      if (confirm("আপনি কি নিশ্চিত যে এই এন্ট্রিটি পুরোপুরি মুছে ফেলতে চান?")) {
+      if (confirm("আপনি কি নিশ্চিত যে এই এন্ট্রিটি স্থায়ীভাবে মুছে ফেলতে চান?")) {
         try {
           await database.ref('collections').child(key).remove();
-          alert("ডাটা মুছে ফেলা হয়েছে!");
+          alert("এন্ট্রি সফলভাবে মুছে ফেলা হয়েছে!");
         } catch (err) {
           alert("মুছে ফেলা সম্ভব হয়নি: " + err.message);
         }
@@ -845,104 +947,59 @@
       const tbody = document.getElementById("dsoHistoryBody");
       tbody.innerHTML = "";
 
-      if (!data) return;
+      if (!data) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">কোনো পূর্বের জমা হিসাব পাওয়া যায়নি</td></tr>`;
+        return;
+      }
 
-      Object.values(data)
-        .filter(item => String(item.userId) === String(currentUser))
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .forEach(item => {
-          let totalRec = (item.emReceived || 0) + (item.cashReceived || 0) + (item.dsoReceived || 0);
-          let totalRet = (item.emReturn || 0) + (item.bankDeposit || 0) + (item.dsoTransfer || 0) + (item.cashDeposit || 0);
-          let diff = totalRec - totalRet;
+      let myHistory = Object.values(data).filter(item => String(item.userId) === String(currentUser));
+      myHistory.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
-          let notes = item.notes || {};
-          let noteHtml = "";
-          if (notes.n1000) noteHtml += `1000×${notes.n1000} `;
-          if (notes.n500)  noteHtml += `500×${notes.n500} `;
-          if (notes.n200)  noteHtml += `200×${notes.n200} `;
-          if (notes.n100)  noteHtml += `100×${notes.n100} `;
-          if (notes.n50)   noteHtml += `50×${notes.n50} `;
+      if (myHistory.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">আপনার কোনো জমা হিসাব পাওয়া যায়নি</td></tr>`;
+        return;
+      }
 
-          let slipsHtml = "";
-          [item.slip1, item.slip2, item.slip3, item.slip4].forEach((s, i) => {
-            if (s) slipsHtml += `<a href="${s}" target="_blank">S${i+1}</a> `;
-          });
+      myHistory.forEach(item => {
+        let dsoRecSum = Array.isArray(item.dsoReceivedList) ? item.dsoReceivedList.reduce((a, b) => a + b.amount, 0) : (item.dsoReceived || 0);
+        let dsoTransSum = Array.isArray(item.dsoTransferList) ? item.dsoTransferList.reduce((a, b) => a + b.amount, 0) : (item.dsoTransfer || 0);
 
-          let row = document.createElement("tr");
-          row.innerHTML = `
-            <td>${item.date || ''}</td>
-            <td class="bg-received">৳${formatBD(totalRec)}</td>
-            <td class="bg-return">৳${formatBD(totalRet)}</td>
-            <td class="bg-diff">৳${formatBD(diff)}</td>
-            <td>${item.bankName || '-'}</td>
-            <td>${noteHtml || '-'}</td>
-            <td>${slipsHtml || '-'}</td>
-          `;
-          tbody.appendChild(row);
+        let totalRec = (item.emReceived || 0) + (item.cashReceived || 0) + dsoRecSum;
+        let totalRet = (item.emReturn || 0) + (item.bankDeposit || 0) + dsoTransSum + (item.cashDeposit || 0);
+        let diff = totalRec - totalRet;
+
+        let notes = item.notes || {};
+        let notesText = "";
+        if (notes.n1000) notesText += `<span class="note-badge">1000×${notes.n1000}</span>`;
+        if (notes.n500) notesText += `<span class="note-badge">500×${notes.n500}</span>`;
+        if (notes.n200) notesText += `<span class="note-badge">200×${notes.n200}</span>`;
+        if (notes.n100) notesText += `<span class="note-badge">100×${notes.n100}</span>`;
+        if (notes.n50) notesText += `<span class="note-badge">50×${notes.n50}</span>`;
+
+        let slipsHtml = "";
+        [item.slip1, item.slip2, item.slip3, item.slip4].forEach((s) => {
+          if (s) slipsHtml += `<img src="${s}" class="slip-img-preview" style="display:inline-block; margin:2px;" onclick="openImageModal('${s}')">`;
         });
+
+        let tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${item.date || '-'}</td>
+          <td class="bg-received">৳ ${formatBD(totalRec)}</td>
+          <td class="bg-return">৳ ${formatBD(totalRet)}</td>
+          <td class="bg-diff">৳ ${formatBD(diff)}</td>
+          <td>${item.bankName || '-'}</td>
+          <td style="text-align:left;">${notesText || '-'}</td>
+          <td>${slipsHtml || '-'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
     }
 
     function exportToExcel() {
-      if (!globalAllData) {
-        alert("এক্সপোর্ট করার জন্য কোনো ডাটা পাওয়া যায়নি!");
-        return;
-      }
-
-      let filterDate = document.getElementById("filterDate").value;
-      let filterMonth = document.getElementById("filterMonth").value;
-      let filterDso = document.getElementById("filterDso").value;
-
-      let exportRows = [];
-
-      Object.values(globalAllData).forEach(item => {
-        let matchDate = !filterDate || item.date === filterDate;
-        let matchMonth = !filterMonth || item.month === filterMonth;
-        let matchDso = !filterDso || String(item.userId) === String(filterDso);
-
-        if (matchDate && matchMonth && matchDso) {
-          let totalRec = (item.emReceived || 0) + (item.cashReceived || 0) + (item.dsoReceived || 0);
-          let totalRet = (item.emReturn || 0) + (item.bankDeposit || 0) + (item.dsoTransfer || 0) + (item.cashDeposit || 0);
-          let diff = totalRec - totalRet;
-          let slipTotal = (item.slipAmt1 || 0) + (item.slipAmt2 || 0) + (item.slipAmt3 || 0) + (item.slipAmt4 || 0);
-
-          exportRows.push({
-            "Date": item.date || '',
-            "Month": item.month || '',
-            "DSO ID": item.userId || '',
-            "e-Money Received": item.emReceived || 0,
-            "Cash Received": item.cashReceived || 0,
-            "DSO Received": item.dsoReceived || 0,
-            "Total Received": totalRec,
-            "e-Money Return": item.emReturn || 0,
-            "Bank Deposit": item.bankDeposit || 0,
-            "Bank Name": item.bankName || '',
-            "DSO Transfer": item.dsoTransfer || 0,
-            "Cash Deposit": item.cashDeposit || 0,
-            "Total Return": totalRet,
-            "Difference (Diff)": diff,
-            "1000 Tk Note": item.notes?.n1000 || 0,
-            "500 Tk Note": item.notes?.n500 || 0,
-            "200 Tk Note": item.notes?.n200 || 0,
-            "100 Tk Note": item.notes?.n100 || 0,
-            "50 Tk Note": item.notes?.n50 || 0,
-            "Slip 1 OCR Amt": item.slipAmt1 || 0,
-            "Slip 2 OCR Amt": item.slipAmt2 || 0,
-            "Slip 3 OCR Amt": item.slipAmt3 || 0,
-            "Slip 4 OCR Amt": item.slipAmt4 || 0,
-            "Total Slip OCR Amt": slipTotal
-          });
-        }
-      });
-
-      if (exportRows.length === 0) {
-        alert("ফিল্টার করার পরে কোনো ডাটা পাওয়া যায়নি!");
-        return;
-      }
-
-      const worksheet = XLSX.utils.json_to_sheet(exportRows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Collection_Report");
-      XLSX.writeFile(workbook, `Collection_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+      let table = document.getElementById("dataTable");
+      let wb = XLSX.utils.table_to_book(table, { sheet: "Collection Report" });
+      let filterDate = document.getElementById("filterDate").value || "All_Dates";
+      XLSX.writeFile(wb, `Collection_Report_${filterDate}.xlsx`);
     }
   </script>
 </body>
