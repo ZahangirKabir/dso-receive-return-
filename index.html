@@ -202,15 +202,15 @@
 
     <!-- ADMIN PANEL NAVIGATION (3 PAGES + SETTINGS) -->
     <div id="adminTabNav" class="tab-nav" style="display:none;">
-      <button class="tab-btn active" id="tabAdminReportBtn" onclick="switchAdminTab('report')">📊 1st Page: Main Report</button>
-      <button class="tab-btn" id="tabAdminBankBtn" onclick="switchAdminTab('bank')">🏦 2nd Page: Bank Details</button>
-      <button class="tab-btn" id="tabAdminNotesBtn" onclick="switchAdminTab('notes')">💵 3rd Page: Note Summary</button>
+      <button class="tab-btn active" id="tabAdminReportBtn" onclick="switchAdminTab('report')">📊 Main Report</button>
+      <button class="tab-btn" id="tabAdminBankBtn" onclick="switchAdminTab('bank')">🏦 Bank Details</button>
+      <button class="tab-btn" id="tabAdminNotesBtn" onclick="switchAdminTab('notes')">💵 Note Summary</button>
       <button class="tab-btn" id="tabAdminSettingsBtn" onclick="switchAdminTab('settings')">⚙️ Settings</button>
     </div>
 
     <!-- DSO PANEL NAVIGATION -->
     <div id="dsoTabNav" class="tab-nav" style="display:none;">
-      <button class="tab-btn active" id="tabDsoFormBtn" onclick="switchDsoTab('form')">📝 কালেকশন এন্ট্রি ফর্ম (Entry Form)</button>
+      <button class="tab-btn active" id="tabDsoFormBtn" onclick="switchDsoTab('form')">📝 দিনের রিপোর্ট</button>
       <button class="tab-btn" id="tabDsoReportBtn" onclick="switchDsoTab('report')">📁 আমার রিপোর্ট ও ইতিহাস (My Reports)</button>
     </div>
 
@@ -309,7 +309,7 @@
 
       <!-- ADMIN PAGE 2: BANK DETAILS PAGE (UPDATED WITH CARDS & DYNAMIC BANK COLUMNS) -->
       <div id="adminPageBank" style="display:none;">
-        <h3 style="color:#00695c; margin-bottom:10px;">🏦 ২য় পেজ: ডিপোজিট অনুযায়ী Bank Name, Column Wise Total & Details</h3>
+        <h3 style="color:#00695c; margin-bottom:10px;">🏦 ডিপোজিট অনুযায়ী Bank Name, Column Wise Total & Details</h3>
         
         <!-- BANK SUMMARY CARDS -->
         <div class="summary-cards" id="bankSummaryCardsContainer"></div>
@@ -326,7 +326,7 @@
 
       <!-- ADMIN PAGE 3: NOTE QUANTITY & SUMMARY PAGE -->
       <div id="adminPageNotes" style="display:none;">
-        <h3 style="color:#00695c; margin-bottom:10px;">💵 ৩য় পেজ: DSO ID ও Note অনুযায়ী বিস্তারিত ক্যাশ গণনা</h3>
+        <h3 style="color:#00695c; margin-bottom:10px;">💵 DSO ID ও Note অনুযায়ী বিস্তারিত ক্যাশ গণনা</h3>
         <div class="table-container">
           <table id="notesSummaryTable">
             <thead>
