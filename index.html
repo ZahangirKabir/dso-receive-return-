@@ -51,7 +51,7 @@
     .btn-details:hover { background: #01579b; }
 
     .btn-clear-slip {
-      background: #d32f2f; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; margin-top: 5px;
+      background: #d32f2f; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;
     }
     .btn-clear-slip:hover { background: #b71c1c; }
 
@@ -119,13 +119,12 @@
     .bg-dso-diff { background-color: #e0f7fa !important; color: #00838f; font-weight: bold; }
 
     .slip-img-preview { width: 45px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; display: block; margin: 0 auto; cursor: pointer; }
-    .slip-cell { font-size: 10px; text-align: center; }
-    .slip-amt { font-weight: bold; color: #00695c; }
 
     .note-badge { display: inline-block; background: #eceff1; border: 1px solid #b0bec5; padding: 2px 5px; margin: 1px; border-radius: 3px; font-size: 11px; text-align: left; white-space: nowrap; }
     .dso-badge { display: inline-block; background: #e0f2f1; border: 1px solid #80cbc4; color: #004d40; padding: 2px 5px; margin: 1px; border-radius: 3px; font-size: 11px; font-weight: bold; }
 
-    .slip-box-item { border: 1px dashed #00695c; padding: 10px; border-radius: 6px; background: #fafafa; margin-bottom: 10px; position: relative; }
+    .slip-box-item { border: 1px dashed #00695c; padding: 10px; border-radius: 6px; background: #fafafa; margin-bottom: 10px; }
+    .slip-input-group { display: flex; gap: 10px; align-items: center; margin-top: 5px; flex-wrap: wrap; }
     
     /* Modal Styles for Details Popup */
     .modal-overlay {
@@ -339,7 +338,7 @@
 
       <!-- DYNAMIC DEPOSIT SLIP CONTAINER -->
       <div class="section-box" style="margin-bottom: 20px;">
-        <div class="section-title" style="color: #00695c;">🧾 ডিপোজিট স্লিপ আপলোড</div>
+        <div class="section-title" style="color: #00695c;">🧾 ডিপোজিট স্লিপ আপলোড ও পরিমাণ</div>
         <div id="slipsContainer"></div>
         <button type="button" class="btn-add" onclick="addSlipRow()" style="padding: 10px 15px; font-size: 14px;">+ Add More Deposit Slip</button>
         <div id="ocrStatus" class="ocr-status"></div>
@@ -448,13 +447,11 @@
 
       let userIdNum = parseInt(id, 10);
 
-      // Check User Authorization (admin OR 801-845)
       if (id.toLowerCase() !== "admin" && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
         alert("অপ্রবেশযোগ্য আইডি! শুধুমাত্র admin এবং 801 থেকে 845 পর্যন্ত DSO লগইন করতে পারবে।");
         return;
       }
 
-      // Check Password in Database
       try {
         let passSnapshot = await database.ref('users/' + id + '/password').once('value');
         let dbPass = passSnapshot.val();
@@ -537,7 +534,7 @@
       calcFormTotals();
     }
 
-    /* SLIP ADD MORE FUNCTIONS */
+    /* SLIP ADD MORE & AMOUNT INPUT FUNCTIONS */
     function addSlipRow() {
       slipCounter++;
       const container = document.getElementById("slipsContainer");
@@ -545,12 +542,14 @@
       div.className = "slip-box-item";
       div.id = `slipRow_${slipCounter}`;
       div.innerHTML = `
-        <div style="display:flex; justify-space-between; align-items:center; margin-bottom:5px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
           <label style="font-weight:bold;">Deposit Slip #${slipCounter}</label>
           <button type="button" class="btn-clear-slip" onclick="removeSlipRow(${slipCounter})">✖ Remove Slip</button>
         </div>
-        <input type="file" class="slip-file-input" accept="image/*" onchange="processSlipOCR(event, ${slipCounter})">
-        <input type="hidden" class="slip-amt-val" id="slipAmt_${slipCounter}" value="0">
+        <div class="slip-input-group">
+          <input type="file" class="slip-file-input" accept="image/*" style="flex: 2;" onchange="processSlipOCR(event, ${slipCounter})">
+          <input type="text" placeholder="Slip Amount" class="amt-field slip-amt-val" id="slipAmt_${slipCounter}" style="flex: 1;" oninput="handleAmountInput(this); recalculateBankDepositFromSlips();">
+        </div>
         <div id="slipStatus_${slipCounter}" style="font-size: 11px; margin-top: 4px; color: #00695c;"></div>
       `;
       container.appendChild(div);
@@ -567,7 +566,7 @@
     function recalculateBankDepositFromSlips() {
       let totalBankAmt = 0;
       document.querySelectorAll(".slip-amt-val").forEach(input => {
-        totalBankAmt += parseFloat(input.value) || 0;
+        totalBankAmt += parseRawNumber(input.value);
       });
 
       const bankInput = document.getElementById("bankDeposit");
@@ -583,7 +582,7 @@
       const amtInput = document.getElementById(`slipAmt_${id}`);
 
       if (!file) {
-        amtInput.value = 0;
+        amtInput.value = "";
         recalculateBankDepositFromSlips();
         if (statusElement) statusElement.innerText = "";
         return;
@@ -624,7 +623,9 @@
           }
         });
 
-        amtInput.value = maxVal;
+        if (maxVal > 0) {
+          amtInput.value = formatBD(maxVal);
+        }
         recalculateBankDepositFromSlips();
 
         let msg = `✅ ব্যাংক: (${foundBank || 'N/A'}), পরিমাণ: ৳ ${formatBD(maxVal)}`;
@@ -632,7 +633,7 @@
         if (mainStatus) mainStatus.innerText = `✅ স্লিপ #${id} সফলভাবে রিড করা হয়েছে।`;
       } catch (err) {
         console.error(err);
-        if (statusElement) statusElement.innerText = `❌ স্ক্যান সফল হয়নি।`;
+        if (statusElement) statusElement.innerText = `❌ স্ক্যান সফল হয়নি। আপনি ম্যানুয়ালি অ্যামাউন্ট লিখতে পারেন।`;
       }
     }
 
@@ -748,7 +749,7 @@
           let amtInput = row.querySelector(".slip-amt-val");
           let file = fileInput ? fileInput.files[0] : null;
           let imgBase64 = await getBase64(file);
-          let amt = parseFloat(amtInput.value) || 0;
+          let amt = parseRawNumber(amtInput.value);
 
           if (imgBase64 || amt > 0) {
             slipsData.push({ img: imgBase64, amt: amt });
@@ -823,7 +824,7 @@
 
       document.getElementById("slipsContainer").innerHTML = "";
       slipCounter = 0;
-      addSlipRow(); // Default 1 Slip Row
+      addSlipRow();
       
       document.getElementById("ocrStatus").innerText = "";
       calcFormTotals();
@@ -992,7 +993,6 @@
         let diff = totalRec - totalRet;
         let dsoDiff = dsoRecSum - dsoTransSum;
 
-        // Calculate slips amount from new array or legacy keys
         let slipsList = item.slips || [];
         let totalSlipAmt = 0;
         if (slipsList.length > 0) {
@@ -1049,7 +1049,6 @@
         tbody.appendChild(tr);
       });
 
-      // Total Summary Row
       let tfootRow = document.createElement("tr");
       tfootRow.style.fontWeight = "bold";
       tfootRow.style.background = "#eceff1";
@@ -1078,7 +1077,6 @@
       updateSummaryCards(count, totalRecSum, totalRetSum, totalDiffSum, totalDsoRecSum, totalDsoTransSum, totalDsoDiffSum, totalBankDepSum, totalSlipOcrSum);
     }
 
-    /* SHOW DETAILS POPUP MODAL FUNCTION */
     function showDetailsModal(key) {
       if (!globalAllData || !globalAllData[key]) return;
       const item = globalAllData[key];
@@ -1126,7 +1124,6 @@
       let n1000 = notes.n1000 || 0, n500 = notes.n500 || 0, n200 = notes.n200 || 0, n100 = notes.n100 || 0, n50 = notes.n50 || 0;
       let notesTotal = (n1000*1000) + (n500*500) + (n200*200) + (n100*100) + (n50*50);
 
-      // Slips dynamic parsing
       let slips = item.slips || [];
       if (slips.length === 0 && (item.slip1 || item.slipAmt1)) {
         if(item.slip1 || item.slipAmt1) slips.push({img: item.slip1, amt: item.slipAmt1});
