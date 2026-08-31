@@ -219,7 +219,6 @@
           </select>
         </div>
 
-        <!-- NEW FILTER BUTTONS INTEGRATED HERE -->
         <button class="btn" style="width: auto; background: #00838f;" onclick="filterThisMonth()">📅 এই মাস (This Month)</button>
         <button class="btn" style="width: auto; background: #455a64;" onclick="filterAllData()">🌐 সকল ডাটা (All Data)</button>
 
@@ -410,9 +409,7 @@
         <h3 id="modalTitle">Collection Details</h3>
         <button class="modal-close" onclick="closeDetailsModal()">✖ Close</button>
       </div>
-      <div id="modalBody">
-        <!-- Dynamic content will be injected here -->
-      </div>
+      <div id="modalBody"></div>
     </div>
   </div>
 
@@ -469,6 +466,7 @@
       "Mercantile Bank", "NCC Bank", "NRB Bank", "First Security Islami Bank", "EXIM Bank"
     ];
 
+    /* UPDATED LOGIN FUNCTION (PREVENTS Admin CASE ISSUE & LOADS EXACT USER DB PASS) */
     async function handleLogin() {
       const id = document.getElementById("loginId").value.trim();
       const pass = document.getElementById("loginPass").value.trim();
@@ -480,7 +478,8 @@
 
       let userIdNum = parseInt(id, 10);
 
-      if (id.toLowerCase() !== "admin" && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
+      // 'Admin' বা অন্য কিছু লিখলে সরাসরি আটকে দেওয়া হবে
+      if (id !== "admin" && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
         alert("অপ্রবেশযোগ্য আইডি! শুধুমাত্র admin এবং 801 থেকে 845 পর্যন্ত DSO লগইন করতে পারবে।");
         return;
       }
@@ -489,8 +488,10 @@
         let passSnapshot = await database.ref('users/' + id + '/password').once('value');
         let dbPass = passSnapshot.val();
 
-        if (!dbPass) {
+        if (dbPass === null || dbPass === undefined) {
           dbPass = "123456";
+        } else {
+          dbPass = String(dbPass).trim();
         }
 
         if (pass !== dbPass) {
@@ -502,7 +503,7 @@
         document.getElementById("loginSection").style.display = "none";
         document.getElementById("appContainer").style.display = "block";
 
-        if (id.toLowerCase() === "admin") {
+        if (id === "admin") {
           document.getElementById("portalTitle").innerText = "Admin Control Dashboard";
           document.getElementById("adminView").style.display = "block";
           document.getElementById("dsoView").style.display = "none";
@@ -605,7 +606,6 @@
       calcFormTotals();
     }
 
-    /* SLIP ADD MORE & AMOUNT INPUT FUNCTIONS */
     function addSlipRow() {
       slipCounter++;
       const container = document.getElementById("slipsContainer");
@@ -904,7 +904,7 @@
     function listenRealtimeData() {
       database.ref('collections').on('value', (snapshot) => {
         globalAllData = snapshot.val();
-        if (currentUser.toLowerCase() === "admin") {
+        if (currentUser === "admin") {
           populateDsoDropdown(globalAllData);
           applyAdminFilters();
         } else {
@@ -925,13 +925,12 @@
 
       let dsoSet = new Set();
       
-      // Default Range (801 to 845) DSO list include in target option
       for (let i = 801; i <= 845; i++) {
         dsoSet.add(String(i));
       }
 
       if (data) {
-        Object.values(data).forEach(r => { if (r.userId && r.userId.toLowerCase() !== "admin") dsoSet.add(r.userId); });
+        Object.values(data).forEach(r => { if (r.userId && r.userId !== "admin") dsoSet.add(r.userId); });
       }
 
       dsoSet.forEach(dso => {
@@ -981,13 +980,12 @@
       renderAdminTable(filteredData);
     }
 
-    /* NEW FILTER FUNCTIONS INTEGRATED HERE */
     function filterThisMonth() {
       if (!globalAllData) return;
       document.getElementById("filterDate").value = ""; 
       let filterDso = document.getElementById("filterDso").value;
 
-      let currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM Format
+      let currentMonth = new Date().toISOString().slice(0, 7);
       let filteredData = {};
       let submittedDsoSet = new Set();
 
