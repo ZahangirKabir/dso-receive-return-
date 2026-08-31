@@ -219,6 +219,10 @@
           </select>
         </div>
 
+        <!-- NEW FILTER BUTTONS INTEGRATED HERE -->
+        <button class="btn" style="width: auto; background: #00838f;" onclick="filterThisMonth()">📅 এই মাস (This Month)</button>
+        <button class="btn" style="width: auto; background: #455a64;" onclick="filterAllData()">🌐 সকল ডাটা (All Data)</button>
+
         <button class="btn-reset" onclick="resetAdminFilters()">🔄 Reset Filters</button>
         <button class="btn-excel" onclick="exportToExcel()">📥 Download Excel Report</button>
       </div>
@@ -277,7 +281,7 @@
 
     <!-- DSO VIEW -->
     <div id="dsoView" style="display: none;">
-      <!-- PASSWORD CHANGE PANEL FOR DSO -->
+      <!-- PASSWORD CHANGE PANEL -->
       <div class="section-box" style="margin-bottom: 20px; background: #e0f2f1; border-color: #00695c;">
         <div class="section-title" style="color: #004d40;">🔑 পাসওয়ার্ড পরিবর্তন করুন</div>
         <div style="display: flex; gap: 10px; max-width: 500px;">
@@ -486,7 +490,7 @@
         let dbPass = passSnapshot.val();
 
         if (!dbPass) {
-          dbPass = "123456"; // Default password
+          dbPass = "123456";
         }
 
         if (pass !== dbPass) {
@@ -921,7 +925,7 @@
 
       let dsoSet = new Set();
       
-      // Default Range (801 to 845) DSO list included in target options
+      // Default Range (801 to 845) DSO list include in target option
       for (let i = 801; i <= 845; i++) {
         dsoSet.add(String(i));
       }
@@ -969,6 +973,57 @@
         }
 
         if (matchDate && matchDso) {
+          filteredData[key] = item;
+        }
+      });
+
+      renderMissingDsoList(submittedDsoSet);
+      renderAdminTable(filteredData);
+    }
+
+    /* NEW FILTER FUNCTIONS INTEGRATED HERE */
+    function filterThisMonth() {
+      if (!globalAllData) return;
+      document.getElementById("filterDate").value = ""; 
+      let filterDso = document.getElementById("filterDso").value;
+
+      let currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM Format
+      let filteredData = {};
+      let submittedDsoSet = new Set();
+
+      Object.keys(globalAllData).forEach(key => {
+        let item = globalAllData[key];
+        let isThisMonth = item.date && item.date.startsWith(currentMonth);
+        let matchDso = !filterDso || String(item.userId) === String(filterDso);
+
+        if (isThisMonth) {
+          if (item.userId) submittedDsoSet.add(String(item.userId).trim());
+        }
+
+        if (isThisMonth && matchDso) {
+          filteredData[key] = item;
+        }
+      });
+
+      renderMissingDsoList(submittedDsoSet);
+      renderAdminTable(filteredData);
+    }
+
+    function filterAllData() {
+      if (!globalAllData) return;
+      document.getElementById("filterDate").value = ""; 
+      let filterDso = document.getElementById("filterDso").value;
+
+      let filteredData = {};
+      let submittedDsoSet = new Set();
+
+      Object.keys(globalAllData).forEach(key => {
+        let item = globalAllData[key];
+        let matchDso = !filterDso || String(item.userId) === String(filterDso);
+
+        if (item.userId) submittedDsoSet.add(String(item.userId).trim());
+
+        if (matchDso) {
           filteredData[key] = item;
         }
       });
