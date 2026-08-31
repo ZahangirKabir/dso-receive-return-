@@ -18,7 +18,7 @@
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
     body { background-color: #f4f7f6; padding: 10px; color: #333; }
-    .container { max-width: 1600px; margin: 0 auto; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .container { max-width: 1500px; margin: 0 auto; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     h2 { color: #00695c; margin-bottom: 15px; font-size: 20px; }
 
     .login-box { max-width: 400px; margin: 40px auto; padding: 25px; border: 1px solid #ccc; border-radius: 8px; background: #fff; text-align: center; }
@@ -53,7 +53,7 @@
     .btn-clear-slip { background: #d32f2f; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
     .btn-clear-slip:hover { background: #b71c1c; }
 
-    /* Tab Navigation */
+    /* Tab Navigation for Page Switching */
     .tab-nav { display: flex; gap: 10px; border-bottom: 2px solid #00695c; margin-bottom: 15px; flex-wrap: wrap; }
     .tab-btn { background: #e0f2f1; border: none; padding: 10px 18px; font-weight: bold; cursor: pointer; border-radius: 6px 6px 0 0; color: #004d40; font-size: 14px; }
     .tab-btn.active { background: #00695c; color: white; }
@@ -103,7 +103,7 @@
 
     .ocr-status { font-size: 11px; color: #00695c; margin-top: 4px; font-weight: bold; }
 
-    /* Sticky Table Container Setup */
+    /* Sticky Table Container Setup with Mobile Responsive Scroll */
     .table-container { 
       max-height: 70vh; 
       overflow-y: auto; 
@@ -124,7 +124,7 @@
     #dataTable thead tr:nth-child(2) th { position: sticky; top: 28px; z-index: 9; }
     #dsoHistoryTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
 
-    /* STICKY LEFT COLUMNS FOR ADMIN TABLE */
+    /* STICKY LEFT COLUMNS FOR ADMIN TABLE (DATE & DSO ID FREEZE) */
     #dataTable th.sticky-col-1, #dataTable td.sticky-col-1 {
       position: sticky;
       left: 0;
@@ -134,36 +134,49 @@
     }
     #dataTable th.sticky-col-2, #dataTable td.sticky-col-2 {
       position: sticky;
-      left: 75px;
+      left: 75px; /* Column 1 Width Offset */
       z-index: 5;
       background-color: #37474f;
       color: white;
-      border-right: 2px solid #00695c;
+      border-right: 2px solid #00695c; /* Distinct Freeze Divider Line */
     }
 
+    /* Adjust Z-Index for Header + Left Freeze Column Intersections */
     #dataTable thead tr:nth-child(1) th.sticky-col-1,
-    #dataTable thead tr:nth-child(1) th.sticky-col-2 { z-index: 20; }
+    #dataTable thead tr:nth-child(1) th.sticky-col-2 {
+      z-index: 20;
+    }
     #dataTable thead tr:nth-child(2) th.sticky-col-1,
-    #dataTable thead tr:nth-child(2) th.sticky-col-2 { z-index: 19; }
+    #dataTable thead tr:nth-child(2) th.sticky-col-2 {
+      z-index: 19;
+    }
 
-    #dataTable tbody td.sticky-col-1, #dataTable tbody td.sticky-col-2 { background-color: #fff; color: #333; }
+    /* Body/Footer Specific background overrides for sticky columns */
+    #dataTable tbody td.sticky-col-1, #dataTable tbody td.sticky-col-2 {
+      background-color: #fff;
+      color: #333;
+    }
     #dataTable tbody tr:nth-child(even) td.sticky-col-1, 
-    #dataTable tbody tr:nth-child(even) td.sticky-col-2 { background-color: #f9f9f9; }
-    #dataTable tfoot tr td.sticky-col-1, #dataTable tfoot tr td.sticky-col-2 { background-color: #eceff1; color: #000; }
+    #dataTable tbody tr:nth-child(even) td.sticky-col-2 {
+      background-color: #f9f9f9;
+    }
+    #dataTable tfoot tr td.sticky-col-1, #dataTable tfoot tr td.sticky-col-2 {
+      background-color: #eceff1;
+      color: #000;
+    }
 
     .th-info { background: #37474f; color: white; }
     .th-received { background: #2e7d32; color: white; }
     .th-return { background: #c62828; color: white; }
     .th-diff { background: #e65100; color: white; }
     .th-dso { background: #00838f; color: white; }
-    .th-bank { background: #1565c0; color: white; }
     
     .bg-received { background-color: #e8f5e9 !important; color: #1b5e20; }
     .bg-return { background-color: #ffebee !important; color: #b71c1c; }
     .bg-diff { background-color: #fff3e0 !important; color: #e65100; font-weight: bold; }
     .bg-dso-diff { background-color: #e0f7fa !important; color: #00838f; font-weight: bold; }
 
-    .slip-img-preview { width: 35px; height: 35px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; display: inline-block; margin: 2px; cursor: pointer; }
+    .slip-img-preview { width: 35px; height: 35px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; display: block; margin: 0 auto; cursor: pointer; }
 
     .note-badge { display: inline-block; background: #eceff1; border: 1px solid #b0bec5; padding: 2px 4px; margin: 1px; border-radius: 3px; font-size: 10px; text-align: left; white-space: nowrap; }
     .dso-badge { display: inline-block; background: #e0f2f1; border: 1px solid #80cbc4; color: #004d40; padding: 2px 4px; margin: 1px; border-radius: 3px; font-size: 10px; font-weight: bold; }
@@ -171,6 +184,7 @@
     .slip-box-item { border: 1px dashed #00695c; padding: 8px; border-radius: 6px; background: #fafafa; margin-bottom: 8px; }
     .slip-input-group { display: flex; gap: 8px; align-items: center; margin-top: 5px; flex-wrap: wrap; }
     
+    /* Dynamic Warning Text for Cash Validation */
     .note-warning { color: #c62828; font-size: 11px; font-weight: bold; margin-top: 4px; }
     .note-success { color: #2e7d32; font-size: 11px; font-weight: bold; margin-top: 4px; }
 
@@ -193,6 +207,7 @@
     .slip-card-modal { border: 1px solid #ccc; padding: 4px; border-radius: 4px; text-align: center; background: #fff; }
     .slip-card-modal img { width: 100%; height: 120px; object-fit: contain; background: #f0f0f0; border-radius: 4px; cursor: pointer; }
 
+    /* Mobile Responsive adjustments */
     @media screen and (max-width: 768px) {
       body { padding: 5px; }
       .container { padding: 10px; }
@@ -236,7 +251,7 @@
     <!-- ADMIN VIEW -->
     <div id="adminView" style="display: none;">
       
-      <!-- ADMIN TAB 1: REPORT & DATA TABLE -->
+      <!-- ADMIN TAB 1: REPORT & DATA TABLE (NEW PAGE VIEW) -->
       <div id="adminPageReport">
         <!-- SEARCH & FILTER PANEL -->
         <div class="filter-panel">
@@ -294,11 +309,29 @@
         <!-- ADMIN REAL-TIME DATA TABLE -->
         <div class="table-container">
           <table id="dataTable">
-            <thead id="adminTableHead">
-              <!-- Dynamically rendered via Javascript -->
+            <thead>
+              <tr>
+                <th colspan="2" class="th-info sticky-col-1" style="left:0; z-index:20;">Basic Info</th>
+                <th colspan="3" class="th-received">RECEIVED SECTION</th>
+                <th colspan="5" class="th-return">RETURN SECTION</th>
+                <th colspan="3" class="th-dso">DSO BREAKDOWN & DIFF</th>
+                <th colspan="3" class="th-diff">CALCULATION & DIFF</th>
+                <th class="th-info">Note Quantity</th>
+                <th class="th-info">Slips & OCR Details</th>
+                <th class="th-info">Action</th>
+              </tr>
+              <tr>
+                <th class="th-info sticky-col-1">Date</th><th class="th-info sticky-col-2">DSO ID</th>
+                <th class="th-received">e-Mon Rec</th><th class="th-received">Cash Rec</th><th class="th-received">DSO Rec Breakdown</th>
+                <th class="th-return">e-Mon Ret</th><th class="th-return">Bank Dep</th><th class="th-return">Bank Name</th><th class="th-return">DSO Trans Breakdown</th><th class="th-return">Cash Dep</th>
+                <th class="th-dso">DSO Rec Amt</th><th class="th-dso">DSO Trans Amt</th><th class="th-dso">DSO Diff</th>
+                <th class="th-diff">মোট রিসিভড</th><th class="th-diff">মোট রিটার্ন</th><th class="th-diff">ব্যবধন (Diff)</th>
+                <th class="th-info">Cash Breakdown</th>
+                <th class="th-info">Slips & OCR Sum</th>
+                <th class="th-info">Action</th>
+              </tr>
             </thead>
             <tbody id="adminTableBody"></tbody>
-            <tfoot id="adminTableFoot"></tfoot>
           </table>
         </div>
       </div>
@@ -309,6 +342,7 @@
           <div class="section-title" style="color: #004d40; border-color: #00695c;">🔑 অ্যাডমিন ও ইউজার পাসওয়ার্ড ম্যানেজমেন্ট</div>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
             
+            <!-- Admin Own Password Change -->
             <div style="background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #004d40;">
               <label style="font-size: 12px; font-weight: bold; color: #004d40; display: block; margin-bottom: 5px;">অ্যাডমিনের নিজের পাসওয়ার্ড পরিবর্তন</label>
               <div style="display: flex; gap: 8px;">
@@ -317,6 +351,7 @@
               </div>
             </div>
 
+            <!-- Admin Change Other User Password -->
             <div style="background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #004d40;">
               <label style="font-size: 12px; font-weight: bold; color: #004d40; display: block; margin-bottom: 5px;">অন্যান্য DSO / ইউজারের পাসওয়ার্ড পরিবর্তন</label>
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -339,6 +374,7 @@
 
       <!-- DSO TAB 1: ENTRY FORM PAGE -->
       <div id="dsoPageForm">
+        <!-- PASSWORD CHANGE PANEL -->
         <div class="section-box" style="margin-bottom: 15px; background: #e0f2f1; border-color: #00695c;">
           <div class="section-title" style="color: #004d40; margin-bottom: 8px;">🔑 পাসওয়ার্ড পরিবর্তন করুন</div>
           <div style="display: flex; gap: 8px; max-width: 400px;">
@@ -376,6 +412,7 @@
             <div class="section-title title-return">📤 ২. RETURN SECTION</div>
             <div class="form-group"><label>e-Money Return</label><input type="text" id="emReturn" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
             
+            <!-- Bank Deposit Auto Computed Field -->
             <div class="form-group">
               <label>Bank Deposit Amount (স্বয়ংক্রিয় যোগফল)</label>
               <input type="text" id="bankDeposit" class="amt-field" readonly style="background-color: #e8e8e8; font-weight: bold; color: #00695c;">
@@ -408,7 +445,7 @@
             </div>
           </div>
 
-          <!-- DENOMINATION SECTION -->
+          <!-- DENOMINATION SECTION (MANDATORY IF CASH DEPOSIT EXISTS) -->
           <div class="section-box" id="cashNoteBox">
             <div class="section-title" style="color: #37474f;">💵 ৩. ক্যাশ নোট গণনার হিসাব <span id="noteMandatoryBadge" style="color:red; font-size:11px;">(Cash Deposit থাকলে বাধ্যবাধক)</span></div>
             <div class="form-group"><label>৳ 1000 ×</label><input type="number" id="note1000" class="denom" data-value="1000" placeholder="টি" oninput="calcCash()"></div>
@@ -445,7 +482,7 @@
         </div>
       </div>
 
-      <!-- DSO TAB 2: HISTORY & REPORT -->
+      <!-- DSO TAB 2: HISTORY & REPORT (NEW PAGE VIEW FOR DSO) -->
       <div id="dsoPageReport" style="display:none;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
           <h3>আমার পূর্বের জমা হিসাব (My History & Report)</h3>
@@ -506,14 +543,6 @@
     let currentUser = null;
     let globalAllData = null;
     let slipCounter = 0;
-
-    const knownBanks = [
-      "Islami Bank", "Dutch-Bangla Bank", "DBBL", "BRAC Bank", "City Bank", 
-      "Eastern Bank", "EBL", "United Commercial Bank", "UCB", "Sonali Bank", 
-      "Janata Bank", "Agrani Bank", "Rupali Bank", "Pubali Bank", "Standard Chartered",
-      "HSBC", "Prime Bank", "Dhaka Bank", "Mutual Trust Bank", "MTB", "Southeast Bank",
-      "Mercantile Bank", "NCC Bank", "NRB Bank", "First Security Islami Bank", "EXIM Bank"
-    ];
 
     function formatBD(num) {
       if (num === null || num === undefined || isNaN(num) || num === "") return "0";
@@ -579,6 +608,14 @@
       }
       return html;
     }
+
+    const knownBanks = [
+      "Islami Bank", "Dutch-Bangla Bank", "DBBL", "BRAC Bank", "City Bank", 
+      "Eastern Bank", "EBL", "United Commercial Bank", "UCB", "Sonali Bank", 
+      "Janata Bank", "Agrani Bank", "Rupali Bank", "Pubali Bank", "Standard Chartered",
+      "HSBC", "Prime Bank", "Dhaka Bank", "Mutual Trust Bank", "MTB", "Southeast Bank",
+      "Mercantile Bank", "NCC Bank", "NRB Bank", "First Security Islami Bank", "EXIM Bank"
+    ];
 
     async function handleLogin() {
       const id = document.getElementById("loginId").value.trim();
@@ -865,6 +902,7 @@
       calcCash();
     }
 
+    // MANDATORY CASH DEPOSIT & NOTE VALIDATION ENGINE
     function calcCash() {
       let totalCashCalculated = 0;
       document.querySelectorAll(".denom").forEach(input => {
@@ -948,6 +986,7 @@
         return;
       }
 
+      // Mandatory Cash Note Re-check
       let cashDepositAmt = parseRawNumber(document.getElementById("cashDeposit").value);
       let n1000 = parseInt(document.getElementById("note1000").value, 10) || 0;
       let n500 = parseInt(document.getElementById("note500").value, 10) || 0;
@@ -957,7 +996,7 @@
       let totalCashVal = (n1000*1000) + (n500*500) + (n200*200) + (n100*100) + (n50*50);
 
       if (cashDepositAmt > 0 && totalCashVal !== cashDepositAmt) {
-        alert("⚠️ Cash Deposit থাকার পরও ক্যাশ নোটের বিবরণ সঠিকভাবে দেওয়া হয়নি অথবা পরিমাণ মিলেনি!");
+        alert("⚠️ Cash Deposit থাকার পরও ক্যাশ নোটের বিবরণ সঠিকভাবে দেওয়া হয়নি অথবা পরিমাণ মileni!");
         return;
       }
 
@@ -1175,112 +1214,23 @@
       applyAdminFilters();
     }
 
-    // RENDER ADMIN TABLE WITH BANK-WISE DYNAMIC COLUMNS & DSO SEQUENCE SORTING
     function renderAdminTable(data) {
-      const thead = document.getElementById("adminTableHead");
       const tbody = document.getElementById("adminTableBody");
-      const tfoot = document.getElementById("adminTableFoot");
-      
-      thead.innerHTML = "";
       tbody.innerHTML = "";
-      tfoot.innerHTML = "";
-
-      if (!data || Object.keys(data).length === 0) {
-        thead.innerHTML = `
-          <tr>
-            <th class="th-info sticky-col-1">Date</th>
-            <th class="th-info sticky-col-2">DSO ID</th>
-            <th class="th-received">e-Mon Rec</th>
-            <th class="th-received">Cash Rec</th>
-            <th class="th-received">DSO Rec Breakdown</th>
-            <th class="th-return">e-Mon Ret</th>
-            <th class="th-return">Bank Dep</th>
-            <th class="th-return">DSO Trans Breakdown</th>
-            <th class="th-return">Cash Dep</th>
-            <th class="th-dso">DSO Rec Amt</th>
-            <th class="th-dso">DSO Trans Amt</th>
-            <th class="th-dso">DSO Diff</th>
-            <th class="th-diff">মোট রিসিভড</th>
-            <th class="th-diff">মোট রিটার্ন</th>
-            <th class="th-diff">ব্যবধন (Diff)</th>
-            <th class="th-info">Action</th>
-          </tr>
-        `;
-        tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;">কোনো ডেটা পাওয়া যায়নি</td></tr>`;
-        updateSummaryCards(0, 0, 0, 0, 0, 0, 0, 0, 0);
-        return;
-      }
-
-      // Collect all dynamic banks across entries
-      let activeBankSet = new Set();
-      Object.values(data).forEach(item => {
-        if (item.bankName) {
-          let names = item.bankName.split(',').map(b => b.trim()).filter(b => b !== '');
-          names.forEach(b => activeBankSet.add(b));
-        }
-      });
-      let bankList = Array.from(activeBankSet);
-      if (bankList.length === 0) bankList = ["Bank Deposit"];
-
-      // 1. Build Header Row 1 & 2
-      let totalBankCols = bankList.length * 2; // Amt + Slip for each bank
-      let headRow1 = `
-        <tr>
-          <th colspan="2" class="th-info sticky-col-1" style="left:0; z-index:20;">Basic Info</th>
-          <th colspan="3" class="th-received">RECEIVED SECTION</th>
-          <th colspan="${3 + totalBankCols}" class="th-return">RETURN SECTION & BANK DEPOSITS</th>
-          <th colspan="3" class="th-dso">DSO BREAKDOWN & DIFF</th>
-          <th colspan="3" class="th-diff">CALCULATION & DIFF</th>
-          <th class="th-info">Action</th>
-        </tr>
-      `;
-
-      let bankSubHeaders = "";
-      bankList.forEach(bank => {
-        bankSubHeaders += `<th class="th-bank">${bank} (Amt)</th><th class="th-bank">${bank} (Slip)</th>`;
-      });
-
-      let headRow2 = `
-        <tr>
-          <th class="th-info sticky-col-1">Date</th>
-          <th class="th-info sticky-col-2">DSO ID</th>
-          <th class="th-received">e-Mon Rec</th>
-          <th class="th-received">Cash Rec</th>
-          <th class="th-received">DSO Rec Breakdown</th>
-          <th class="th-return">e-Mon Ret</th>
-          <th class="th-return">Bank Dep</th>
-          ${bankSubHeaders}
-          <th class="th-return">DSO Trans Breakdown</th>
-          <th class="th-return">Cash Dep</th>
-          <th class="th-dso">DSO Rec Amt</th>
-          <th class="th-dso">DSO Trans Amt</th>
-          <th class="th-dso">DSO Diff</th>
-          <th class="th-diff">মোট রিসিভড</th>
-          <th class="th-diff">মোট রিটার্ন</th>
-          <th class="th-diff">ব্যবধন (Diff)</th>
-          <th class="th-info">Action</th>
-        </tr>
-      `;
-      thead.innerHTML = headRow1 + headRow2;
-
-      // 2. Sort Data by DSO ID Sequence (801, 802, ...)
-      let entries = Object.keys(data).map(key => ({ key, ...data[key] }));
-      entries.sort((a, b) => {
-        let dsoA = parseInt(a.userId, 10) || 0;
-        let dsoB = parseInt(b.userId, 10) || 0;
-        return dsoA - dsoB;
-      });
 
       let count = 0, totalRecSum = 0, totalRetSum = 0, totalDiffSum = 0;
       let totalDsoRecSum = 0, totalDsoTransSum = 0, totalDsoDiffSum = 0;
       let totalBankDepSum = 0, totalSlipOcrSum = 0;
       let sumEmRec = 0, sumCashRec = 0, sumEmRet = 0, sumCashDep = 0;
 
-      let bankTotals = {};
-      bankList.forEach(b => bankTotals[b] = 0);
+      if (!data) {
+        tbody.innerHTML = `<tr><td colspan="19" style="text-align:center;">কোনো ডেটা পাওয়া যায়নি</td></tr>`;
+        updateSummaryCards(0, 0, 0, 0, 0, 0, 0, 0, 0);
+        return;
+      }
 
-      // 3. Build Table Body Rows
-      entries.forEach(item => {
+      Object.keys(data).forEach(key => {
+        let item = data[key];
         count++;
 
         let emRec = item.emReceived || 0;
@@ -1324,29 +1274,14 @@
         totalDsoRecSum += dsoRecSum; totalDsoTransSum += dsoTransSum; totalDsoDiffSum += dsoDiff;
         totalBankDepSum += bankDep; totalSlipOcrSum += totalSlipAmt;
 
-        // Build Bank-wise cells
-        let itemBanks = (item.bankName || "").split(',').map(b => b.trim());
-        let bankColsHtml = "";
-
-        bankList.forEach(bank => {
-          if (itemBanks.includes(bank) || (bankList.length === 1 && bankDep > 0)) {
-            bankTotals[bank] += bankDep;
-            bankColsHtml += `<td>৳ ${formatBD(bankDep)}</td>`;
-
-            let slipImgs = "";
-            if (slipsList.length > 0) {
-              slipsList.forEach(s => {
-                if (s.img) slipImgs += `<img src="${s.img}" class="slip-img-preview" onclick="openImageModal('${s.img}')">`;
-              });
-            } else if (item.slip1) {
-              slipImgs = `<img src="${item.slip1}" class="slip-img-preview" onclick="openImageModal('${item.slip1}')">`;
-            }
-
-            bankColsHtml += `<td>${slipImgs || '-'}</td>`;
-          } else {
-            bankColsHtml += `<td>-</td><td>-</td>`;
-          }
-        });
+        let notes = item.notes || {};
+        let notesText = "";
+        if (notes.n1000) notesText += `<span class="note-badge">1000×${notes.n1000}</span>`;
+        if (notes.n500) notesText += `<span class="note-badge">500×${notes.n500}</span>`;
+        if (notes.n200) notesText += `<span class="note-badge">200×${notes.n200}</span>`;
+        if (notes.n100) notesText += `<span class="note-badge">100×${notes.n100}</span>`;
+        if (notes.n50) notesText += `<span class="note-badge">50×${notes.n50}</span>`;
+        if (!notesText) notesText = "-";
 
         let tr = document.createElement("tr");
         tr.innerHTML = `
@@ -1357,7 +1292,7 @@
           <td style="text-align: left;">${dsoRecText || '-'}</td>
           <td>৳ ${formatBD(emRet)}</td>
           <td>৳ ${formatBD(bankDep)}</td>
-          ${bankColsHtml}
+          <td>${item.bankName || '-'}</td>
           <td style="text-align: left;">${dsoTransText || '-'}</td>
           <td>৳ ${formatBD(cashDep)}</td>
           <td>৳ ${formatBD(dsoRecSum)}</td>
@@ -1366,18 +1301,14 @@
           <td class="bg-received">৳ ${formatBD(totalRec)}</td>
           <td class="bg-return">৳ ${formatBD(totalRet)}</td>
           <td class="bg-diff">৳ ${formatBD(diff)}</td>
+          <td style="text-align: left;">${notesText}</td>
+          <td style="font-weight:bold; color:#00695c;">${slipsList.length || (item.slip1?1:0)} Slips (৳ ${formatBD(totalSlipAmt)})</td>
           <td style="white-space: nowrap;">
-            <button class="btn-details" onclick="showDetailsModal('${item.key}')">ℹ️ Details</button>
-            <button class="btn-delete" onclick="deleteEntry('${item.key}')">🗑️ Delete</button>
+            <button class="btn-details" onclick="showDetailsModal('${key}')">ℹ️ Details</button>
+            <button class="btn-delete" onclick="deleteEntry('${key}')">🗑️ Delete</button>
           </td>
         `;
         tbody.appendChild(tr);
-      });
-
-      // 4. Build Table Footer Row
-      let bankFootHtml = "";
-      bankList.forEach(bank => {
-        bankFootHtml += `<td style="color:#1565c0;">৳ ${formatBD(bankTotals[bank])}</td><td>-</td>`;
       });
 
       let tfootRow = document.createElement("tr");
@@ -1389,7 +1320,7 @@
         <td style="color:#00838f;">৳ ${formatBD(totalDsoRecSum)}</td>
         <td>৳ ${formatBD(sumEmRet)}</td>
         <td>৳ ${formatBD(totalBankDepSum)}</td>
-        ${bankFootHtml}
+        <td>-</td>
         <td style="color:#6a1b9a;">৳ ${formatBD(totalDsoTransSum)}</td>
         <td>৳ ${formatBD(sumCashDep)}</td>
         <td style="color:#00838f;">৳ ${formatBD(totalDsoRecSum)}</td>
@@ -1399,8 +1330,10 @@
         <td class="bg-return">৳ ${formatBD(totalRetSum)}</td>
         <td class="bg-diff">৳ ${formatBD(totalDiffSum)}</td>
         <td>-</td>
+        <td style="color:#00695c;">৳ ${formatBD(totalSlipOcrSum)}</td>
+        <td>-</td>
       `;
-      tfoot.appendChild(tfootRow);
+      tbody.appendChild(tfootRow);
 
       updateSummaryCards(count, totalRecSum, totalRetSum, totalDiffSum, totalDsoRecSum, totalDsoTransSum, totalDsoDiffSum, totalBankDepSum, totalSlipOcrSum);
     }
@@ -1605,11 +1538,11 @@
         let slipsList = item.slips || [];
         if(slipsList.length > 0) {
           slipsList.forEach(s => {
-            if (s.img) slipsHtml += `<img src="${s.img}" class="slip-img-preview" onclick="openImageModal('${s.img}')">`;
+            if (s.img) slipsHtml += `<img src="${s.img}" class="slip-img-preview" style="display:inline-block; margin:2px;" onclick="openImageModal('${s.img}')">`;
           });
         } else {
           [item.slip1, item.slip2, item.slip3, item.slip4].forEach((s) => {
-            if (s) slipsHtml += `<img src="${s}" class="slip-img-preview" onclick="openImageModal('${s}')">`;
+            if (s) slipsHtml += `<img src="${s}" class="slip-img-preview" style="display:inline-block; margin:2px;" onclick="openImageModal('${s}')">`;
           });
         }
 
