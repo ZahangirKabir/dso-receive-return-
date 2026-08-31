@@ -1466,5 +1466,90 @@
       XLSX.writeFile(wb, `Collection_Report_${filterDate}.xlsx`);
     }
   </script>
+  // ১. OCR প্রসেসিং ফাংশন (ফেইল করলেও ছবি রিমুভ হবে না)
+async function processSlipOCR(event, id) {
+  const fileInput = event.target;
+  const file = fileInput.files[0];
+  const statusElement = document.getElementById(`slipStatus_${id}`);
+  const mainStatus = document.getElementById("ocrStatus");
+  const bankInput = document.getElementById("bankName");
+  const amtInput = document.getElementById(`slipAmt_${id}`);
+
+  // ফাইল সিলেক্ট না করা হলে রিমুভ হ্যান্ডলিং
+  if (!file) {
+    amtInput.value = "";
+    recalculateBankDepositFromSlips();
+    if (statusElement) statusElement.innerText = "";
+    return;
+  }
+
+  // ইমেজের প্রিভিউ দেখানোর সুবিধা (OCR ফেইল করলেও ছবি থেকে যাবে)
+  const previewElement = document.getElementById(`slipPreview_${id}`);
+  if (previewElement) {
+    const reader = new FileReader();
+    reader.onload = (e) => { previewElement.src = e.target.result; };
+    reader.readAsDataURL(file);
+  }
+
+  if (statusElement) statusElement.innerText = `🔍 স্লিপ #${id} স্ক্যানিং চলছে...`;
+
+  try {
+    // ইমেজ প্রসেসিং ও OCR চেষ্টা
+    const processedImage = await preprocessImageForOCR(file);
+    const targetSrc = processedImage || file;
+
+    const result = await Tesseract.recognize(targetSrc, 'eng');
+    const text = result.data.text;
+    
+    // ব্যাংক নাম এক্সট্রাক্ট
+    let foundBank = "";
+    for (let bank of knownBanks) {
+      const regex = new RegExp(`\\b${bank}\\b`, 'i');
+      if (regex.test(text)) {
+        foundBank = bank;
+        break;
+      }
+    }
+
+    if (foundBank) {
+      let currentVal = bankInput.value.trim();
+      if (!currentVal.includes(foundBank)) {
+        bankInput.value = currentVal.length === 0 ? foundBank : currentVal + ", " + foundBank;
+      }
+    }
+
+    // অ্যামাউন্ট এক্সট্রাক্ট
+    const amountRegex = /(?:TK|BDT|AMT|AMOUNT|TOTAL|DEPOSIT)?\s*[:\.\=]?\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]{4,7}(?:\.[0-9]{2})?)/gi;
+    let matches = [...text.matchAll(amountRegex)];
+    let maxVal = 0;
+
+    matches.forEach(m => {
+      let valStr = m[1].replace(/,/g, '');
+      let val = parseFloat(valStr);
+      if (!isNaN(val) && val >= 100 && val <= 5000000 && val > maxVal) { 
+        maxVal = val; 
+      }
+    });
+
+    if (maxVal > 0) {
+      amtInput.value = formatBD(maxVal);
+    }
+    recalculateBankDepositFromSlips();
+
+    if (statusElement) statusElement.innerText = `✅ তথ্য স্ক্যান হয়েছে। (টাকা: ৳ ${formatBD(maxVal)})`;
+    if (mainStatus) mainStatus.innerText = `✅ স্লিপ #${id} সম্পন্ন।`;
+
+  } catch (err) {
+    // OCR ব্যর্থ হলেও ছবি কিন্তু `fileInput`-এ থেকেই যাবে
+    console.warn("OCR পড়তে সমস্যা হয়েছে, তবে ফাইল সেভ থাকবে:", err);
+    
+    if (statusElement) {
+      statusElement.innerText = `⚠️ টেক্সট পড়া যায়নি, কিন্তু ছবি ঠিক আছে। ম্যানুয়ালি টাকা বসান।`;
+    }
+    if (mainStatus) {
+      mainStatus.innerText = `⚠️ স্লিপ #${id} এর ছবি আপলোড হয়েছে (ম্যানুয়াল এন্ট্রি প্রয়োজন)।`;
+    }
+  }
+}
 </body>
 </html>
