@@ -53,7 +53,6 @@
     .btn-clear-slip { background: #d32f2f; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
     .btn-clear-slip:hover { background: #b71c1c; }
 
-    /* Tab Navigation for Page Switching */
     .tab-nav { display: flex; gap: 10px; border-bottom: 2px solid #00695c; margin-bottom: 15px; flex-wrap: wrap; }
     .tab-btn { background: #e0f2f1; border: none; padding: 10px 18px; font-weight: bold; cursor: pointer; border-radius: 6px 6px 0 0; color: #004d40; font-size: 14px; }
     .tab-btn.active { background: #00695c; color: white; }
@@ -104,7 +103,6 @@
 
     .ocr-status { font-size: 11px; color: #00695c; margin-top: 4px; font-weight: bold; }
 
-    /* Table Setup */
     .table-container { 
       max-height: 70vh; 
       overflow-y: auto; 
@@ -120,12 +118,10 @@
     table th:first-child, table td:first-child { border-left: 1px solid #ccc; }
     tr:nth-child(even) { background: #f9f9f9; }
 
-    /* Sticky Top Headers */
     #dataTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
     #dataTable thead tr:nth-child(2) th { position: sticky; top: 28px; z-index: 9; }
     #bankDetailsTable thead tr:nth-child(1) th, #notesSummaryTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
 
-    /* STICKY LEFT COLUMNS FOR ADMIN TABLE */
     #dataTable th.sticky-col-1, #dataTable td.sticky-col-1 { position: sticky; left: 0; z-index: 5; background-color: #37474f; color: white; }
     #dataTable th.sticky-col-2, #dataTable td.sticky-col-2 { position: sticky; left: 75px; z-index: 5; background-color: #37474f; color: white; border-right: 2px solid #00695c; }
 
@@ -159,7 +155,6 @@
     .note-warning { color: #c62828; font-size: 11px; font-weight: bold; margin-top: 4px; }
     .note-success { color: #2e7d32; font-size: 11px; font-weight: bold; margin-top: 4px; }
 
-    /* Modal Styles */
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 10px; }
     .modal-content { background: white; width: 100%; max-width: 650px; max-height: 90vh; overflow-y: auto; border-radius: 8px; padding: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00695c; padding-bottom: 8px; margin-bottom: 12px; }
@@ -200,7 +195,7 @@
       <button class="btn btn-logout" onclick="logout()">Logout</button>
     </div>
 
-    <!-- ADMIN PANEL NAVIGATION (3 PAGES + SETTINGS) -->
+    <!-- ADMIN PANEL NAVIGATION -->
     <div id="adminTabNav" class="tab-nav" style="display:none;">
       <button class="tab-btn active" id="tabAdminReportBtn" onclick="switchAdminTab('report')">📊 Main Report</button>
       <button class="tab-btn" id="tabAdminBankBtn" onclick="switchAdminTab('bank')">🏦 Bank Details</button>
@@ -217,7 +212,7 @@
     <!-- ADMIN VIEW -->
     <div id="adminView" style="display: none;">
       
-      <!-- GLOBAL FILTER PANEL (COMMON FOR ADMIN) -->
+      <!-- GLOBAL FILTER PANEL -->
       <div class="filter-panel" id="adminFilterPanel">
         <div class="filter-group">
           <label>তারিখ নির্বাচন করুন</label>
@@ -284,7 +279,6 @@
                 <th class="th-received">Cash Rec</th>
                 <th class="th-received">DSO Rec Breakdown</th>
                 
-                <!-- RETURN SECTION ORDER: e-Mon Ret, Cash Dep, Bank Dep, DSO Trans Breakdown -->
                 <th class="th-return">e-Mon Ret</th>
                 <th class="th-return">Cash Dep</th>
                 <th class="th-return">Bank Dep</th>
@@ -307,14 +301,12 @@
         </div>
       </div>
 
-      <!-- ADMIN PAGE 2: BANK DETAILS PAGE (UPDATED WITH CARDS & DYNAMIC BANK COLUMNS) -->
+      <!-- ADMIN PAGE 2: BANK DETAILS PAGE -->
       <div id="adminPageBank" style="display:none;">
         <h3 style="color:#00695c; margin-bottom:10px;">🏦 ডিপোজিট অনুযায়ী Bank Name, Column Wise Total & Details</h3>
         
-        <!-- BANK SUMMARY CARDS -->
         <div class="summary-cards" id="bankSummaryCardsContainer"></div>
 
-        <!-- BANK DETAILS TABLE (DYNAMIC COLUMNS FOR EACH BANK) -->
         <div class="table-container">
           <table id="bankDetailsTable">
             <thead id="bankDetailsTableHead"></thead>
@@ -466,7 +458,7 @@
           </div>
         </div>
 
-        <!-- DYNAMIC DEPOSIT SLIP CONTAINER (WITH BANK NAME & AMOUNT INPUT) -->
+        <!-- DYNAMIC DEPOSIT SLIP CONTAINER -->
         <div class="section-box" style="margin-bottom: 15px;">
           <div class="section-title" style="color: #00695c;">🧾 ব্যাংক ডিপোজিট স্লিপ আপলোড, ব্যাংকের নাম ও পরিমাণ</div>
           <div id="slipsContainer"></div>
@@ -622,7 +614,6 @@
       "Islami", "DBBL", "City", 
       "UCB", "Sonali Bank", 
       "Agrani Bank", "Pubali Bank"
-        
     ];
 
     function getBankOptionsHTML() {
@@ -746,7 +737,6 @@
       calcFormTotals();
     }
 
-    /* DSO SLIP ROW WITH BANK NAME AND DEPOSIT AMOUNT INCLUDED AT SIDE */
     function addSlipRow() {
       slipCounter++;
       const container = document.getElementById("slipsContainer");
@@ -794,22 +784,13 @@
           img.onload = () => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            let width = img.width, height = img.height, maxDim = 1200;
+            let width = img.width, height = img.height, maxDim = 1000;
             if (width > maxDim || height > maxDim) {
               if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
               else { width = Math.round((width * maxDim) / height); height = maxDim; }
             }
             canvas.width = width; canvas.height = height;
             ctx.drawImage(img, 0, 0, width, height);
-
-            const imgData = ctx.getImageData(0, 0, width, height);
-            const d = imgData.data;
-            for (let i = 0; i < d.length; i += 4) {
-              let avg = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-              avg = avg < 128 ? Math.max(0, avg - 25) : Math.min(255, avg + 25);
-              d[i] = avg; d[i+1] = avg; d[i+2] = avg;
-            }
-            ctx.putImageData(imgData, 0, 0);
             resolve(canvas.toDataURL('image/png'));
           };
           img.onerror = reject;
@@ -820,7 +801,6 @@
       });
     }
 
-    /* OCR PROCESS: Bank Name showing hidden for DSO, Amount captured silently for Admin */
     async function processSlipOCR(event, id) {
       const file = event.target.files[0];
       const statusElement = document.getElementById(`slipStatus_${id}`);
@@ -958,14 +938,13 @@
           img.src = event.target.result;
           img.onload = () => {
             const canvas = document.createElement("canvas");
-            let width = img.width, height = img.height, max_size = 1600;
+            let width = img.width, height = img.height, max_size = 1200;
             if (width > height) { if (width > max_size) { height *= max_size / width; width = max_size; } }
             else { if (height > max_size) { width *= max_size / height; height = max_size; } }
             canvas.width = width; canvas.height = height;
             const ctx = canvas.getContext("2d");
-            ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL("image/jpeg", 0.85));
+            resolve(canvas.toDataURL("image/jpeg", 0.75));
           };
           img.onerror = () => resolve("");
         };
@@ -1005,7 +984,7 @@
       let totalCashVal = (n1000*1000) + (n500*500) + (n200*200) + (n100*100) + (n50*50);
 
       if (cashDepositAmt > 0 && totalCashVal !== cashDepositAmt) {
-        alert("⚠️ Cash Deposit থাকার পরও ক্যাশ নোটের বিবরণ সঠিকভাবে দেওয়া হয়নি অথবা পরিমাণ মিলেনি!");
+        alert("⚠️ Cash Deposit থাকার পরও ক্যাশ নোটের বিবরণ সঠিকভাবে দেওয়া হয়নি অথবা পরিমাণ মileni!");
         return;
       }
 
@@ -1247,7 +1226,6 @@
       applyAdminFilters();
     }
 
-    /* RENDER ADMIN PAGE 1: MAIN REPORT TABLE */
     function renderAdminTable(data) {
       const tbody = document.getElementById("adminTableBody");
       tbody.innerHTML = "";
@@ -1316,7 +1294,6 @@
           <td>৳ ${formatBD(cashRec)}</td>
           <td style="text-align: left;">${dsoRecText || '-'}</td>
           
-          <!-- RETURN SECTION ORDER: e-Mon Ret, Cash Dep, Bank Dep, DSO Trans Breakdown -->
           <td>৳ ${formatBD(emRet)}</td>
           <td>৳ ${formatBD(cashDep)}</td>
           <td>৳ ${formatBD(bankDep)}</td>
@@ -1364,7 +1341,6 @@
       updateSummaryCards(count, totalRecSum, totalRetSum, totalDiffSum, totalDsoRecSum, totalDsoTransSum, totalDsoDiffSum, totalBankDepSum, totalSlipOcrSum);
     }
 
-    /* RENDER ADMIN PAGE 2: BANK DETAILS PAGE (WITH CARDS & DYNAMIC BANK COLUMNS) */
     function renderBankDetailsTable(data) {
       const cardsContainer = document.getElementById("bankSummaryCardsContainer");
       const thead = document.getElementById("bankDetailsTableHead");
@@ -1381,9 +1357,8 @@
         return;
       }
 
-      // 1. Collect all unique bank names present in the filtered dataset
-      let bankTotals = {}; // { "Islami Bank": { amount: 0, slipsCount: 0 }, ... }
-      let entriesList = []; // Clean structure per entry/slip
+      let bankTotals = {}; 
+      let entriesList = []; 
 
       Object.keys(data).forEach(key => {
         let item = data[key];
@@ -1430,7 +1405,6 @@
         return;
       }
 
-      // 2. Render Bank Summary Cards
       let totalBankDepositAll = 0;
       uniqueBanks.forEach(bName => {
         totalBankDepositAll += bankTotals[bName].amount;
@@ -1444,7 +1418,6 @@
         cardsContainer.appendChild(card);
       });
 
-      // Total Card
       let totalCard = document.createElement("div");
       totalCard.className = "card green";
       totalCard.innerHTML = `
@@ -1454,7 +1427,6 @@
       `;
       cardsContainer.insertBefore(totalCard, cardsContainer.firstChild);
 
-      // 3. Render Dynamic Table Headers
       let headerTr = document.createElement("tr");
       headerTr.innerHTML = `
         <th class="th-info">তারিখ</th>
@@ -1470,7 +1442,6 @@
       `;
       thead.appendChild(headerTr);
 
-      // 4. Render Table Rows (Columns matching dynamic bank list)
       let bankColumnSums = {};
       uniqueBanks.forEach(b => bankColumnSums[b] = 0);
       let grandTotalRowSum = 0;
@@ -1506,7 +1477,6 @@
         tbody.appendChild(tr);
       });
 
-      // 5. Render Table Footer
       let footTr = document.createElement("tr");
       footTr.style.fontWeight = "bold";
       footTr.style.background = "#eceff1";
@@ -1525,7 +1495,6 @@
       tfoot.appendChild(footTr);
     }
 
-    /* RENDER ADMIN PAGE 3: NOTES SUMMARY TABLE & BOTTOM TOTAL SUMMARY */
     function renderNotesSummaryTable(data) {
       const tbody = document.getElementById("notesSummaryTableBody");
       const tfoot = document.getElementById("notesSummaryTableFoot");
