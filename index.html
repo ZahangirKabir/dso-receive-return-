@@ -808,6 +808,21 @@
     }
 
     async function submitData() {
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+
+      // ১ দিনে ১ বারের বেশি সাবমিট ব্লক করার লজিক
+      if (globalAllData) {
+        let alreadySubmitted = Object.values(globalAllData).some(item => 
+          String(item.userId) === String(currentUser) && item.date === dateStr
+        );
+
+        if (alreadySubmitted) {
+          alert("⚠️ আপনি আজকের (" + dateStr + ") হিসাব ইতিমধ্যে সাবমিট করেছেন। একই দিনে একাধিকবার হিসাব সাবমিট করা যাবে না।\n\nপুনরায় সাবমিট করতে হলে অ্যাডমিনের মাধ্যমে আপনার পূর্বের ডাটাটি ডিলিট করাতে হবে।");
+          return;
+        }
+      }
+
       let bankDepositVal = parseRawNumber(document.getElementById("bankDeposit").value);
       const slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
 
@@ -835,9 +850,6 @@
         }
 
         subBtn.innerText = "Saving Data...";
-
-        const now = new Date();
-        const dateStr = now.toISOString().split('T')[0];
 
         let n1000 = parseInt(document.getElementById("note1000").value, 10) || 0;
         let n500 = parseInt(document.getElementById("note500").value, 10) || 0;
