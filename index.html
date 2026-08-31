@@ -62,14 +62,15 @@
     .header-bar h2 { float: left; font-size: 18px; margin: 0; }
 
     .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 15px; }
-    .card { background: #e0f2f1; padding: 10px; border-radius: 6px; text-align: center; }
+    .card { background: #e0f2f1; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #b2dfdb; }
     .card h3 { font-size: 11px; color: #004d40; margin-bottom: 3px; }
     .card p { font-size: 14px; font-weight: bold; color: #00695c; }
-    .card.red { background: #ffebee; } .card.red p { color: #c62828; }
-    .card.green { background: #e8f5e9; } .card.green p { color: #2e7d32; }
-    .card.diff { background: #fff3e0; } .card.diff p { color: #e65100; }
-    .card.cyan { background: #e0f7fa; } .card.cyan p { color: #00838f; }
-    .card.purple { background: #f3e5f5; } .card.purple p { color: #6a1b9a; }
+    .card.red { background: #ffebee; border-color: #ffcdd2; } .card.red p { color: #c62828; }
+    .card.green { background: #e8f5e9; border-color: #c8e6c9; } .card.green p { color: #2e7d32; }
+    .card.diff { background: #fff3e0; border-color: #ffe0b2; } .card.diff p { color: #e65100; }
+    .card.cyan { background: #e0f7fa; border-color: #b2ebf2; } .card.cyan p { color: #00838f; }
+    .card.purple { background: #f3e5f5; border-color: #e1bee7; } .card.purple p { color: #6a1b9a; }
+    .card.bank-card { background: #e8eaf6; border-color: #c5cae9; } .card.bank-card p { color: #1a237e; }
 
     .filter-panel { background: #e0f2f1; padding: 12px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
     .filter-group { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 120px; }
@@ -140,6 +141,7 @@
     .th-return { background: #c62828; color: white; }
     .th-diff { background: #e65100; color: white; }
     .th-dso { background: #00838f; color: white; }
+    .th-bank { background: #1a237e; color: white; }
     
     .bg-received { background-color: #e8f5e9 !important; color: #1b5e20; }
     .bg-return { background-color: #ffebee !important; color: #b71c1c; }
@@ -305,29 +307,26 @@
         </div>
       </div>
 
-      <!-- ADMIN PAGE 2: BANK DETAILS PAGE -->
+      <!-- ADMIN PAGE 2: BANK DETAILS PAGE (UPDATED WITH CARDS & DYNAMIC BANK COLUMNS) -->
       <div id="adminPageBank" style="display:none;">
-        <h3 style="color:#00695c; margin-bottom:10px;">🏦 ২য় পেজ: ডিপোজিট অনুযায়ী Bank Name, Amount এবং স্লিপ বিবরণ</h3>
+        <h3 style="color:#00695c; margin-bottom:10px;">🏦 ২য় পেজ: ডিপোজিট অনুযায়ী Bank Name, Column Wise Total & Details</h3>
+        
+        <!-- BANK SUMMARY CARDS -->
+        <div class="summary-cards" id="bankSummaryCardsContainer"></div>
+
+        <!-- BANK DETAILS TABLE (DYNAMIC COLUMNS FOR EACH BANK) -->
         <div class="table-container">
           <table id="bankDetailsTable">
-            <thead>
-              <tr>
-                <th class="th-info">তারিখ</th>
-                <th class="th-info">DSO ID</th>
-                <th class="th-return">ব্যাংকের নাম (Bank Name)</th>
-                <th class="th-return">ডিপোজিট পরিমাণ (Amount)</th>
-                <th class="th-info">OCR শনাক্তকৃত অ্যামাউন্ট (Admin Only)</th>
-                <th class="th-info">ডিপোজিট স্লিপ (Slip Image)</th>
-              </tr>
-            </thead>
+            <thead id="bankDetailsTableHead"></thead>
             <tbody id="bankDetailsTableBody"></tbody>
+            <tfoot id="bankDetailsTableFoot"></tfoot>
           </table>
         </div>
       </div>
 
       <!-- ADMIN PAGE 3: NOTE QUANTITY & SUMMARY PAGE -->
       <div id="adminPageNotes" style="display:none;">
-        <h3 style="color:#00695c; margin-bottom:10px;">💵 ৩য় পেজ: DSO ID ও Note অনুযায়ী বিস্তারিত ক্যাশ গণনা</h3>
+        <h3 style="color:#00695c; margin-bottom:10px;">💵 ৩য় পেজ: DSO ID ও Note অনুযায়ী বিস্তারিত ক্যাশ গণনা</h3>
         <div class="table-container">
           <table id="notesSummaryTable">
             <thead>
@@ -1318,7 +1317,7 @@
           <td>৳ ${formatBD(cashRec)}</td>
           <td style="text-align: left;">${dsoRecText || '-'}</td>
           
-          <!-- RETURN SECTION FORMAT: e-Mon Ret, Cash Dep, Bank Dep, DSO Trans Breakdown -->
+          <!-- RETURN SECTION ORDER: e-Mon Ret, Cash Dep, Bank Dep, DSO Trans Breakdown -->
           <td>৳ ${formatBD(emRet)}</td>
           <td>৳ ${formatBD(cashDep)}</td>
           <td>৳ ${formatBD(bankDep)}</td>
@@ -1366,55 +1365,165 @@
       updateSummaryCards(count, totalRecSum, totalRetSum, totalDiffSum, totalDsoRecSum, totalDsoTransSum, totalDsoDiffSum, totalBankDepSum, totalSlipOcrSum);
     }
 
-    /* RENDER ADMIN PAGE 2: BANK DETAILS TABLE */
+    /* RENDER ADMIN PAGE 2: BANK DETAILS PAGE (WITH CARDS & DYNAMIC BANK COLUMNS) */
     function renderBankDetailsTable(data) {
+      const cardsContainer = document.getElementById("bankSummaryCardsContainer");
+      const thead = document.getElementById("bankDetailsTableHead");
       const tbody = document.getElementById("bankDetailsTableBody");
+      const tfoot = document.getElementById("bankDetailsTableFoot");
+
+      cardsContainer.innerHTML = "";
+      thead.innerHTML = "";
       tbody.innerHTML = "";
+      tfoot.innerHTML = "";
 
       if (!data) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">কোনো ব্যাংক বিবরণ পাওয়া যায়নি</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">কোনো ব্যাংক বিবরণ পাওয়া যায়নি</td></tr>`;
         return;
       }
 
-      let entriesFound = 0;
+      // 1. Collect all unique bank names present in the filtered dataset
+      let bankTotals = {}; // { "Islami Bank": { amount: 0, slipsCount: 0 }, ... }
+      let entriesList = []; // Clean structure per entry/slip
+
       Object.keys(data).forEach(key => {
         let item = data[key];
         let slipsList = item.slips || [];
 
         if (slipsList.length > 0) {
-          slipsList.forEach((s, idx) => {
-            entriesFound++;
-            let tr = document.createElement("tr");
-            tr.innerHTML = `
-              <td>${item.date || '-'}</td>
-              <td><strong>DSO ${item.userId || '-'}</strong></td>
-              <td style="font-weight:bold; color:#004d40;">${s.bankName || item.bankName || 'Unknown Bank'}</td>
-              <td style="font-weight:bold; color:#2e7d32;">৳ ${formatBD(s.amt || 0)}</td>
-              <td style="color:#00838f;">৳ ${formatBD(s.ocrAmt || 0)}</td>
-              <td>
-                ${s.img ? `<img src="${s.img}" class="slip-img-preview" onclick="openImageModal('${s.img}')">` : '<span style="color:#aaa;">No Image</span>'}
-              </td>
-            `;
-            tbody.appendChild(tr);
+          slipsList.forEach(s => {
+            let bName = (s.bankName || item.bankName || 'Unknown Bank').trim();
+            let amt = s.amt || 0;
+            if (!bankTotals[bName]) { bankTotals[bName] = { amount: 0, slipsCount: 0 }; }
+            bankTotals[bName].amount += amt;
+            bankTotals[bName].slipsCount += 1;
+
+            entriesList.push({
+              date: item.date || '-',
+              dsoId: item.userId || '-',
+              bankName: bName,
+              amt: amt,
+              ocrAmt: s.ocrAmt || 0,
+              img: s.img || ''
+            });
           });
         } else if (item.bankDeposit > 0) {
-          entriesFound++;
-          let tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${item.date || '-'}</td>
-            <td><strong>DSO ${item.userId || '-'}</strong></td>
-            <td style="font-weight:bold; color:#004d40;">${item.bankName || 'Unknown Bank'}</td>
-            <td style="font-weight:bold; color:#2e7d32;">৳ ${formatBD(item.bankDeposit)}</td>
-            <td style="color:#00838f;">৳ 0</td>
-            <td><span style="color:#aaa;">No Slip Image</span></td>
-          `;
-          tbody.appendChild(tr);
+          let bName = (item.bankName || 'Unknown Bank').trim();
+          let amt = item.bankDeposit || 0;
+          if (!bankTotals[bName]) { bankTotals[bName] = { amount: 0, slipsCount: 0 }; }
+          bankTotals[bName].amount += amt;
+
+          entriesList.push({
+            date: item.date || '-',
+            dsoId: item.userId || '-',
+            bankName: bName,
+            amt: amt,
+            ocrAmt: 0,
+            img: ''
+          });
         }
       });
 
-      if (entriesFound === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">কোনো ব্যাংক ডিপোজিট পাওয়া যায়নি</td></tr>`;
+      let uniqueBanks = Object.keys(bankTotals);
+
+      if (uniqueBanks.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">কোনো ব্যাংক ডিপোজিট পাওয়া যায়নি</td></tr>`;
+        return;
       }
+
+      // 2. Render Bank Summary Cards
+      let totalBankDepositAll = 0;
+      uniqueBanks.forEach(bName => {
+        totalBankDepositAll += bankTotals[bName].amount;
+        let card = document.createElement("div");
+        card.className = "card bank-card";
+        card.innerHTML = `
+          <h3>${bName}</h3>
+          <p>৳ ${formatBD(bankTotals[bName].amount)}</p>
+          <span style="font-size: 10px; color: #555;">(${bankTotals[bName].slipsCount} টি স্লিপ)</span>
+        `;
+        cardsContainer.appendChild(card);
+      });
+
+      // Total Card
+      let totalCard = document.createElement("div");
+      totalCard.className = "card green";
+      totalCard.innerHTML = `
+        <h3>সর্বমোট ব্যাংক ডিপোজিট</h3>
+        <p>৳ ${formatBD(totalBankDepositAll)}</p>
+        <span style="font-size: 10px; color: #2e7d32;">(${uniqueBanks.length} টি ব্যাংকে)</span>
+      `;
+      cardsContainer.insertBefore(totalCard, cardsContainer.firstChild);
+
+      // 3. Render Dynamic Table Headers
+      let headerTr = document.createElement("tr");
+      headerTr.innerHTML = `
+        <th class="th-info">তারিখ</th>
+        <th class="th-info">DSO ID</th>
+      `;
+      uniqueBanks.forEach(bName => {
+        headerTr.innerHTML += `<th class="th-bank">${bName} (Amount)</th>`;
+      });
+      headerTr.innerHTML += `
+        <th class="th-return">মোট ডিপোজিট</th>
+        <th class="th-info">OCR অ্যামাউন্ট</th>
+        <th class="th-info">ডিপোজিট স্লিপ</th>
+      `;
+      thead.appendChild(headerTr);
+
+      // 4. Render Table Rows (Columns matching dynamic bank list)
+      let bankColumnSums = {};
+      uniqueBanks.forEach(b => bankColumnSums[b] = 0);
+      let grandTotalRowSum = 0;
+      let grandOcrRowSum = 0;
+
+      entriesList.forEach(entry => {
+        let tr = document.createElement("tr");
+        let rowHtml = `
+          <td>${entry.date}</td>
+          <td><strong>DSO ${entry.dsoId}</strong></td>
+        `;
+
+        uniqueBanks.forEach(bName => {
+          if (entry.bankName === bName) {
+            rowHtml += `<td style="font-weight:bold; color:#1a237e;">৳ ${formatBD(entry.amt)}</td>`;
+            bankColumnSums[bName] += entry.amt;
+          } else {
+            rowHtml += `<td style="color:#ccc;">-</td>`;
+          }
+        });
+
+        grandTotalRowSum += entry.amt;
+        grandOcrRowSum += entry.ocrAmt;
+
+        rowHtml += `
+          <td style="font-weight:bold; color:#2e7d32; background:#e8f5e9;">৳ ${formatBD(entry.amt)}</td>
+          <td style="color:#00838f;">৳ ${formatBD(entry.ocrAmt)}</td>
+          <td>
+            ${entry.img ? `<img src="${entry.img}" class="slip-img-preview" onclick="openImageModal('${entry.img}')">` : '<span style="color:#aaa;">No Image</span>'}
+          </td>
+        `;
+        tr.innerHTML = rowHtml;
+        tbody.appendChild(tr);
+      });
+
+      // 5. Render Table Footer
+      let footTr = document.createElement("tr");
+      footTr.style.fontWeight = "bold";
+      footTr.style.background = "#eceff1";
+      let footHtml = `<td colspan="2" style="text-align:center;">TOTAL SUMMARY</td>`;
+
+      uniqueBanks.forEach(bName => {
+        footHtml += `<td style="color:#1a237e;">৳ ${formatBD(bankColumnSums[bName])}</td>`;
+      });
+
+      footHtml += `
+        <td class="bg-received">৳ ${formatBD(grandTotalRowSum)}</td>
+        <td style="color:#00838f;">৳ ${formatBD(grandOcrRowSum)}</td>
+        <td>-</td>
+      `;
+      footTr.innerHTML = footHtml;
+      tfoot.appendChild(footTr);
     }
 
     /* RENDER ADMIN PAGE 3: NOTES SUMMARY TABLE & BOTTOM TOTAL SUMMARY */
