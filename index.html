@@ -143,22 +143,18 @@
     .detail-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 13px; }
     .slip-grid-modal { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-top: 8px; }
     .slip-card-modal { border: 1px solid #ccc; padding: 5px; border-radius: 4px; text-align: center; background: #fff; }
-    .slip-card-modal img { width: 100%; height: 100px; object-fit: cover; border-radius: 4px; cursor: pointer; }
+    .slip-card-modal img { width: 100%; height: 150px; object-fit: contain; background: #f0f0f0; border-radius: 4px; cursor: pointer; }
   </style>
 </head>
 <body>
 
   <!-- LOGIN SECTION -->
   <div id="loginSection" class="login-box">
-  <h2>Login Portal</h2>
-  <!-- autocomplete="off" যুক্ত করা হয়েছে -->
-  <input type="text" id="loginId" placeholder="User ID / DSO ID" autocomplete="off">
-  
-  <!-- autocomplete="new-password" যুক্ত করা হয়েছে যেন ব্রাউজার সেভ করা পাসওয়ার্ড সাজেশন না দেয় -->
-  <input type="password" id="loginPass" placeholder="Password" autocomplete="new-password">
-  
-  <button class="btn" onclick="handleLogin()">Login</button>
-</div>
+    <h2>Login Portal</h2>
+    <input type="text" id="loginId" placeholder="User ID / DSO ID" autocomplete="off">
+    <input type="password" id="loginPass" placeholder="Password" autocomplete="new-password">
+    <button class="btn" onclick="handleLogin()">Login</button>
+  </div>
 
   <!-- APP MAIN CONTAINER -->
   <div id="appContainer" class="container" style="display: none;">
@@ -470,7 +466,6 @@
       "Mercantile Bank", "NCC Bank", "NRB Bank", "First Security Islami Bank", "EXIM Bank"
     ];
 
-    /* UPDATED LOGIN FUNCTION (PREVENTS Admin CASE ISSUE & LOADS EXACT USER DB PASS) */
     async function handleLogin() {
       const id = document.getElementById("loginId").value.trim();
       const pass = document.getElementById("loginPass").value.trim();
@@ -482,7 +477,6 @@
 
       let userIdNum = parseInt(id, 10);
 
-      // 'Admin' বা অন্য কিছু লিখলে সরাসরি আটকে দেওয়া হবে
       if (id !== "admin" && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
         alert("অপ্রবেশযোগ্য আইডি!");
         return;
@@ -541,7 +535,6 @@
       }
     }
 
-    /* ADMIN PASSWORD CHANGE FUNCTIONS */
     async function changeAdminOwnPassword() {
       let newPass = document.getElementById("adminNewPassword").value.trim();
       if (!newPass) {
@@ -777,6 +770,7 @@
       if (confirm("আপনি কি নিশ্চিত যে এই ফর্ম বাতিল করতে চান?")) resetForm();
     }
 
+    /* UPDATED getBase64 FUNCTION FOR HIGH RESOLUTION & CLEAR IMAGE */
     function getBase64(file) {
       return new Promise((resolve) => {
         if (!file) { resolve(""); return; }
@@ -787,16 +781,25 @@
           img.src = event.target.result;
           img.onload = () => {
             const canvas = document.createElement("canvas");
-            let width = img.width, height = img.height, max_size = 400;
+            // স্লিপ স্পষ্ট রাখার জন্য max_size ১৬০০px করা হয়েছে
+            let width = img.width, height = img.height, max_size = 1600;
+            
             if (width > height) {
               if (width > max_size) { height *= max_size / width; width = max_size; }
             } else {
               if (height > max_size) { width *= max_size / height; height = max_size; }
             }
-            canvas.width = width; canvas.height = height;
+            
+            canvas.width = width; 
+            canvas.height = height;
             const ctx = canvas.getContext("2d");
+            
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL("image/jpeg", 0.4));
+            
+            // JPEG Quality 0.85 (85%) তে সেট করা হয়েছে
+            resolve(canvas.toDataURL("image/jpeg", 0.85));
           };
           img.onerror = () => resolve("");
         };
