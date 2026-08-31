@@ -119,10 +119,51 @@
     table th:first-child, table td:first-child { border-left: 1px solid #ccc; }
     tr:nth-child(even) { background: #f9f9f9; }
 
-    /* Sticky Headers */
+    /* Sticky Top Headers */
     #dataTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
     #dataTable thead tr:nth-child(2) th { position: sticky; top: 28px; z-index: 9; }
     #dsoHistoryTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
+
+    /* STICKY LEFT COLUMNS FOR ADMIN TABLE (DATE & DSO ID FREEZE) */
+    #dataTable th.sticky-col-1, #dataTable td.sticky-col-1 {
+      position: sticky;
+      left: 0;
+      z-index: 5;
+      background-color: #37474f;
+      color: white;
+    }
+    #dataTable th.sticky-col-2, #dataTable td.sticky-col-2 {
+      position: sticky;
+      left: 75px; /* Column 1 Width Offset */
+      z-index: 5;
+      background-color: #37474f;
+      color: white;
+      border-right: 2px solid #00695c; /* Distinct Freeze Divider Line */
+    }
+
+    /* Adjust Z-Index for Header + Left Freeze Column Intersections */
+    #dataTable thead tr:nth-child(1) th.sticky-col-1,
+    #dataTable thead tr:nth-child(1) th.sticky-col-2 {
+      z-index: 20;
+    }
+    #dataTable thead tr:nth-child(2) th.sticky-col-1,
+    #dataTable thead tr:nth-child(2) th.sticky-col-2 {
+      z-index: 19;
+    }
+
+    /* Body/Footer Specific background overrides for sticky columns */
+    #dataTable tbody td.sticky-col-1, #dataTable tbody td.sticky-col-2 {
+      background-color: #fff;
+      color: #333;
+    }
+    #dataTable tbody tr:nth-child(even) td.sticky-col-1, 
+    #dataTable tbody tr:nth-child(even) td.sticky-col-2 {
+      background-color: #f9f9f9;
+    }
+    #dataTable tfoot tr td.sticky-col-1, #dataTable tfoot tr td.sticky-col-2 {
+      background-color: #eceff1;
+      color: #000;
+    }
 
     .th-info { background: #37474f; color: white; }
     .th-received { background: #2e7d32; color: white; }
@@ -270,7 +311,7 @@
           <table id="dataTable">
             <thead>
               <tr>
-                <th colspan="2" class="th-info">Basic Info</th>
+                <th colspan="2" class="th-info sticky-col-1" style="left:0; z-index:20;">Basic Info</th>
                 <th colspan="3" class="th-received">RECEIVED SECTION</th>
                 <th colspan="5" class="th-return">RETURN SECTION</th>
                 <th colspan="3" class="th-dso">DSO BREAKDOWN & DIFF</th>
@@ -280,7 +321,7 @@
                 <th class="th-info">Action</th>
               </tr>
               <tr>
-                <th class="th-info">Date</th><th class="th-info">DSO ID</th>
+                <th class="th-info sticky-col-1">Date</th><th class="th-info sticky-col-2">DSO ID</th>
                 <th class="th-received">e-Mon Rec</th><th class="th-received">Cash Rec</th><th class="th-received">DSO Rec Breakdown</th>
                 <th class="th-return">e-Mon Ret</th><th class="th-return">Bank Dep</th><th class="th-return">Bank Name</th><th class="th-return">DSO Trans Breakdown</th><th class="th-return">Cash Dep</th>
                 <th class="th-dso">DSO Rec Amt</th><th class="th-dso">DSO Trans Amt</th><th class="th-dso">DSO Diff</th>
@@ -955,7 +996,7 @@
       let totalCashVal = (n1000*1000) + (n500*500) + (n200*200) + (n100*100) + (n50*50);
 
       if (cashDepositAmt > 0 && totalCashVal !== cashDepositAmt) {
-        alert("⚠️ Cash Deposit থাকার পরও ক্যাশ নোটের বিবরণ সঠিকভাবে দেওয়া হয়নি অথবা পরিমাণ মিলেনি!");
+        alert("⚠️ Cash Deposit থাকার পরও ক্যাশ নোটের বিবরণ সঠিকভাবে দেওয়া হয়নি অথবা পরিমাণ মileni!");
         return;
       }
 
@@ -1244,8 +1285,8 @@
 
         let tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${item.date || '-'}</td>
-          <td><strong>${item.userId || '-'}</strong></td>
+          <td class="sticky-col-1">${item.date || '-'}</td>
+          <td class="sticky-col-2"><strong>${item.userId || '-'}</strong></td>
           <td>৳ ${formatBD(emRec)}</td>
           <td>৳ ${formatBD(cashRec)}</td>
           <td style="text-align: left;">${dsoRecText || '-'}</td>
@@ -1273,7 +1314,7 @@
       let tfootRow = document.createElement("tr");
       tfootRow.style.fontWeight = "bold"; tfootRow.style.background = "#eceff1";
       tfootRow.innerHTML = `
-        <td colspan="2">TOTAL SUMMARY</td>
+        <td colspan="2" class="sticky-col-1" style="text-align:center;">TOTAL SUMMARY</td>
         <td>৳ ${formatBD(sumEmRec)}</td>
         <td>৳ ${formatBD(sumCashRec)}</td>
         <td style="color:#00838f;">৳ ${formatBD(totalDsoRecSum)}</td>
