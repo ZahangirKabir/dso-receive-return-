@@ -150,11 +150,15 @@
 
   <!-- LOGIN SECTION -->
   <div id="loginSection" class="login-box">
-    <h2>Login Portal</h2>
-    <input type="text" id="loginId" placeholder="User ID / DSO ID (e.g. 801-845, admin)">
-    <input type="password" id="loginPass" placeholder="Password (Default: 123456)">
-    <button class="btn" onclick="handleLogin()">Login</button>
-  </div>
+  <h2>Login Portal</h2>
+  <!-- autocomplete="off" যুক্ত করা হয়েছে -->
+  <input type="text" id="loginId" placeholder="User ID / DSO ID (e.g. 801-845, admin)" autocomplete="off">
+  
+  <!-- autocomplete="new-password" যুক্ত করা হয়েছে যেন ব্রাউজার সেভ করা পাসওয়ার্ড সাজেশন না দেয় -->
+  <input type="password" id="loginPass" placeholder="Password (Default: 123456)" autocomplete="new-password">
+  
+  <button class="btn" onclick="handleLogin()">Login</button>
+</div>
 
   <!-- APP MAIN CONTAINER -->
   <div id="appContainer" class="container" style="display: none;">
