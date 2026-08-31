@@ -277,7 +277,7 @@
 
     <!-- DSO VIEW -->
     <div id="dsoView" style="display: none;">
-      <!-- PASSWORD CHANGE PANEL -->
+      <!-- PASSWORD CHANGE PANEL FOR DSO -->
       <div class="section-box" style="margin-bottom: 20px; background: #e0f2f1; border-color: #00695c;">
         <div class="section-title" style="color: #004d40;">🔑 পাসওয়ার্ড পরিবর্তন করুন</div>
         <div style="display: flex; gap: 10px; max-width: 500px;">
@@ -486,7 +486,7 @@
         let dbPass = passSnapshot.val();
 
         if (!dbPass) {
-          dbPass = "123456";
+          dbPass = "123456"; // Default password
         }
 
         if (pass !== dbPass) {
@@ -921,7 +921,7 @@
 
       let dsoSet = new Set();
       
-      // Default Range (801 to 845) DSO list include in target option
+      // Default Range (801 to 845) DSO list included in target options
       for (let i = 801; i <= 845; i++) {
         dsoSet.add(String(i));
       }
