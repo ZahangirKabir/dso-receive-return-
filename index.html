@@ -392,7 +392,7 @@
               <label>DSO Received (একাধিক DSO হতে গ্রহণ: ৮০১-৮৪৫)</label>
               <div id="dsoReceivedContainer">
                 <div class="dynamic-row">
-                  <select class="dso-rec-id"></select>
+                  <select class="dso-rec-id">${getDsoOptionsHTML()}</select>
                   <input type="text" placeholder="Amount" class="amt-field dso-rec-amt" oninput="handleAmountInput(this); calcFormTotals();">
                   <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
                 </div>
@@ -424,7 +424,7 @@
               <label>DSO Transfer / Return (একাধিক DSO-কে প্রদান: ৮০১-৮৪৫)</label>
               <div id="dsoTransferContainer">
                 <div class="dynamic-row">
-                  <select class="dso-trans-id"></select>
+                  <select class="dso-trans-id">${getDsoOptionsHTML()}</select>
                   <input type="text" placeholder="Amount" class="amt-field dso-trans-amt" oninput="handleAmountInput(this); calcFormTotals();">
                   <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
                 </div>
@@ -464,6 +464,7 @@
           <div id="slipsContainer"></div>
           <button type="button" class="btn-add" onclick="addSlipRow()" style="padding: 8px 12px; font-size: 13px;">+ Add Deposit Slip</button>
           <div id="ocrStatus" class="ocr-status"></div>
+          <div id="bankValidationMsg"></div>
         </div>
 
         <div class="btn-group">
@@ -616,12 +617,12 @@
       "Agrani Bank", "Pubali Bank"
     ];
 
+    // 'Other' option removed from bank options list
     function getBankOptionsHTML() {
       let html = '<option value="">-- Bank Name --</option>';
       bankListOptions.forEach(b => {
         html += `<option value="${b}">${b}</option>`;
       });
-      html += '<option value="Other">Other Bank</option>';
       return html;
     }
 
@@ -749,7 +750,7 @@
           <button type="button" class="btn-clear-slip" onclick="removeSlipRow(${slipCounter})">✖ Remove Slip</button>
         </div>
         <div class="slip-input-group">
-          <select class="slip-bank-name" style="flex: 1.2; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+          <select class="slip-bank-name" style="flex: 1.2; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;" onchange="validateFormAndSubmitBtn()">
             ${getBankOptionsHTML()}
           </select>
           <input type="file" class="slip-file-input" accept="image/*" style="flex: 1.8; font-size:11px;" onchange="processSlipOCR(event, ${slipCounter})">
@@ -759,6 +760,7 @@
         <div id="slipStatus_${slipCounter}" style="font-size: 11px; margin-top: 4px; color: #00695c;"></div>
       `;
       container.appendChild(div);
+      validateFormAndSubmitBtn();
     }
 
     function removeSlipRow(id) {
@@ -890,10 +892,11 @@
       document.getElementById("formTotalReturn").innerText = formatBD(totalRet);
       document.getElementById("formDifference").innerText = formatBD(diff);
 
-      calcCash();
+      validateFormAndSubmitBtn();
     }
 
-    function calcCash() {
+    // Combined validation logic for both Cash Note & Bank Selection
+    function validateFormAndSubmitBtn() {
       let totalCashCalculated = 0;
       document.querySelectorAll(".denom").forEach(input => {
         let count = parseInt(input.value, 10) || 0;
@@ -904,24 +907,58 @@
       document.getElementById("totalCashDisplay").innerText = formatBD(totalCashCalculated);
 
       let cashDepositAmt = parseRawNumber(document.getElementById("cashDeposit").value);
+      let bankDepositAmt = parseRawNumber(document.getElementById("bankDeposit").value);
+
       let subBtn = document.getElementById("subBtn");
       let msgBox = document.getElementById("cashNoteValidationMsg");
+      let bankMsgBox = document.getElementById("bankValidationMsg");
 
+      let isCashValid = true;
+      let isBankValid = true;
+
+      // 1. Check Cash Notes
       if (cashDepositAmt > 0) {
         if (totalCashCalculated === 0) {
           msgBox.innerHTML = `<p class="note-warning">⚠️ Cash Deposit ৳${formatBD(cashDepositAmt)} করা হয়েছে। ক্যাশ নোটের বিবরণ প্রদান করা বাধ্যতামূলক!</p>`;
-          subBtn.disabled = true;
+          isCashValid = false;
         } else if (totalCashCalculated !== cashDepositAmt) {
           msgBox.innerHTML = `<p class="note-warning">❌ ক্যাশ নোটের মোট পরিমাণ (৳${formatBD(totalCashCalculated)}) এবং Cash Deposit (৳${formatBD(cashDepositAmt)}) সমান নয়! Submit বন্ধ রয়েছে।</p>`;
-          subBtn.disabled = true;
+          isCashValid = false;
         } else {
           msgBox.innerHTML = `<p class="note-success">✅ ক্যাশ নোটের বিবরণ সঠিকভাবে মিলেছে (৳${formatBD(totalCashCalculated)})</p>`;
-          subBtn.disabled = false;
         }
       } else {
         msgBox.innerHTML = "";
-        subBtn.disabled = false;
       }
+
+      // 2. Check Bank Selection for Bank Deposit
+      if (bankDepositAmt > 0) {
+        let slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
+        let missingBank = false;
+
+        slipRows.forEach(row => {
+          let amt = parseRawNumber(row.querySelector(".slip-amt-val").value);
+          let bankSelect = row.querySelector(".slip-bank-name").value;
+          if (amt > 0 && !bankSelect) {
+            missingBank = true;
+          }
+        });
+
+        if (missingBank || slipRows.length === 0) {
+          bankMsgBox.innerHTML = `<p class="note-warning">❌ ব্যাংক ডিপোজিটের প্রতিটি স্লিপের জন্য ব্যাংক সিলেক্ট করা বাধ্যতামূলক! Submit বন্ধ রয়েছে।</p>`;
+          isBankValid = false;
+        } else {
+          bankMsgBox.innerHTML = `<p class="note-success">✅ ব্যাংকের তথ্য সঠিকভাবে দেওয়া হয়েছে</p>`;
+        }
+      } else {
+        bankMsgBox.innerHTML = "";
+      }
+
+      subBtn.disabled = !(isCashValid && isBankValid);
+    }
+
+    function calcCash() {
+      validateFormAndSubmitBtn();
     }
 
     function cancelDeposit() {
@@ -984,7 +1021,7 @@
       let totalCashVal = (n1000*1000) + (n500*500) + (n200*200) + (n100*100) + (n50*50);
 
       if (cashDepositAmt > 0 && totalCashVal !== cashDepositAmt) {
-        alert("⚠️ Cash Deposit থাকার পরও ক্যাশ নোটের বিবরণ সঠিকভাবে দেওয়া হয়নি অথবা পরিমাণ মileni!");
+        alert("⚠️ Cash Deposit থাকার পরও ক্যাশ নোটের বিবরণ সঠিকভাবে দেওয়া হয়নি অথবা পরিমাণ মিলে নি!");
         return;
       }
 
@@ -1007,6 +1044,13 @@
           let amt = parseRawNumber(amtInput.value);
           let bankName = bankSelect ? bankSelect.value : "";
           let ocrAmt = ocrValInput ? parseRawNumber(ocrValInput.value) : 0;
+
+          if (amt > 0 && !bankName) {
+            alert("⚠️ ব্যাংক ডিপোজিটের প্রতিটি স্লিপের ব্যাংক সিলেক্ট করা আবশ্যক!");
+            subBtn.disabled = false;
+            subBtn.innerText = "Submit Data";
+            return;
+          }
 
           if (bankName && !bankNamesCollected.includes(bankName)) {
             bankNamesCollected.push(bankName);
