@@ -617,7 +617,6 @@
       "Agrani Bank", "Pubali Bank"
     ];
 
-    // 'Other' option removed from bank options list
     function getBankOptionsHTML() {
       let html = '<option value="">-- Bank Name --</option>';
       bankListOptions.forEach(b => {
@@ -659,6 +658,7 @@
           document.getElementById("dsoTabNav").style.display = "none";
           switchAdminTab('report');
 
+          // সেট আজ ১ দিনের তারিখ
           let today = new Date().toISOString().split('T')[0];
           document.getElementById("filterDate").value = today;
         } else {
@@ -895,7 +895,6 @@
       validateFormAndSubmitBtn();
     }
 
-    // Combined validation logic for both Cash Note & Bank Selection
     function validateFormAndSubmitBtn() {
       let totalCashCalculated = 0;
       document.querySelectorAll(".denom").forEach(input => {
@@ -916,7 +915,6 @@
       let isCashValid = true;
       let isBankValid = true;
 
-      // 1. Check Cash Notes
       if (cashDepositAmt > 0) {
         if (totalCashCalculated === 0) {
           msgBox.innerHTML = `<p class="note-warning">⚠️ Cash Deposit ৳${formatBD(cashDepositAmt)} করা হয়েছে। ক্যাশ নোটের বিবরণ প্রদান করা বাধ্যতামূলক!</p>`;
@@ -931,7 +929,6 @@
         msgBox.innerHTML = "";
       }
 
-      // 2. Check Bank Selection for Bank Deposit
       if (bankDepositAmt > 0) {
         let slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
         let missingBank = false;
@@ -1263,7 +1260,9 @@
     }
 
     function resetAdminFilters() {
-      document.getElementById("filterDate").value = "";
+      // রিসেট করলেও ডিফল্ট ১ দিনের আজকের তারিখে ফিরে আসবে
+      let today = new Date().toISOString().split('T')[0];
+      document.getElementById("filterDate").value = today;
       document.getElementById("filterDso").value = "";
       document.getElementById("filterDsoStart").value = "801";
       document.getElementById("filterDsoEnd").value = "845";
@@ -1279,8 +1278,8 @@
       let totalBankDepSum = 0, totalSlipOcrSum = 0;
       let sumEmRec = 0, sumCashRec = 0, sumEmRet = 0, sumCashDep = 0;
 
-      if (!data) {
-        tbody.innerHTML = `<tr><td colspan="17" style="text-align:center;">কোনো ডেটা পাওয়া যায়নি</td></tr>`;
+      if (!data || Object.keys(data).length === 0) {
+        tbody.innerHTML = `<tr><td colspan="17" style="text-align:center; font-weight:bold; padding:20px; color:#c62828;">আজকের দিনে এখনো কোনো ডাটা জমা হয়নি। নতুন ডাটা না আসা পর্যন্ত টেবিল ব্লাঙ্ক থাকবে।</td></tr>`;
         updateSummaryCards(0, 0, 0, 0, 0, 0, 0, 0, 0);
         return;
       }
@@ -1396,7 +1395,7 @@
       tbody.innerHTML = "";
       tfoot.innerHTML = "";
 
-      if (!data) {
+      if (!data || Object.keys(data).length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">কোনো ব্যাংক বিবরণ পাওয়া যায়নি</td></tr>`;
         return;
       }
@@ -1545,7 +1544,7 @@
       tbody.innerHTML = "";
       tfoot.innerHTML = "";
 
-      if (!data) {
+      if (!data || Object.keys(data).length === 0) {
         tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;">কোনো ক্যাশ নোট তথ্য পাওয়া যায়নি</td></tr>`;
         return;
       }
