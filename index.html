@@ -1466,21 +1466,5 @@
       XLSX.writeFile(wb, `Collection_Report_${filterDate}.xlsx`);
     }
   </script>
-  // ১. OCR প্রসেসিং ফাংশন (ফেইল করলেও ছবি রিমুভ হবে না)
-async function processSlipOCR(event, id) {
-  const fileInput = event.target;
-  const file = fileInput.files[0];
-  const statusElement = document.getElementById(`slipStatus_${id}`);
-  const mainStatus = document.getElementById("ocrStatus");
-  const bankInput = document.getElementById("bankName");
-  const amtInput = document.getElementById(`slipAmt_${id}`);
-
-  // ফাইল সিলেক্ট না করা হলে রিমুভ হ্যান্ডলিং
-  if (!file) {
-    amtInput.value = "";
-    recalculateBankDepositFromSlips();
-    if (statusElement) statusElement.innerText = "";
-    return;
-  }
 </body>
 </html>
