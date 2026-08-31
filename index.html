@@ -166,6 +166,35 @@
     <!-- ADMIN VIEW -->
     <div id="adminView" style="display: none;">
       
+      <!-- ADMIN PASSWORD CONTROL SECTION -->
+      <div class="section-box" style="margin-bottom: 20px; background: #e0f2f1; border-color: #00695c;">
+        <div class="section-title" style="color: #004d40; border-color: #00695c;">🔑 অ্যাডমিন ও ইউজার পাসওয়ার্ড ম্যানেজমেন্ট</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+          
+          <!-- Admin Own Password Change -->
+          <div style="background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #004d40;">
+            <label style="font-size: 12px; font-weight: bold; color: #004d40; display: block; margin-bottom: 5px;">অ্যাডমিনের নিজের পাসওয়ার্ড পরিবর্তন</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="password" id="adminNewPassword" placeholder="নতুন পাসওয়ার্ড দিন" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1;">
+              <button class="btn" style="width: auto; padding: 8px 12px; font-size: 13px;" onclick="changeAdminOwnPassword()">Save</button>
+            </div>
+          </div>
+
+          <!-- Admin Change Other User Password -->
+          <div style="background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #004d40;">
+            <label style="font-size: 12px; font-weight: bold; color: #004d40; display: block; margin-bottom: 5px;">অন্যান্য DSO / ইউজারের পাসওয়ার্ড পরিবর্তন</label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <select id="targetUserSelect" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; min-width: 100px;">
+                <option value="">-- Select User --</option>
+              </select>
+              <input type="password" id="targetUserPassword" placeholder="নতুন পাসওয়ার্ড" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1; min-width: 120px;">
+              <button class="btn" style="width: auto; padding: 8px 12px; font-size: 13px; background: #0288d1;" onclick="changeUserPasswordByAdmin()">Update User Pass</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
       <!-- SEARCH & FILTER PANEL -->
       <div class="filter-panel">
         <div class="filter-group">
@@ -500,6 +529,44 @@
         document.getElementById("newPassword").value = "";
       } catch (err) {
         alert("পাসওয়ার্ড সেভ করা যায়নি: " + err.message);
+      }
+    }
+
+    /* ADMIN PASSWORD CHANGE FUNCTIONS */
+    async function changeAdminOwnPassword() {
+      let newPass = document.getElementById("adminNewPassword").value.trim();
+      if (!newPass) {
+        alert("নতুন পাসওয়ার্ড ফিল্ডে লিখুন!");
+        return;
+      }
+      try {
+        await database.ref('users/admin/password').set(newPass);
+        alert("অ্যাডমিনের পাসওয়ার্ড সফলভাবে আপডেট হয়েছে!");
+        document.getElementById("adminNewPassword").value = "";
+      } catch (err) {
+        alert("পাসওয়ার্ড সেভ করা যায়নি: " + err.message);
+      }
+    }
+
+    async function changeUserPasswordByAdmin() {
+      let targetUser = document.getElementById("targetUserSelect").value;
+      let newPass = document.getElementById("targetUserPassword").value.trim();
+
+      if (!targetUser) {
+        alert("দয়া করে একজন ইউজার সিলেক্ট করুন!");
+        return;
+      }
+      if (!newPass) {
+        alert("ইউজারের নতুন পাসওয়ার্ড দিন!");
+        return;
+      }
+
+      try {
+        await database.ref('users/' + targetUser + '/password').set(newPass);
+        alert(`DSO/ইউজার '${targetUser}' এর পাসওয়ার্ড সফলভাবে আপডেট করা হয়েছে!`);
+        document.getElementById("targetUserPassword").value = "";
+      } catch (err) {
+        alert("ইউজারের পাসওয়ার্ড সেভ করা যায়নি: " + err.message);
       }
     }
 
@@ -844,20 +911,39 @@
 
     function populateDsoDropdown(data) {
       const dsoSelect = document.getElementById("filterDso");
-      let selectedVal = dsoSelect.value;
-      dsoSelect.innerHTML = '<option value="">-- All --</option>';
+      const targetUserSelect = document.getElementById("targetUserSelect");
 
-      if (!data) return;
+      let selectedVal = dsoSelect.value;
+      let selectedUserVal = targetUserSelect.value;
+
+      dsoSelect.innerHTML = '<option value="">-- All --</option>';
+      targetUserSelect.innerHTML = '<option value="">-- Select User --</option>';
+
       let dsoSet = new Set();
-      Object.values(data).forEach(r => { if (r.userId) dsoSet.add(r.userId); });
+      
+      // Default Range (801 to 845) DSO list include in target option
+      for (let i = 801; i <= 845; i++) {
+        dsoSet.add(String(i));
+      }
+
+      if (data) {
+        Object.values(data).forEach(r => { if (r.userId && r.userId.toLowerCase() !== "admin") dsoSet.add(r.userId); });
+      }
 
       dsoSet.forEach(dso => {
-        let opt = document.createElement("option");
-        opt.value = dso;
-        opt.textContent = dso;
-        dsoSelect.appendChild(opt);
+        let opt1 = document.createElement("option");
+        opt1.value = dso;
+        opt1.textContent = dso;
+        dsoSelect.appendChild(opt1);
+
+        let opt2 = document.createElement("option");
+        opt2.value = dso;
+        opt2.textContent = dso;
+        targetUserSelect.appendChild(opt2);
       });
+
       dsoSelect.value = selectedVal;
+      targetUserSelect.value = selectedUserVal;
     }
 
     function applyAdminFilters() {
