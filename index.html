@@ -31,7 +31,7 @@
     
     .btn-excel { background: #2e7d32; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
     .btn-excel:hover { background: #1b5e20; }
-    .btn-reset { background: #757575; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
+    .btn-reset { background: #757575; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
     .btn-reset:hover { background: #616161; }
 
     .btn-add { background: #0288d1; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; margin-top: 5px; }
@@ -90,22 +90,37 @@
 
     .form-group { margin-bottom: 12px; }
     .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; }
-    .form-group input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
+    .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
 
     .dynamic-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-    .dynamic-row input[type="text"] { flex: 1; }
+    .dynamic-row select, .dynamic-row input[type="text"] { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
 
     .calculation-box { background: #ffffff; padding: 10px; border-radius: 6px; border: 1px dashed #777; margin-top: 10px; font-size: 14px; }
     .calc-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
 
     .ocr-status { font-size: 12px; color: #00695c; margin-top: 4px; font-weight: bold; }
 
-    .table-container { overflow-x: auto; margin-top: 15px; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: center; }
-    table, th, td { border: 1px solid #ccc; vertical-align: middle; }
+    /* Sticky Table Container Setup */
+    .table-container { 
+      max-height: 65vh; 
+      overflow-y: auto; 
+      overflow-x: auto; 
+      margin-top: 15px; 
+      border: 1px solid #ccc; 
+      border-radius: 6px;
+      position: relative;
+    }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; text-align: center; }
+    table th, table td { border-bottom: 1px solid #ccc; border-right: 1px solid #ccc; vertical-align: middle; }
+    table th:first-child, table td:first-child { border-left: 1px solid #ccc; }
     th { padding: 8px; }
     td { padding: 6px; }
     tr:nth-child(even) { background: #f9f9f9; }
+
+    /* Sticky Headers Styling for Scrollable Tables */
+    #dataTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
+    #dataTable thead tr:nth-child(2) th { position: sticky; top: 31px; z-index: 9; }
+    #dsoHistoryTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
 
     .th-info { background: #37474f; color: white; }
     .th-received { background: #2e7d32; color: white; }
@@ -297,10 +312,10 @@
           <div class="form-group"><label>Cash Received</label><input type="text" id="cashReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
           
           <div class="form-group">
-            <label>DSO Received (একাধিক DSO হতে গ্রহণ)</label>
+            <label>DSO Received (একাধিক DSO হতে গ্রহণ: শুধুমাত্র ৮০১-৮৪৫)</label>
             <div id="dsoReceivedContainer">
               <div class="dynamic-row">
-                <input type="text" placeholder="DSO ID/Name" class="dso-rec-id">
+                <select class="dso-rec-id"></select>
                 <input type="text" placeholder="Amount" class="amt-field dso-rec-amt" oninput="handleAmountInput(this); calcFormTotals();">
                 <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
               </div>
@@ -330,10 +345,10 @@
           </div>
 
           <div class="form-group">
-            <label>DSO Transfer / Return (একাধিক DSO-কে প্রদান)</label>
+            <label>DSO Transfer / Return (একাধিক DSO-কে প্রদান: শুধুমাত্র ৮০১-৮৪৫)</label>
             <div id="dsoTransferContainer">
               <div class="dynamic-row">
-                <input type="text" placeholder="DSO ID/Name" class="dso-trans-id">
+                <select class="dso-trans-id"></select>
                 <input type="text" placeholder="Amount" class="amt-field dso-trans-amt" oninput="handleAmountInput(this); calcFormTotals();">
                 <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
               </div>
@@ -382,7 +397,16 @@
         <button class="btn btn-cancel" onclick="cancelDeposit()">Cancel Deposit</button>
       </div>
 
-      <h3 style="margin-top: 30px;">আমার পূর্বের জমা হিসাব (My History)</h3>
+      <!-- DSO HISTORY WITH DATE FILTER -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:30px; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
+        <h3>আমার পূর্বের জমা হিসাব (My History)</h3>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <label style="font-size:12px; font-weight:bold; color:#004d40;">তারিখ ফিল্টার:</label>
+          <input type="date" id="dsoHistoryDateFilter" onchange="renderDsoHistory(globalAllData)" style="padding:6px; border:1px solid #004d40; border-radius:4px;">
+          <button class="btn-reset" onclick="document.getElementById('dsoHistoryDateFilter').value=''; renderDsoHistory(globalAllData);">🔄 Reset Filter</button>
+        </div>
+      </div>
+
       <div class="table-container">
         <table id="dsoHistoryTable">
           <thead>
@@ -394,6 +418,7 @@
               <th class="th-return">ব্যাংকের নাম</th>
               <th class="th-info">ক্যাশ হিসাব (Note Breakdown)</th>
               <th class="th-info">ডিপোজিট স্লিপ</th>
+              <th class="th-info">বিস্তারিত View</th>
             </tr>
           </thead>
           <tbody id="dsoHistoryBody"></tbody>
@@ -458,6 +483,15 @@
       }
     }
 
+    // Generate strict DSO ID (801-845) select dropdown options
+    function getDsoOptionsHTML() {
+      let html = '<option value="">-- Select DSO ID (801-845) --</option>';
+      for (let i = 801; i <= 845; i++) {
+        html += `<option value="${i}">DSO ${i}</option>`;
+      }
+      return html;
+    }
+
     const knownBanks = [
       "Islami Bank", "Dutch-Bangla Bank", "DBBL", "BRAC Bank", "City Bank", 
       "Eastern Bank", "EBL", "United Commercial Bank", "UCB", "Sonali Bank", 
@@ -478,7 +512,7 @@
       let userIdNum = parseInt(id, 10);
 
       if (id !== "admin" && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
-        alert("অপ্রবেশযোগ্য আইডি!");
+        alert("অপ্রবেশযোগ্য আইডি! শুধুমাত্র ৮০১ থেকে ৮৪৫ পর্যন্ত অনুমতি দেওয়া হয়েছে।");
         return;
       }
 
@@ -579,7 +613,9 @@
       const div = document.createElement("div");
       div.className = "dynamic-row";
       div.innerHTML = `
-        <input type="text" placeholder="DSO ID/Name" class="dso-rec-id">
+        <select class="dso-rec-id">
+          ${getDsoOptionsHTML()}
+        </select>
         <input type="text" placeholder="Amount" class="amt-field dso-rec-amt" oninput="handleAmountInput(this); calcFormTotals();">
         <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
       `;
@@ -591,7 +627,9 @@
       const div = document.createElement("div");
       div.className = "dynamic-row";
       div.innerHTML = `
-        <input type="text" placeholder="DSO ID/Name" class="dso-trans-id">
+        <select class="dso-trans-id">
+          ${getDsoOptionsHTML()}
+        </select>
         <input type="text" placeholder="Amount" class="amt-field dso-trans-amt" oninput="handleAmountInput(this); calcFormTotals();">
         <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
       `;
@@ -642,6 +680,50 @@
       calcFormTotals();
     }
 
+    // Image Preprocessing Pipeline for robust OCR output
+    function preprocessImageForOCR(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            let width = img.width;
+            let height = img.height;
+            const maxDim = 1200;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const imgData = ctx.getImageData(0, 0, width, height);
+            const d = imgData.data;
+            for (let i = 0; i < d.length; i += 4) {
+              let avg = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+              avg = avg < 128 ? Math.max(0, avg - 25) : Math.min(255, avg + 25);
+              d[i] = avg; d[i+1] = avg; d[i+2] = avg;
+            }
+            ctx.putImageData(imgData, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = reject;
+          img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // FIXED OPTIMIZED OCR PROCESSOR
     async function processSlipOCR(event, id) {
       const file = event.target.files[0];
       const statusElement = document.getElementById(`slipStatus_${id}`);
@@ -656,11 +738,12 @@
         return;
       }
 
-      if (statusElement) statusElement.innerText = `🔍 স্লিপ #${id} স্ক্যানিং চলছে...`;
+      if (statusElement) statusElement.innerText = `🔍 স্লিপ #${id} ইমেজ ফিল্টারিং ও স্ক্যানিং চলছে...`;
       if (mainStatus) mainStatus.innerText = `🔍 স্লিপ #${id} রিড করা হচ্ছে... (Bank & Amount)`;
 
       try {
-        const result = await Tesseract.recognize(file, 'eng');
+        const processedImageData = await preprocessImageForOCR(file);
+        const result = await Tesseract.recognize(processedImageData, 'eng');
         const text = result.data.text;
         
         let foundBank = "";
@@ -679,17 +762,28 @@
           }
         }
 
-        const amountRegex = /(?:TK|BDT|AMT|AMOUNT|TOTAL)?\s*[:\.]?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+)/gi;
-        let matches = [...text.matchAll(amountRegex)];
-        let maxVal = 0;
+        // Smart Line-by-Line Regex parsing to avoid dates & phone numbers
+        let lines = text.split('\n');
+        let possibleAmounts = [];
 
-        matches.forEach(m => {
-          let valStr = m[1].replace(/,/g, '');
-          let val = parseFloat(valStr);
-          if (!isNaN(val) && val > maxVal && val < 5000000) { 
-            maxVal = val; 
-          }
+        lines.forEach(line => {
+          let cleanLine = line.replace(/\b\d{1,4}[\/\.-]\d{1,2}[\/\.-]\d{1,4}\b/g, '');
+          let amountRegex = /(?:TK|BDT|AMT|AMOUNT|TOTAL|DEPOSIT|TAKA|SUM)?\s*[:\.]?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]{3,7})/gi;
+          let matches = [...cleanLine.matchAll(amountRegex)];
+          
+          matches.forEach(m => {
+            let valStr = m[1].replace(/,/g, '');
+            let val = parseFloat(valStr);
+            if (!isNaN(val) && val >= 50 && val <= 5000000) {
+              possibleAmounts.push(val);
+            }
+          });
         });
+
+        let maxVal = 0;
+        if (possibleAmounts.length > 0) {
+          maxVal = Math.max(...possibleAmounts);
+        }
 
         if (maxVal > 0) {
           amtInput.value = formatBD(maxVal);
@@ -698,10 +792,10 @@
 
         let msg = `✅ ব্যাংক: (${foundBank || 'N/A'}), পরিমাণ: ৳ ${formatBD(maxVal)}`;
         if (statusElement) statusElement.innerText = msg;
-        if (mainStatus) mainStatus.innerText = `✅ স্লিপ #${id} সফলভাবে রিড করা হয়েছে।`;
+        if (mainStatus) mainStatus.innerText = `✅ স্লিপ #${id} সফলভাবে স্ক্যান করা হয়েছে।`;
       } catch (err) {
         console.error(err);
-        if (statusElement) statusElement.innerText = `❌ স্ক্যান সফল হয়নি। আপনি ম্যানুয়ালি অ্যামাউন্ট লিখতে পারেন।`;
+        if (statusElement) statusElement.innerText = `⚠️ OCR স্ক্যান করা সম্ভব হয়নি। ম্যানুয়ালি অ্যামাউন্ট লিখতে পারেন।`;
       }
     }
 
@@ -709,7 +803,7 @@
       let list = [];
       const rows = document.querySelectorAll("#dsoReceivedContainer .dynamic-row");
       rows.forEach(row => {
-        let id = row.querySelector(".dso-rec-id").value.trim();
+        let id = row.querySelector(".dso-rec-id").value;
         let amt = parseRawNumber(row.querySelector(".dso-rec-amt").value);
         if (id || amt > 0) {
           list.push({ dsoId: id || 'Unknown', amount: amt });
@@ -722,7 +816,7 @@
       let list = [];
       const rows = document.querySelectorAll("#dsoTransferContainer .dynamic-row");
       rows.forEach(row => {
-        let id = row.querySelector(".dso-trans-id").value.trim();
+        let id = row.querySelector(".dso-trans-id").value;
         let amt = parseRawNumber(row.querySelector(".dso-trans-amt").value);
         if (id || amt > 0) {
           list.push({ dsoId: id || 'Unknown', amount: amt });
@@ -770,7 +864,6 @@
       if (confirm("আপনি কি নিশ্চিত যে এই ফর্ম বাতিল করতে চান?")) resetForm();
     }
 
-    /* UPDATED getBase64 FUNCTION FOR HIGH RESOLUTION & CLEAR IMAGE */
     function getBase64(file) {
       return new Promise((resolve) => {
         if (!file) { resolve(""); return; }
@@ -781,7 +874,6 @@
           img.src = event.target.result;
           img.onload = () => {
             const canvas = document.createElement("canvas");
-            // স্লিপ স্পষ্ট রাখার জন্য max_size ১৬০০px করা হয়েছে
             let width = img.width, height = img.height, max_size = 1600;
             
             if (width > height) {
@@ -798,7 +890,6 @@
             ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
             
-            // JPEG Quality 0.85 (85%) তে সেট করা হয়েছে
             resolve(canvas.toDataURL("image/jpeg", 0.85));
           };
           img.onerror = () => resolve("");
@@ -811,7 +902,6 @@
       const now = new Date();
       const dateStr = now.toISOString().split('T')[0];
 
-      // ১ দিনে ১ বারের বেশি সাবমিট ব্লক করার লজিক
       if (globalAllData) {
         let alreadySubmitted = Object.values(globalAllData).some(item => 
           String(item.userId) === String(currentUser) && item.date === dateStr
@@ -898,7 +988,7 @@
 
       document.getElementById("dsoReceivedContainer").innerHTML = `
         <div class="dynamic-row">
-          <input type="text" placeholder="DSO ID/Name" class="dso-rec-id">
+          <select class="dso-rec-id">${getDsoOptionsHTML()}</select>
           <input type="text" placeholder="Amount" class="amt-field dso-rec-amt" oninput="handleAmountInput(this); calcFormTotals();">
           <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
         </div>
@@ -906,7 +996,7 @@
 
       document.getElementById("dsoTransferContainer").innerHTML = `
         <div class="dynamic-row">
-          <input type="text" placeholder="DSO ID/Name" class="dso-trans-id">
+          <select class="dso-trans-id">${getDsoOptionsHTML()}</select>
           <input type="text" placeholder="Amount" class="amt-field dso-trans-amt" oninput="handleAmountInput(this); calcFormTotals();">
           <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>
         </div>
@@ -1400,26 +1490,39 @@
       }
     }
 
+    // DSO HISTORY WITH DATE FILTER & DETAILS VIEW
     function renderDsoHistory(data) {
       const tbody = document.getElementById("dsoHistoryBody");
       tbody.innerHTML = "";
 
       if (!data) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">কোনো পূর্বের জমা হিসাব পাওয়া যায়নি</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;">কোনো পূর্বের জমা হিসাব পাওয়া যায়নি</td></tr>`;
         return;
       }
 
-      let myHistory = Object.values(data).filter(item => String(item.userId) === String(currentUser));
+      let dateFilterVal = document.getElementById("dsoHistoryDateFilter") ? document.getElementById("dsoHistoryDateFilter").value : "";
+
+      let myHistory = [];
+      Object.keys(data).forEach(key => {
+        let item = data[key];
+        if (String(item.userId) === String(currentUser)) {
+          let matchDate = !dateFilterVal || item.date === dateFilterVal;
+          if (matchDate) {
+            myHistory.push({ ...item, key: key });
+          }
+        }
+      });
+
       myHistory.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
       if (myHistory.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">আপনার কোনো জমা হিসাব পাওয়া যায়নি</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;">আপনার নির্বাচিত ফিল্টারে কোনো জমা হিসাব পাওয়া যায়নি</td></tr>`;
         return;
       }
 
       myHistory.forEach(item => {
-        let dsoRecSum = Array.isArray(item.dsoReceivedList) ? item.dsoReceivedList.reduce((a, b) => a + b.amount, 0) : (item.dsoReceived || 0);
-        let dsoTransSum = Array.isArray(item.dsoTransferList) ? item.dsoTransferList.reduce((a, b) => a + b.amount, 0) : (item.dsoTransfer || 0);
+        let dsoRecSum = Array.isArray(item.dsoReceivedList) ? item.dsoReceivedList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoReceived || 0);
+        let dsoTransSum = Array.isArray(item.dsoTransferList) ? item.dsoTransferList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoTransfer || 0);
 
         let totalRec = (item.emReceived || 0) + (item.cashReceived || 0) + dsoRecSum;
         let totalRet = (item.emReturn || 0) + (item.bankDeposit || 0) + dsoTransSum + (item.cashDeposit || 0);
@@ -1454,6 +1557,9 @@
           <td>${item.bankName || '-'}</td>
           <td style="text-align:left;">${notesText || '-'}</td>
           <td>${slipsHtml || '-'}</td>
+          <td>
+            <button class="btn-details" onclick="showDetailsModal('${item.key}')">ℹ️ Details</button>
+          </td>
         `;
         tbody.appendChild(tr);
       });
