@@ -144,7 +144,8 @@
     .bg-diff { background-color: #fff3e0 !important; color: #e65100; font-weight: bold; }
     .bg-dso-diff { background-color: #e0f7fa !important; color: #00838f; font-weight: bold; }
 
-    .slip-img-preview { width: 45px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; display: block; margin: 0 auto; cursor: pointer; }
+    .slip-img-preview { width: 45px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; display: block; margin: 0 auto; cursor: pointer; transition: transform 0.2s; }
+    .slip-img-preview:hover { transform: scale(1.1); }
 
     .note-badge { display: inline-block; background: #eceff1; border: 1px solid #b0bec5; padding: 2px 4px; margin: 1px; border-radius: 3px; font-size: 10px; text-align: left; white-space: nowrap; }
     .dso-badge { display: inline-block; background: #e0f2f1; border: 1px solid #80cbc4; color: #004d40; padding: 2px 4px; margin: 1px; border-radius: 3px; font-size: 10px; font-weight: bold; }
@@ -155,7 +156,7 @@
     .note-warning { color: #c62828; font-size: 11px; font-weight: bold; margin-top: 4px; }
     .note-success { color: #2e7d32; font-size: 11px; font-weight: bold; margin-top: 4px; }
 
-    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 10px; }
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 10px; }
     .modal-content { background: white; width: 100%; max-width: 650px; max-height: 90vh; overflow-y: auto; border-radius: 8px; padding: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00695c; padding-bottom: 8px; margin-bottom: 12px; }
     .modal-header h3 { color: #00695c; font-size: 15px; }
@@ -163,9 +164,15 @@
     .detail-section { margin-bottom: 12px; padding: 10px; border-radius: 6px; background: #f9f9f9; border: 1px solid #ddd; }
     .detail-section h4 { color: #37474f; margin-bottom: 6px; border-bottom: 1px dashed #ccc; padding-bottom: 3px; font-size: 13px; }
     .detail-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; }
-    .slip-grid-modal { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; margin-top: 6px; }
-    .slip-card-modal { border: 1px solid #ccc; padding: 4px; border-radius: 4px; text-align: center; background: #fff; }
-    .slip-card-modal img { width: 100%; height: 120px; object-fit: contain; background: #f0f0f0; border-radius: 4px; cursor: pointer; }
+    .slip-grid-modal { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 6px; }
+    .slip-card-modal { border: 1px solid #ccc; padding: 6px; border-radius: 4px; text-align: center; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .slip-card-modal img { width: 100%; height: 120px; object-fit: contain; background: #f0f0f0; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
+    
+    /* Zoom Image Modal Overlay */
+    .image-zoom-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 10px; }
+    .image-zoom-container { max-width: 90%; max-height: 90%; text-align: center; background: #fff; padding: 10px; border-radius: 8px; position: relative; overflow: auto; }
+    .image-zoom-container img { max-width: 100%; max-height: 75vh; object-fit: contain; border-radius: 4px; }
+    .zoom-details-info { margin-top: 10px; padding: 8px; background: #e0f2f1; border-radius: 4px; color: #004d40; font-weight: bold; font-size: 14px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }
 
     @media screen and (max-width: 768px) {
       body { padding: 5px; }
@@ -460,7 +467,7 @@
 
         <!-- DYNAMIC DEPOSIT SLIP CONTAINER -->
         <div class="section-box" style="margin-bottom: 15px;">
-          <div class="section-title" style="color: #00695c;">🧾 ব্যাংক ডিপোজিট স্লিপ আপলোড, ব্যাংকের নাম ও পরিমাণ</div>
+          <div class="section-title" style="color: #00695c;">🧾 ব্যাংক ডিপোজিট স্লিপ আপলোড, ব্যাংকের নাম ও পরিমাণ <span style="color:red; font-size:11px;">(Bank Deposit থাকলে নাম ও স্লিপ আপলোড বাধ্যতামূলক)</span></div>
           <div id="slipsContainer"></div>
           <button type="button" class="btn-add" onclick="addSlipRow()" style="padding: 8px 12px; font-size: 13px;">+ Add Deposit Slip</button>
           <div id="ocrStatus" class="ocr-status"></div>
@@ -514,6 +521,15 @@
         <button class="modal-close" onclick="closeDetailsModal()">✖ Close</button>
       </div>
       <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- ZOOM IMAGE MODAL POPUP -->
+  <div id="imageZoomModal" class="image-zoom-overlay" onclick="closeImageZoomModal()">
+    <div class="image-zoom-container" onclick="event.stopPropagation();">
+      <button class="modal-close" style="position: absolute; top: 10px; right: 10px; z-index: 10;" onclick="closeImageZoomModal()">✖ Close</button>
+      <img id="zoomedImageSrc" src="" alt="Bank Slip Image Preview">
+      <div class="zoom-details-info" id="zoomImageDetails"></div>
     </div>
   </div>
 
@@ -618,7 +634,7 @@
     ];
 
     function getBankOptionsHTML() {
-      let html = '<option value="">-- Bank Name --</option>';
+      let html = '<option value="">-- Select Bank --</option>';
       bankListOptions.forEach(b => {
         html += `<option value="${b}">${b}</option>`;
       });
@@ -658,7 +674,6 @@
           document.getElementById("dsoTabNav").style.display = "none";
           switchAdminTab('report');
 
-          // সেট আজ ১ দিনের তারিখ
           let today = new Date().toISOString().split('T')[0];
           document.getElementById("filterDate").value = today;
         } else {
@@ -815,6 +830,7 @@
         if (ocrHiddenInput) ocrHiddenInput.value = "0";
         recalculateBankDepositFromSlips();
         if (statusElement) statusElement.innerText = "";
+        validateFormAndSubmitBtn();
         return;
       }
 
@@ -851,6 +867,8 @@
         if (mainStatus) mainStatus.innerText = `✅ স্লিপ আপলোড সফল!`;
       } catch (err) {
         if (statusElement) statusElement.innerText = `⚠️ OCR স্ক্যান ব্যর্থ। ম্যানুয়ালি অ্যামাউন্ট লিখুন।`;
+      } finally {
+        validateFormAndSubmitBtn();
       }
     }
 
@@ -915,6 +933,7 @@
       let isCashValid = true;
       let isBankValid = true;
 
+      // Cash Deposit Validation
       if (cashDepositAmt > 0) {
         if (totalCashCalculated === 0) {
           msgBox.innerHTML = `<p class="note-warning">⚠️ Cash Deposit ৳${formatBD(cashDepositAmt)} করা হয়েছে। ক্যাশ নোটের বিবরণ প্রদান করা বাধ্যতামূলক!</p>`;
@@ -929,23 +948,38 @@
         msgBox.innerHTML = "";
       }
 
+      // Strict Bank Deposit & Bank Name & Slip Image Validation
       if (bankDepositAmt > 0) {
         let slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
-        let missingBank = false;
+        let missingBankName = false;
+        let missingFile = false;
 
-        slipRows.forEach(row => {
-          let amt = parseRawNumber(row.querySelector(".slip-amt-val").value);
-          let bankSelect = row.querySelector(".slip-bank-name").value;
-          if (amt > 0 && !bankSelect) {
-            missingBank = true;
-          }
-        });
-
-        if (missingBank || slipRows.length === 0) {
-          bankMsgBox.innerHTML = `<p class="note-warning">❌ ব্যাংক ডিপোজিটের প্রতিটি স্লিপের জন্য ব্যাংক সিলেক্ট করা বাধ্যতামূলক! Submit বন্ধ রয়েছে।</p>`;
+        if (slipRows.length === 0) {
           isBankValid = false;
         } else {
-          bankMsgBox.innerHTML = `<p class="note-success">✅ ব্যাংকের তথ্য সঠিকভাবে দেওয়া হয়েছে</p>`;
+          slipRows.forEach(row => {
+            let amt = parseRawNumber(row.querySelector(".slip-amt-val").value);
+            let bankSelect = row.querySelector(".slip-bank-name").value;
+            let fileInput = row.querySelector(".slip-file-input");
+            
+            if (amt > 0) {
+              if (!bankSelect) missingBankName = true;
+              if (!fileInput || !fileInput.files || fileInput.files.length === 0) missingFile = true;
+            }
+          });
+        }
+
+        if (missingBankName && missingFile) {
+          bankMsgBox.innerHTML = `<p class="note-warning">❌ ব্যাংক ডিপোজিটের জন্য Bank Name নির্বাচন এবং ব্যাংক স্লিপ আপলোড করা বাধ্যতামূলক! Submit বন্ধ রয়েছে।</p>`;
+          isBankValid = false;
+        } else if (missingBankName) {
+          bankMsgBox.innerHTML = `<p class="note-warning">❌ Bank Deposit এর ক্ষেত্রে Bank Name ছাড়া submit অফ থাকবে। Bank Name যুক্ত করুন!</p>`;
+          isBankValid = false;
+        } else if (missingFile) {
+          bankMsgBox.innerHTML = `<p class="note-warning">❌ ব্যাংক ডিপোজিটের স্লিপ ইমেজ যুক্ত করা বাধ্যতামূলক! Submit বন্ধ রয়েছে।</p>`;
+          isBankValid = false;
+        } else {
+          bankMsgBox.innerHTML = `<p class="note-success">✅ ব্যাংকের তথ্য ও ডিপোজিট স্লিপ সঠিকভাবে যুক্ত হয়েছে</p>`;
         }
       } else {
         bankMsgBox.innerHTML = "";
@@ -1004,9 +1038,18 @@
       let bankDepositVal = parseRawNumber(document.getElementById("bankDeposit").value);
       const slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
 
-      if (bankDepositVal > 0 && slipRows.length === 0) {
-        alert("⚠️ ব্যাংক ডিপোজিট স্লিপ যুক্ত করা বাধ্যতামূলক!");
-        return;
+      if (bankDepositVal > 0) {
+        let missingInfo = false;
+        slipRows.forEach(row => {
+          let bankName = row.querySelector(".slip-bank-name").value;
+          let fileInput = row.querySelector(".slip-file-input");
+          if (!bankName || !fileInput.files[0]) { missingInfo = true; }
+        });
+
+        if (missingInfo || slipRows.length === 0) {
+          alert("⚠️ Bank Deposit এর জন্য Bank Name এবং Bank Slip ফাইল দেওয়া বাধ্যতামূলক!");
+          return;
+        }
       }
 
       let cashDepositAmt = parseRawNumber(document.getElementById("cashDeposit").value);
@@ -1042,8 +1085,8 @@
           let bankName = bankSelect ? bankSelect.value : "";
           let ocrAmt = ocrValInput ? parseRawNumber(ocrValInput.value) : 0;
 
-          if (amt > 0 && !bankName) {
-            alert("⚠️ ব্যাংক ডিপোজিটের প্রতিটি স্লিপের ব্যাংক সিলেক্ট করা আবশ্যক!");
+          if (amt > 0 && (!bankName || !imgBase64)) {
+            alert("⚠️ ব্যাংক ডিপোজিটের প্রতিটি স্লিপের জন্য ব্যাংক সিলেক্ট করা এবং ছবি দেওয়া বাধ্যতামূলক!");
             subBtn.disabled = false;
             subBtn.innerText = "Submit Data";
             return;
@@ -1260,7 +1303,6 @@
     }
 
     function resetAdminFilters() {
-      // রিসেট করলেও ডিফল্ট ১ দিনের আজকের তারিখে ফিরে আসবে
       let today = new Date().toISOString().split('T')[0];
       document.getElementById("filterDate").value = today;
       document.getElementById("filterDso").value = "";
@@ -1513,7 +1555,7 @@
           <td style="font-weight:bold; color:#2e7d32; background:#e8f5e9;">৳ ${formatBD(entry.amt)}</td>
           <td style="color:#00838f;">৳ ${formatBD(entry.ocrAmt)}</td>
           <td>
-            ${entry.img ? `<img src="${entry.img}" class="slip-img-preview" onclick="openImageModal('${entry.img}')">` : '<span style="color:#aaa;">No Image</span>'}
+            ${entry.img ? `<img src="${entry.img}" class="slip-img-preview" onclick="openImageModal('${entry.img}', '${entry.bankName}', ${entry.amt})">` : '<span style="color:#aaa;">No Image</span>'}
           </td>
         `;
         tr.innerHTML = rowHtml;
@@ -1664,7 +1706,7 @@
           slipsHtml += `
             <div class="slip-card-modal">
               <div style="font-size:10px; font-weight:bold; margin-bottom:2px;">Slip ${idx+1} (${s.bankName || 'N/A'})</div>
-              ${s.img ? `<img src="${s.img}" onclick="openImageModal('${s.img}')">` : '<div style="height:80px; line-height:80px; color:#aaa; font-size:11px;">No Image</div>'}
+              ${s.img ? `<img src="${s.img}" onclick="openImageModal('${s.img}', '${s.bankName}', ${s.amt})">` : '<div style="height:80px; line-height:80px; color:#aaa; font-size:11px;">No Image</div>'}
               <div style="font-size:10px; font-weight:bold; color:#00695c; margin-top:2px;">৳ ${formatBD(s.amt || 0)}</div>
             </div>
           `;
@@ -1725,7 +1767,7 @@
         </div>
 
         <div class="detail-section">
-          <h4>🧾 ব্যাংক স্লিপ ও বিস্তারিত</h4>
+          <h4>🧾 ব্যাংক স্লিপ ও বিস্তারিত (ছবিতে ক্লিক করে জুম দেখুন)</h4>
           <div class="slip-grid-modal">${slipsHtml}</div>
         </div>
       `;
@@ -1735,9 +1777,25 @@
     }
 
     function closeDetailsModal() { document.getElementById("detailsModal").style.display = "none"; }
-    function openImageModal(base64Img) {
-      let w = window.open("");
-      w.document.write(`<img src="${base64Img}" style="max-width:100%; height:auto;">`);
+    
+    // Enhanced Zoom View Modal Function
+    function openImageModal(base64Img, bankName = '', amount = 0) {
+      const zoomModal = document.getElementById("imageZoomModal");
+      const zoomImg = document.getElementById("zoomedImageSrc");
+      const zoomDetails = document.getElementById("zoomImageDetails");
+
+      zoomImg.src = base64Img;
+      
+      let detailsHtml = "";
+      if (bankName) detailsHtml += `<span>🏦 Bank: ${bankName}</span>`;
+      if (amount > 0) detailsHtml += `<span>💵 Amount: ৳ ${formatBD(amount)}</span>`;
+
+      zoomDetails.innerHTML = detailsHtml;
+      zoomModal.style.display = "flex";
+    }
+
+    function closeImageZoomModal() {
+      document.getElementById("imageZoomModal").style.display = "none";
     }
 
     function updateSummaryCards(count, rec, ret, diff, dsoRec, dsoTrans, dsoDiff, bank, slip) {
@@ -1808,7 +1866,7 @@
         let slipsList = item.slips || [];
         if(slipsList.length > 0) {
           slipsList.forEach(s => {
-            if (s.img) slipsHtml += `<img src="${s.img}" class="slip-img-preview" style="display:inline-block; margin:2px;" onclick="openImageModal('${s.img}')">`;
+            if (s.img) slipsHtml += `<img src="${s.img}" class="slip-img-preview" style="display:inline-block; margin:2px;" onclick="openImageModal('${s.img}', '${s.bankName || ''}', ${s.amt || 0})">`;
           });
         }
 
