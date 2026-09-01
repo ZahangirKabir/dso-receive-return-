@@ -79,101 +79,28 @@
     .filter-group label { font-size: 11px; font-weight: bold; color: #004d40; }
     .filter-group input, .filter-group select { padding: 6px; border: 1px solid #004d40; border-radius: 4px; width: 100%; font-size: 12px; }
     
-    /* Select Specific DSO(s) - Dropdown Checkbox Style */
-    .dso-multiselect {
-      position: relative;
-      width: 100%;
-    }
+    .dso-multiselect { position: relative; width: 100%; }
     .dso-multiselect-toggle {
-      width: 100%;
-      min-height: 34px;
-      padding: 7px 34px 7px 10px;
-      border: 1px solid #9aa7ad;
-      border-radius: 3px;
-      background: #fff;
-      color: #444;
-      font-size: 12px;
-      text-align: left;
-      cursor: pointer;
-      position: relative;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
+      width: 100%; min-height: 34px; padding: 7px 34px 7px 10px; border: 1px solid #9aa7ad; border-radius: 3px;
+      background: #fff; color: #444; font-size: 12px; text-align: left; cursor: pointer; position: relative;
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
     }
     .dso-multiselect-toggle::after {
-      content: "▼";
-      position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #68757a;
-      font-size: 10px;
-      pointer-events: none;
+      content: "▼"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #68757a; font-size: 10px; pointer-events: none;
     }
-    .dso-multiselect.open .dso-multiselect-toggle::after {
-      content: "▲";
-    }
+    .dso-multiselect.open .dso-multiselect-toggle::after { content: "▲"; }
     .dso-checkbox-container {
-      display: none;
-      position: absolute;
-      top: calc(100% + 2px);
-      left: 0;
-      right: 0;
-      max-height: 185px;
-      overflow-y: auto;
-      border: 1px solid #b7c0c5;
-      border-radius: 0 0 3px 3px;
-      background: #fff;
-      padding: 5px 0;
-      z-index: 500;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.14);
+      display: none; position: absolute; top: calc(100% + 2px); left: 0; right: 0; max-height: 185px; overflow-y: auto;
+      border: 1px solid #b7c0c5; border-radius: 0 0 3px 3px; background: #fff; padding: 5px 0; z-index: 500; box-shadow: 0 3px 10px rgba(0,0,0,0.14);
     }
-    .dso-multiselect.open .dso-checkbox-container {
-      display: block;
-    }
-    .dso-checkbox-item {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      min-height: 31px;
-      padding: 4px 12px;
-      font-size: 12px;
-      color: #555;
-      cursor: pointer;
-      user-select: none;
-      background: #fff;
-    }
-    .dso-checkbox-item:hover {
-      background: #f2f5f6;
-    }
-    .dso-checkbox-item input[type="checkbox"] {
-      width: 15px;
-      height: 15px;
-      margin: 0;
-      cursor: pointer;
-      accent-color: #00695c;
-    }
-    .dso-dropdown-actions {
-      display: flex;
-      gap: 5px;
-      padding: 6px 8px;
-      border-top: 1px solid #e0e0e0;
-      background: #fafafa;
-      position: sticky;
-      bottom: 0;
-    }
-    .dso-dropdown-actions button {
-      flex: 1;
-      font-size: 10px;
-      cursor: pointer;
-      padding: 4px 6px;
-      border: none;
-      border-radius: 2px;
-      color: #fff;
-    }
+    .dso-multiselect.open .dso-checkbox-container { display: block; }
+    .dso-checkbox-item { display: flex; align-items: center; gap: 9px; min-height: 31px; padding: 4px 12px; font-size: 12px; color: #555; cursor: pointer; user-select: none; background: #fff; }
+    .dso-checkbox-item:hover { background: #f2f5f6; }
+    .dso-checkbox-item input[type="checkbox"] { width: 15px; height: 15px; margin: 0; cursor: pointer; accent-color: #00695c; }
+    .dso-dropdown-actions { display: flex; gap: 5px; padding: 6px 8px; border-top: 1px solid #e0e0e0; background: #fafafa; position: sticky; bottom: 0; }
+    .dso-dropdown-actions button { flex: 1; font-size: 10px; cursor: pointer; padding: 4px 6px; border: none; border-radius: 2px; color: #fff; }
     .dso-select-all-btn { background: #00695c; }
     .dso-clear-all-btn { background: #c62828; }
-
 
     .missing-box { background: #ffebee; border: 2px dashed #c62828; border-radius: 8px; padding: 12px; margin-bottom: 15px; }
     .missing-box h3 { color: #c62828; font-size: 14px; margin-bottom: 8px; display: flex; justify-content: space-between; flex-wrap: wrap; }
@@ -181,11 +108,9 @@
     .missing-badge { background: #c62828; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
 
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 15px; }
-    
     .section-box { padding: 15px; border-radius: 8px; border: 2px solid #ccc; background: #fff; }
     .section-received { border-color: #2e7d32; background-color: #f1f8e9; }
     .section-return { border-color: #c62828; background-color: #fbe9e7; }
-    
     .section-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; padding-bottom: 5px; border-bottom: 2px solid; }
     .title-received { color: #2e7d32; border-color: #a5d6a7; }
     .title-return { color: #c62828; border-color: #ef9a9a; }
@@ -206,14 +131,7 @@
     .status-approved { background-color: #e8f5e9; color: #2e7d32; font-weight: bold; padding: 3px 6px; border-radius: 4px; border: 1px solid #c8e6c9; display: inline-block; }
 
     .table-container { 
-      max-height: 70vh; 
-      overflow-y: auto; 
-      overflow-x: auto; 
-      margin-top: 10px; 
-      border: 1px solid #ccc; 
-      border-radius: 6px;
-      position: relative;
-      -webkit-overflow-scrolling: touch;
+      max-height: 70vh; overflow-y: auto; overflow-x: auto; margin-top: 10px; border: 1px solid #ccc; border-radius: 6px; position: relative; -webkit-overflow-scrolling: touch;
     }
     table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 11px; text-align: center; white-space: nowrap; }
     table th, table td { border-bottom: 1px solid #ccc; border-right: 1px solid #ccc; vertical-align: middle; padding: 6px; }
@@ -222,7 +140,7 @@
 
     #dataTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
     #dataTable thead tr:nth-child(2) th { position: sticky; top: 28px; z-index: 9; }
-    #bankDetailsTable thead tr:nth-child(1) th, #notesSummaryTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
+    #bankDetailsTable thead tr:nth-child(1) th, #notesSummaryTable thead tr:nth-child(1) th, #dsoHistoryTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
 
     #dataTable th.sticky-col-1, #dataTable td.sticky-col-1 { position: sticky; left: 0; z-index: 5; background-color: #37474f; color: white; }
     #dataTable th.sticky-col-2, #dataTable td.sticky-col-2 { position: sticky; left: 75px; z-index: 5; background-color: #37474f; color: white; border-right: 2px solid #00695c; }
@@ -270,7 +188,6 @@
     .slip-card-modal { border: 1px solid #ccc; padding: 6px; border-radius: 4px; text-align: center; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .slip-card-modal img { width: 100%; height: 120px; object-fit: contain; background: #f0f0f0; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
     
-    /* Zoom Image Modal Overlay */
     .image-zoom-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 10px; }
     .image-zoom-container { max-width: 90%; max-height: 90%; text-align: center; background: #fff; padding: 10px; border-radius: 8px; position: relative; overflow: auto; }
     .image-zoom-container img { max-width: 100%; max-height: 75vh; object-fit: contain; border-radius: 4px; }
@@ -336,16 +253,13 @@
           <input type="number" id="filterDsoEnd" value="845" onchange="applyAdminFilters()">
         </div>
         
-        <!-- Select Specific DSO(s) - Dropdown Checkbox -->
         <div class="filter-group" style="flex: 2; min-width: 220px;">
           <label>Select Specific DSO(s)</label>
           <div class="dso-multiselect" id="dsoMultiSelect">
             <button type="button" class="dso-multiselect-toggle" id="dsoMultiSelectToggle" onclick="toggleDsoDropdown(event)">
               All DSO(s)
             </button>
-            <div class="dso-checkbox-container" id="filterDsoCheckboxContainer">
-              <!-- Dynamic Checkboxes will be rendered here -->
-            </div>
+            <div class="dso-checkbox-container" id="filterDsoCheckboxContainer"></div>
           </div>
         </div>
 
@@ -423,9 +337,7 @@
       <!-- ADMIN PAGE 2: BANK DETAILS PAGE -->
       <div id="adminPageBank" style="display:none;">
         <h3 style="color:#00695c; margin-bottom:10px;">🏦 ডিপোজিট অনুযায়ী Bank Name, Column Wise Total & Details</h3>
-        
         <div class="summary-cards" id="bankSummaryCardsContainer"></div>
-
         <div class="table-container">
           <table id="bankDetailsTable">
             <thead id="bankDetailsTableHead"></thead>
@@ -464,7 +376,7 @@
           <div class="section-title" style="color: #004d40; border-color: #00695c;">🔑 পাসওয়ার্ড ম্যানেজমেন্ট</div>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
             <div style="background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #004d40;">
-              <label style="font-size: 12px; font-weight: bold; color: #004d40; display: block; margin-bottom: 5px;">অ্যাডমিনের নিজের পাসওয়ার্ড পরিবর্তন</label>
+              <label style="font-size: 12px; font-weight: bold; color: #004d40; display: block; margin-bottom: 5px;">অ্যাডমিনের পাসওয়ার্ড পরিবর্তন</label>
               <div style="display: flex; gap: 8px;">
                 <input type="password" id="adminNewPassword" placeholder="নতুন পাসওয়ার্ড দিন" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1;">
                 <button class="btn" style="width: auto; padding: 8px 12px; font-size: 13px;" onclick="changeAdminOwnPassword()">Save</button>
@@ -478,7 +390,7 @@
                   <option value="">-- Select User --</option>
                 </select>
                 <input type="password" id="targetUserPassword" placeholder="নতুন পাসওয়ার্ড" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1; min-width: 120px;">
-                <button class="btn" style="width: auto; padding: 8px 12px; font-size: 13px; background: #0288d1;" onclick="changeUserPasswordByAdmin()">Update User Pass</button>
+                <button class="btn" style="width: auto; padding: 8px 12px; font-size: 13px; background: #0288d1;" onclick="changeUserPasswordByAdmin()">Update Pass</button>
               </div>
             </div>
           </div>
@@ -579,7 +491,7 @@
 
         <!-- DYNAMIC DEPOSIT SLIP CONTAINER -->
         <div class="section-box" style="margin-bottom: 15px;">
-          <div class="section-title" style="color: #00695c;">🧾 ব্যাংক ডিপোজিট স্লিপ আপলোড, ব্যাংকের নাম ও পরিমাণ <span style="color:red; font-size:11px;">(Bank Deposit থাকলে নাম ও স্লিপ আপলোড বাধ্যতামূলক)</span></div>
+          <div class="section-title" style="color: #00695c;">🧾 ব্যাংক ডিপোজিট স্লিপ আপলোড, ব্যাংকের নাম ও পরিমাণ <span style="color:red; font-size:11px;">(Bank Deposit থাকলে আপলোড বাধ্যতামূলক)</span></div>
           <div id="slipsContainer"></div>
           <button type="button" class="btn-add" onclick="addSlipRow()" style="padding: 8px 12px; font-size: 13px;">+ Add Deposit Slip</button>
           <div id="ocrStatus" class="ocr-status"></div>
@@ -729,6 +641,7 @@
       } else {
         document.getElementById("tabDsoReportBtn").classList.add("active");
         document.getElementById("dsoPageReport").style.display = "block";
+        renderDsoHistory(globalAllData); // DSO ইতিহাস রেন্ডার
       }
     }
 
@@ -1046,7 +959,6 @@
       let isCashValid = true;
       let isBankValid = true;
 
-      // Cash Deposit Validation
       if (cashDepositAmt > 0) {
         if (totalCashCalculated === 0) {
           msgBox.innerHTML = `<p class="note-warning">⚠️ Cash Deposit ৳${formatBD(cashDepositAmt)} করা হয়েছে। ক্যাশ নোটের বিবরণ প্রদান করা বাধ্যতামূলক!</p>`;
@@ -1061,7 +973,6 @@
         msgBox.innerHTML = "";
       }
 
-      // Strict Bank Deposit & Bank Name & Slip Image Validation
       if (bankDepositAmt > 0) {
         let slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
         let missingBankName = false;
@@ -1230,7 +1141,7 @@
           notes: { n1000, n500, n200, n100, n50 },
           totalCash: totalCashVal,
           slips: slipsData,
-          approvalStatus: "pending", // Default Pending Status
+          approvalStatus: "pending",
           timestamp: Date.now()
         };
 
@@ -1286,7 +1197,81 @@
       });
     }
 
-    // CHECKBOX MULTI-SELECT POPULATE FUNCTION
+    // DSO HISTORY & MY REPORTS TABLE RENDER LOGIC
+    function renderDsoHistory(data) {
+      const tbody = document.getElementById("dsoHistoryBody");
+      if (!tbody) return;
+      tbody.innerHTML = "";
+
+      if (!data) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:15px; color:#c62828;">কোনো রিপোর্ট জমা দেওয়া হয়নি।</td></tr>`;
+        return;
+      }
+
+      const dateFilter = document.getElementById("dsoHistoryDateFilter").value;
+
+      let userEntries = Object.keys(data)
+        .map(key => ({ key, ...data[key] }))
+        .filter(item => String(item.userId) === String(currentUser));
+
+      if (dateFilter) {
+        userEntries = userEntries.filter(item => item.date === dateFilter);
+      }
+
+      userEntries.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+      if (userEntries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:15px; color:#c62828;">কোনো রিপোর্ট ডাটা পাওয়া যায়নি।</td></tr>`;
+        return;
+      }
+
+      userEntries.forEach(item => {
+        let emRec = item.emReceived || 0;
+        let cashRec = item.cashReceived || 0;
+        let dsoRecSum = Array.isArray(item.dsoReceivedList) ? item.dsoReceivedList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoReceived || 0);
+        let totalRec = emRec + cashRec + dsoRecSum;
+
+        let emRet = item.emReturn || 0;
+        let bankDep = item.bankDeposit || 0;
+        let cashDep = item.cashDeposit || 0;
+        let dsoTransSum = Array.isArray(item.dsoTransferList) ? item.dsoTransferList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoTransfer || 0);
+        let totalRet = emRet + bankDep + cashDep + dsoTransSum;
+
+        let diff = totalRec - totalRet;
+
+        let bankInfoText = item.bankName ? `${item.bankName} (৳${formatBD(bankDep)})` : (bankDep > 0 ? `৳${formatBD(bankDep)}` : 'N/A');
+
+        let notes = item.notes || {};
+        let noteSummaryText = `ক্যাশ: ৳${formatBD(item.totalCash || 0)}`;
+
+        let slipsList = item.slips || [];
+        let slipPreviewHtml = slipsList.length > 0 
+          ? `<span style="color:#00695c; font-weight:bold;">${slipsList.length} Slips</span>`
+          : '<span style="color:#aaa;">No Slip</span>';
+
+        let isApproved = item.approvalStatus === "approved";
+        let statusBadge = isApproved 
+          ? `<span class="status-approved">✅ Approved</span>` 
+          : `<span class="status-pending">⏳ Pending</span>`;
+
+        let tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${item.date || '-'}</td>
+          <td class="bg-received">৳ ${formatBD(totalRec)}</td>
+          <td class="bg-return">৳ ${formatBD(totalRet)}</td>
+          <td class="bg-diff">৳ ${formatBD(diff)}</td>
+          <td>${bankInfoText}</td>
+          <td>${noteSummaryText}</td>
+          <td>${slipPreviewHtml}</td>
+          <td>${statusBadge}</td>
+          <td>
+            <button class="btn-details" onclick="showDetailsModal('${item.key}')">ℹ️ Details</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
     function populateDsoDropdown(data) {
       const checkboxContainer = document.getElementById("filterDsoCheckboxContainer");
       const targetUserSelect = document.getElementById("targetUserSelect");
@@ -1304,11 +1289,9 @@
         Object.values(data).forEach(r => { if (r.userId && r.userId !== "admin") dsoSet.add(r.userId); });
       }
 
-      // Sort DSO Options A-Z
       let sortedDsos = Array.from(dsoSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
       sortedDsos.forEach(dso => {
-        // Create Checkbox Items
         let isChecked = currentlyChecked.includes(dso);
         let label = document.createElement("label");
         label.className = "dso-checkbox-item";
@@ -1318,12 +1301,10 @@
         `;
         checkboxContainer.appendChild(label);
 
-        // Populate Target User Select (Settings Tab)
         let opt = document.createElement("option"); opt.value = dso; opt.textContent = `DSO ${dso}`;
         targetUserSelect.appendChild(opt);
       });
 
-      // Dropdown action buttons
       const actionBox = document.createElement("div");
       actionBox.className = "dso-dropdown-actions";
       actionBox.innerHTML = `
@@ -1336,7 +1317,6 @@
       updateDsoDropdownText();
     }
 
-    // MULTI-SELECT HELPER FUNCTIONS
     function getSelectedDsoValues() {
       return Array.from(document.querySelectorAll(".dso-chk:checked")).map(chk => chk.value);
     }
@@ -1391,7 +1371,6 @@
       if (dropdown && !dropdown.contains(event.target)) closeDsoDropdown();
     });
 
-    // UPDATED FILTER LOGIC FOR CHECKBOX SELECTION
     function getActiveDsoFilterSet() {
       const selectedDsos = getSelectedDsoValues();
       if (selectedDsos.length > 0) return new Set(selectedDsos.map(String));
@@ -1547,7 +1526,6 @@
         return;
       }
 
-      // Convert Object to Array & Sort DSO ID A-Z (Alphabetical / Numerical)
       let sortedKeys = Object.keys(data).sort((a, b) => {
         let idA = String(data[a].userId || '');
         let idB = String(data[b].userId || '');
@@ -1663,7 +1641,7 @@
     }
 
     async function approveEntry(key) {
-      if (confirm("আপনি কি এই রিপোর্টটি Approve করতে চান?")) {
+      if (confirm("আপনি কি নিশ্চিত যে এই রিপোর্টটি Approve করতে চান?")) {
         try {
           await database.ref('collections/' + key).update({ approvalStatus: "approved" });
           alert("রিপোর্টটি সফলভাবে Approved করা হয়েছে!");
@@ -1730,7 +1708,6 @@
         }
       });
 
-      // Sort Entries by DSO ID (A-Z)
       entriesList.sort((a, b) => String(a.dsoId).localeCompare(String(b.dsoId), undefined, { numeric: true, sensitivity: 'base' }));
 
       let uniqueBanks = Object.keys(bankTotals);
@@ -1845,7 +1822,6 @@
       let grandTotalCash = 0;
       let count = 0;
 
-      // Sort by DSO ID A-Z
       let sortedKeys = Object.keys(data).sort((a, b) => {
         let idA = String(data[a].userId || '');
         let idB = String(data[b].userId || '');
@@ -2044,7 +2020,6 @@
 
     function closeDetailsModal() { document.getElementById("detailsModal").style.display = "none"; }
     
-    // Zoom View Modal Function
     function openImageModal(base64Img, bankName = '', amount = 0) {
       const zoomModal = document.getElementById("imageZoomModal");
       const zoomImg = document.getElementById("zoomedImageSrc");
@@ -2083,6 +2058,44 @@
           alert("এন্ট্রি সফলভাবে মুছে ফেলা হয়েছে!");
         } catch (err) { alert("মুছে ফেলা সম্ভব হয়নি: " + err.message); }
       }
+    }
+
+    function exportToExcel() {
+      if (!globalAllData) { alert("এক্সপোর্ট করার মতো ডাটা পাওয়া যায়নি!"); return; }
+      let sheetData = [];
+      Object.values(globalAllData).forEach(item => {
+        let emRec = item.emReceived || 0;
+        let cashRec = item.cashReceived || 0;
+        let dsoRecSum = Array.isArray(item.dsoReceivedList) ? item.dsoReceivedList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoReceived || 0);
+        let totalRec = emRec + cashRec + dsoRecSum;
+
+        let emRet = item.emReturn || 0;
+        let bankDep = item.bankDeposit || 0;
+        let cashDep = item.cashDeposit || 0;
+        let dsoTransSum = Array.isArray(item.dsoTransferList) ? item.dsoTransferList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoTransfer || 0);
+        let totalRet = emRet + bankDep + cashDep + dsoTransSum;
+
+        sheetData.push({
+          "Date": item.date || '',
+          "DSO ID": item.userId || '',
+          "e-Money Rec": emRec,
+          "Cash Rec": cashRec,
+          "DSO Rec Total": dsoRecSum,
+          "Total Received": totalRec,
+          "e-Money Return": emRet,
+          "Cash Deposit": cashDep,
+          "Bank Deposit": bankDep,
+          "DSO Trans Total": dsoTransSum,
+          "Total Return": totalRet,
+          "Difference": totalRec - totalRet,
+          "Approval Status": item.approvalStatus || 'pending'
+        });
+      });
+
+      let worksheet = XLSX.utils.json_to_sheet(sheetData);
+      let workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Collection Data");
+      XLSX.writeFile(workbook, `Collection_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
   </script>
 </body>
