@@ -74,42 +74,106 @@
     .card.purple { background: #f3e5f5; border-color: #e1bee7; } .card.purple p { color: #6a1b9a; }
     .card.bank-card { background: #e8eaf6; border-color: #c5cae9; } .card.bank-card p { color: #1a237e; }
 
-    /* Filter Panel Grid Layout Update for Side-by-Side DSO Multi-Select */
     .filter-panel { background: #e0f2f1; padding: 12px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-    .filter-group { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 120px; }
+    .filter-group { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 130px; }
     .filter-group label { font-size: 11px; font-weight: bold; color: #004d40; }
     .filter-group input, .filter-group select { padding: 6px; border: 1px solid #004d40; border-radius: 4px; width: 100%; font-size: 12px; }
     
-    .filter-group-dso-multi { flex: 2.5; min-width: 250px; }
-    
-    /* Dynamic Checkbox Multi-Select DSO Container Styling */
-    .dso-checkbox-container {
-      height: 70px;
-      overflow-y: auto;
-      border: 1px solid #004d40;
-      border-radius: 4px;
+    /* Select Specific DSO(s) - Dropdown Checkbox Style */
+    .dso-multiselect {
+      position: relative;
+      width: 100%;
+    }
+    .dso-multiselect-toggle {
+      width: 100%;
+      min-height: 34px;
+      padding: 7px 34px 7px 10px;
+      border: 1px solid #9aa7ad;
+      border-radius: 3px;
       background: #fff;
-      padding: 4px;
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
-      gap: 3px;
+      color: #444;
+      font-size: 12px;
+      text-align: left;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .dso-multiselect-toggle::after {
+      content: "▼";
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #68757a;
+      font-size: 10px;
+      pointer-events: none;
+    }
+    .dso-multiselect.open .dso-multiselect-toggle::after {
+      content: "▲";
+    }
+    .dso-checkbox-container {
+      display: none;
+      position: absolute;
+      top: calc(100% + 2px);
+      left: 0;
+      right: 0;
+      max-height: 185px;
+      overflow-y: auto;
+      border: 1px solid #b7c0c5;
+      border-radius: 0 0 3px 3px;
+      background: #fff;
+      padding: 5px 0;
+      z-index: 500;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.14);
+    }
+    .dso-multiselect.open .dso-checkbox-container {
+      display: block;
     }
     .dso-checkbox-item {
       display: flex;
       align-items: center;
-      gap: 3px;
-      font-size: 10px;
+      gap: 9px;
+      min-height: 31px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: #555;
       cursor: pointer;
       user-select: none;
-      background: #f0f7f7;
-      padding: 2px 4px;
-      border-radius: 3px;
-      border: 1px solid #b2dfdb;
+      background: #fff;
+    }
+    .dso-checkbox-item:hover {
+      background: #f2f5f6;
     }
     .dso-checkbox-item input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      margin: 0;
       cursor: pointer;
-      width: auto;
+      accent-color: #00695c;
     }
+    .dso-dropdown-actions {
+      display: flex;
+      gap: 5px;
+      padding: 6px 8px;
+      border-top: 1px solid #e0e0e0;
+      background: #fafafa;
+      position: sticky;
+      bottom: 0;
+    }
+    .dso-dropdown-actions button {
+      flex: 1;
+      font-size: 10px;
+      cursor: pointer;
+      padding: 4px 6px;
+      border: none;
+      border-radius: 2px;
+      color: #fff;
+    }
+    .dso-select-all-btn { background: #00695c; }
+    .dso-clear-all-btn { background: #c62828; }
+
 
     .missing-box { background: #ffebee; border: 2px dashed #c62828; border-radius: 8px; padding: 12px; margin-bottom: 15px; }
     .missing-box h3 { color: #c62828; font-size: 14px; margin-bottom: 8px; display: flex; justify-content: space-between; flex-wrap: wrap; }
@@ -257,7 +321,7 @@
     <!-- ADMIN VIEW -->
     <div id="adminView" style="display: none;">
       
-      <!-- GLOBAL FILTER PANEL WITH SIDE-BY-SIDE DSO CHECKBOX MULTI-SELECT -->
+      <!-- GLOBAL FILTER PANEL WITH CHECKBOX MULTI-SELECT DSO -->
       <div class="filter-panel" id="adminFilterPanel">
         <div class="filter-group">
           <label>তারিখ নির্বাচন করুন</label>
@@ -272,15 +336,16 @@
           <input type="number" id="filterDsoEnd" value="845" onchange="applyAdminFilters()">
         </div>
         
-        <!-- Checkbox Multi-Select DSO Container Placed Side-by-Side -->
-        <div class="filter-group filter-group-dso-multi">
+        <!-- Select Specific DSO(s) - Dropdown Checkbox -->
+        <div class="filter-group" style="flex: 2; min-width: 220px;">
           <label>Select Specific DSO(s)</label>
-          <div class="dso-checkbox-container" id="filterDsoCheckboxContainer">
-            <!-- Dynamic Checkboxes will be rendered here -->
-          </div>
-          <div style="display:flex; gap:4px; margin-top:3px;">
-            <button type="button" style="font-size:10px; cursor:pointer; padding:2px 6px; background:#00695c; color:white; border:none; border-radius:2px;" onclick="selectAllDsos()">Select All</button>
-            <button type="button" style="font-size:10px; cursor:pointer; padding:2px 6px; background:#c62828; color:white; border:none; border-radius:2px;" onclick="clearDsoSelection()">Clear All</button>
+          <div class="dso-multiselect" id="dsoMultiSelect">
+            <button type="button" class="dso-multiselect-toggle" id="dsoMultiSelectToggle" onclick="toggleDsoDropdown(event)">
+              All DSO(s)
+            </button>
+            <div class="dso-checkbox-container" id="filterDsoCheckboxContainer">
+              <!-- Dynamic Checkboxes will be rendered here -->
+            </div>
           </div>
         </div>
 
@@ -1248,7 +1313,7 @@
         let label = document.createElement("label");
         label.className = "dso-checkbox-item";
         label.innerHTML = `
-          <input type="checkbox" class="dso-chk" value="${dso}" ${isChecked ? 'checked' : ''} onchange="applyAdminFilters()">
+          <input type="checkbox" class="dso-chk" value="${dso}" ${isChecked ? 'checked' : ''} onchange="handleDsoCheckboxChange()">
           ${dso}
         `;
         checkboxContainer.appendChild(label);
@@ -1258,52 +1323,118 @@
         targetUserSelect.appendChild(opt);
       });
 
+      // Dropdown action buttons
+      const actionBox = document.createElement("div");
+      actionBox.className = "dso-dropdown-actions";
+      actionBox.innerHTML = `
+        <button type="button" class="dso-select-all-btn" onclick="selectAllDsos(event)">Select All</button>
+        <button type="button" class="dso-clear-all-btn" onclick="clearDsoSelection(event)">Clear All</button>
+      `;
+      checkboxContainer.appendChild(actionBox);
+
       targetUserSelect.value = selectedUserVal;
+      updateDsoDropdownText();
     }
 
     // MULTI-SELECT HELPER FUNCTIONS
     function getSelectedDsoValues() {
-      const checkboxes = document.querySelectorAll(".dso-chk:checked");
-      let selectedValues = Array.from(checkboxes).map(chk => chk.value);
-      return selectedValues;
+      return Array.from(document.querySelectorAll(".dso-chk:checked")).map(chk => chk.value);
     }
 
-    function selectAllDsos() {
+    function updateDsoDropdownText() {
+      const toggle = document.getElementById("dsoMultiSelectToggle");
+      if (!toggle) return;
+      const selected = getSelectedDsoValues();
+      if (selected.length === 0) {
+        toggle.textContent = "All DSO(s)";
+      } else if (selected.length === 1) {
+        toggle.textContent = "DSO " + selected[0];
+      } else if (selected.length <= 4) {
+        toggle.textContent = selected.map(id => "DSO " + id).join(", ");
+      } else {
+        toggle.textContent = selected.length + " DSO(s) Selected";
+      }
+    }
+
+    function toggleDsoDropdown(event) {
+      if (event) event.stopPropagation();
+      const dropdown = document.getElementById("dsoMultiSelect");
+      if (dropdown) dropdown.classList.toggle("open");
+    }
+
+    function closeDsoDropdown() {
+      const dropdown = document.getElementById("dsoMultiSelect");
+      if (dropdown) dropdown.classList.remove("open");
+    }
+
+    function handleDsoCheckboxChange() {
+      updateDsoDropdownText();
+      applyAdminFilters();
+    }
+
+    function selectAllDsos(event) {
+      if (event) event.stopPropagation();
       document.querySelectorAll(".dso-chk").forEach(chk => chk.checked = true);
+      updateDsoDropdownText();
       applyAdminFilters();
     }
 
-    function clearDsoSelection() {
+    function clearDsoSelection(event) {
+      if (event) event.stopPropagation();
       document.querySelectorAll(".dso-chk").forEach(chk => chk.checked = false);
+      updateDsoDropdownText();
       applyAdminFilters();
     }
+
+    document.addEventListener("click", function(event) {
+      const dropdown = document.getElementById("dsoMultiSelect");
+      if (dropdown && !dropdown.contains(event.target)) closeDsoDropdown();
+    });
 
     // UPDATED FILTER LOGIC FOR CHECKBOX SELECTION
+    function getActiveDsoFilterSet() {
+      const selectedDsos = getSelectedDsoValues();
+      if (selectedDsos.length > 0) return new Set(selectedDsos.map(String));
+
+      let startRange = parseInt(document.getElementById("filterDsoStart").value, 10);
+      let endRange = parseInt(document.getElementById("filterDsoEnd").value, 10);
+
+      if (isNaN(startRange)) startRange = 801;
+      if (isNaN(endRange)) endRange = 845;
+      if (startRange > endRange) [startRange, endRange] = [endRange, startRange];
+
+      const ids = new Set();
+      for (let i = startRange; i <= endRange; i++) ids.add(String(i));
+      return ids;
+    }
+
     function applyAdminFilters() {
-      if (!globalAllData) { 
-        renderMissingDsoList(new Set()); 
-        renderAdminTable(null); 
+      if (!globalAllData) {
+        renderMissingDsoList(new Set(), getActiveDsoFilterSet());
+        renderAdminTable(null);
         renderBankDetailsTable(null);
         renderNotesSummaryTable(null);
-        return; 
+        return;
       }
-      
-      let filterDate = document.getElementById("filterDate").value;
-      let selectedDsos = getSelectedDsoValues();
 
-      let filteredData = {};
-      let submittedDsoSet = new Set();
+      const filterDate = document.getElementById("filterDate").value;
+      const activeDsos = getActiveDsoFilterSet();
+      const filteredData = {};
+      const submittedDsoSet = new Set();
 
       Object.keys(globalAllData).forEach(key => {
-        let item = globalAllData[key];
-        let matchDate = !filterDate || item.date === filterDate;
-        let matchDso = (selectedDsos.length === 0) || selectedDsos.includes(String(item.userId));
+        const item = globalAllData[key];
+        const userId = String(item.userId || "").trim();
+        const matchDate = !filterDate || item.date === filterDate;
+        const matchDso = activeDsos.has(userId);
 
-        if (matchDate && item.userId) submittedDsoSet.add(String(item.userId).trim());
-        if (matchDate && matchDso) filteredData[key] = item;
+        if (matchDate && matchDso) {
+          submittedDsoSet.add(userId);
+          filteredData[key] = item;
+        }
       });
 
-      renderMissingDsoList(submittedDsoSet);
+      renderMissingDsoList(submittedDsoSet, activeDsos);
       renderAdminTable(filteredData);
       renderBankDetailsTable(filteredData);
       renderNotesSummaryTable(filteredData);
@@ -1311,22 +1442,23 @@
 
     function filterThisMonth() {
       if (!globalAllData) return;
-      document.getElementById("filterDate").value = ""; 
-      let selectedDsos = getSelectedDsoValues();
-      let currentMonth = new Date().toISOString().slice(0, 7);
-      let filteredData = {};
-      let submittedDsoSet = new Set();
+      document.getElementById("filterDate").value = "";
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const activeDsos = getActiveDsoFilterSet();
+      const filteredData = {};
+      const submittedDsoSet = new Set();
 
       Object.keys(globalAllData).forEach(key => {
-        let item = globalAllData[key];
-        let isThisMonth = item.date && item.date.startsWith(currentMonth);
-        let matchDso = (selectedDsos.length === 0) || selectedDsos.includes(String(item.userId));
-
-        if (isThisMonth && item.userId) submittedDsoSet.add(String(item.userId).trim());
-        if (isThisMonth && matchDso) filteredData[key] = item;
+        const item = globalAllData[key];
+        const userId = String(item.userId || "").trim();
+        const isThisMonth = item.date && item.date.startsWith(currentMonth);
+        if (isThisMonth && activeDsos.has(userId)) {
+          submittedDsoSet.add(userId);
+          filteredData[key] = item;
+        }
       });
 
-      renderMissingDsoList(submittedDsoSet);
+      renderMissingDsoList(submittedDsoSet, activeDsos);
       renderAdminTable(filteredData);
       renderBankDetailsTable(filteredData);
       renderNotesSummaryTable(filteredData);
@@ -1334,46 +1466,56 @@
 
     function filterAllData() {
       if (!globalAllData) return;
-      document.getElementById("filterDate").value = ""; 
-      let selectedDsos = getSelectedDsoValues();
-      let filteredData = {};
-      let submittedDsoSet = new Set();
+      document.getElementById("filterDate").value = "";
+      const activeDsos = getActiveDsoFilterSet();
+      const filteredData = {};
+      const submittedDsoSet = new Set();
 
       Object.keys(globalAllData).forEach(key => {
-        let item = globalAllData[key];
-        let matchDso = (selectedDsos.length === 0) || selectedDsos.includes(String(item.userId));
-        if (item.userId) submittedDsoSet.add(String(item.userId).trim());
-        if (matchDso) filteredData[key] = item;
+        const item = globalAllData[key];
+        const userId = String(item.userId || "").trim();
+        if (activeDsos.has(userId)) {
+          submittedDsoSet.add(userId);
+          filteredData[key] = item;
+        }
       });
 
-      renderMissingDsoList(submittedDsoSet);
+      renderMissingDsoList(submittedDsoSet, activeDsos);
       renderAdminTable(filteredData);
       renderBankDetailsTable(filteredData);
       renderNotesSummaryTable(filteredData);
     }
 
-    function renderMissingDsoList(submittedSet) {
-      let startRange = parseInt(document.getElementById("filterDsoStart").value, 10) || 801;
-      let endRange = parseInt(document.getElementById("filterDsoEnd").value, 10) || 845;
-      document.getElementById("missingRangeText").innerText = `Range: ${startRange} to ${endRange}`;
+    function renderMissingDsoList(submittedSet, activeDsoSet = null) {
+      const activeDsos = activeDsoSet || getActiveDsoFilterSet();
+      const selectedDsos = getSelectedDsoValues();
 
-      let missingList = [];
-      for (let i = startRange; i <= endRange; i++) {
-        let idStr = String(i);
-        if (!submittedSet.has(idStr)) { missingList.push(idStr); }
+      let displayRange;
+      if (selectedDsos.length > 0) {
+        displayRange = "Selected: " + selectedDsos.join(", ");
+      } else {
+        let startRange = parseInt(document.getElementById("filterDsoStart").value, 10) || 801;
+        let endRange = parseInt(document.getElementById("filterDsoEnd").value, 10) || 845;
+        if (startRange > endRange) [startRange, endRange] = [endRange, startRange];
+        displayRange = `Range: ${startRange} to ${endRange}`;
       }
+      document.getElementById("missingRangeText").innerText = displayRange;
+
+      const missingList = Array.from(activeDsos)
+        .filter(id => !submittedSet.has(String(id)))
+        .sort((a, b) => Number(a) - Number(b));
 
       document.getElementById("missingCount").innerText = missingList.length;
       const missingContainer = document.getElementById("missingDsoList");
       missingContainer.innerHTML = "";
 
       if (missingList.length === 0) {
-        missingContainer.innerHTML = '<span style="color: #2e7d32; font-weight: bold; font-size: 12px;">🎉 সকল DSO সফলভাবে রিপোর্ট জমা দিয়েছে!</span>';
+        missingContainer.innerHTML = '<span style="color: #2e7d32; font-weight: bold; font-size: 12px;">🎉 সকল নির্বাচিত DSO সফলভাবে রিপোর্ট জমা দিয়েছে!</span>';
         return;
       }
 
       missingList.forEach(id => {
-        let badge = document.createElement("span");
+        const badge = document.createElement("span");
         badge.className = "missing-badge";
         badge.innerText = `DSO ${id}`;
         missingContainer.appendChild(badge);
@@ -1383,9 +1525,10 @@
     function resetAdminFilters() {
       let today = new Date().toISOString().split('T')[0];
       document.getElementById("filterDate").value = today;
-      clearDsoSelection();
       document.getElementById("filterDsoStart").value = "801";
       document.getElementById("filterDsoEnd").value = "845";
+      document.querySelectorAll(".dso-chk").forEach(chk => chk.checked = false);
+      updateDsoDropdownText();
       applyAdminFilters();
     }
 
@@ -1520,7 +1663,7 @@
     }
 
     async function approveEntry(key) {
-      if (confirm("আপনি কি নিশ্চিত যে এই রিপোর্টটি Approve করতে চান?")) {
+      if (confirm("আপনি কি এই রিপোর্টটি Approve করতে চান?")) {
         try {
           await database.ref('collections/' + key).update({ approvalStatus: "approved" });
           alert("রিপোর্টটি সফলভাবে Approved করা হয়েছে!");
@@ -1940,97 +2083,6 @@
           alert("এন্ট্রি সফলভাবে মুছে ফেলা হয়েছে!");
         } catch (err) { alert("মুছে ফেলা সম্ভব হয়নি: " + err.message); }
       }
-    }
-
-    function exportToExcel() {
-      if (!globalAllData) { alert("এক্সপোর্ট করার মতো কোনো ডাটা নেই!"); return; }
-      
-      let exportData = [];
-      Object.values(globalAllData).forEach(item => {
-        exportData.push({
-          "Date": item.date || '',
-          "DSO ID": item.userId || '',
-          "e-Money Received": item.emReceived || 0,
-          "Cash Received": item.cashReceived || 0,
-          "e-Money Return": item.emReturn || 0,
-          "Cash Deposit": item.cashDeposit || 0,
-          "Bank Deposit": item.bankDeposit || 0,
-          "Bank Name": item.bankName || '',
-          "Approval Status": item.approvalStatus || 'pending'
-        });
-      });
-
-      let ws = XLSX.utils.json_to_sheet(exportData);
-      let wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Collection Data");
-      XLSX.writeFile(wb, "Collection_Report.xlsx");
-    }
-
-    function renderDsoHistory(data) {
-      const tbody = document.getElementById("dsoHistoryBody");
-      tbody.innerHTML = "";
-
-      if (!data || !currentUser) return;
-      let dateFilter = document.getElementById("dsoHistoryDateFilter").value;
-
-      let myEntries = [];
-      Object.keys(data).forEach(key => {
-        let item = data[key];
-        if (String(item.userId) === String(currentUser)) {
-          if (!dateFilter || item.date === dateFilter) {
-            myEntries.push({ key, ...item });
-          }
-        }
-      });
-
-      if (myEntries.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:15px; color:#777;">কোনো পূর্বের ডাটা পাওয়া যায়নি।</td></tr>`;
-        return;
-      }
-
-      myEntries.sort((a, b) => b.timestamp - a.timestamp);
-
-      myEntries.forEach(item => {
-        let emRec = item.emReceived || 0;
-        let cashRec = item.cashReceived || 0;
-        let dsoRecSum = 0;
-        if (Array.isArray(item.dsoReceivedList)) {
-          item.dsoReceivedList.forEach(d => dsoRecSum += (d.amount || 0));
-        } else { dsoRecSum = item.dsoReceived || 0; }
-        let totalRec = emRec + cashRec + dsoRecSum;
-
-        let emRet = item.emReturn || 0;
-        let bankDep = item.bankDeposit || 0;
-        let cashDep = item.cashDeposit || 0;
-        let dsoTransSum = 0;
-        if (Array.isArray(item.dsoTransferList)) {
-          item.dsoTransferList.forEach(d => dsoTransSum += (d.amount || 0));
-        } else { dsoTransSum = item.dsoTransfer || 0; }
-        let totalRet = emRet + bankDep + dsoTransSum + cashDep;
-        let diff = totalRec - totalRet;
-
-        let notes = item.notes || {};
-        let notesText = `৳1000:${notes.n1000||0}, ৳500:${notes.n500||0}, ৳200:${notes.n200||0}, ৳100:${notes.n100||0}, ৳50:${notes.n50||0}`;
-
-        let isApproved = item.approvalStatus === "approved";
-        let statusBadge = isApproved 
-          ? `<span class="status-approved">✅ Approved</span>` 
-          : `<span class="status-pending">⏳ Pending</span>`;
-
-        let tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${item.date || '-'}</td>
-          <td class="bg-received">৳ ${formatBD(totalRec)}</td>
-          <td class="bg-return">৳ ${formatBD(totalRet)}</td>
-          <td class="bg-diff">৳ ${formatBD(diff)}</td>
-          <td>${item.bankName || 'N/A'} (৳ ${formatBD(bankDep)})</td>
-          <td style="font-size:10px;">${notesText}</td>
-          <td>${(item.slips || []).length} Slips</td>
-          <td>${statusBadge}</td>
-          <td><button class="btn-details" onclick="showDetailsModal('${item.key}')">ℹ️ View</button></td>
-        `;
-        tbody.appendChild(tr);
-      });
     }
   </script>
 </body>
