@@ -79,6 +79,14 @@
     .filter-group label { font-size: 11px; font-weight: bold; color: #004d40; }
     .filter-group input, .filter-group select { padding: 6px; border: 1px solid #004d40; border-radius: 4px; width: 100%; font-size: 12px; }
 
+    /* Custom Multiple Dropdown (Checkbox List) */
+    .dropdown-check-list { display: inline-block; position: relative; width: 100%; }
+    .dropdown-check-list .anchor { position: relative; cursor: pointer; display: block; padding: 6px; border: 1px solid #004d40; border-radius: 4px; background: #fff; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 20px; }
+    .dropdown-check-list .anchor:after { position: absolute; right: 8px; top: 40%; content: ""; border: solid #004d40; border-width: 0 2px 2px 0; display: inline-block; padding: 3px; transform: rotate(45deg); }
+    .dropdown-check-list ul.items { padding: 5px 10px; display: none; margin: 0; border: 1px solid #004d40; border-top: none; max-height: 200px; overflow-y: auto; background: #fff; position: absolute; z-index: 100; width: 100%; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 0 0 4px 4px; }
+    .dropdown-check-list ul.items li { list-style: none; margin-bottom: 4px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+    .dropdown-check-list.visible .items { display: block; }
+
     .missing-box { background: #ffebee; border: 2px dashed #c62828; border-radius: 8px; padding: 12px; margin-bottom: 15px; }
     .missing-box h3 { color: #c62828; font-size: 14px; margin-bottom: 8px; display: flex; justify-content: space-between; flex-wrap: wrap; }
     .missing-list { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -240,10 +248,13 @@
           <input type="number" id="filterDsoEnd" value="845" onchange="applyAdminFilters()">
         </div>
         <div class="filter-group">
-          <label>Specific DSO Select</label>
-          <select id="filterDso" onchange="applyAdminFilters()">
-            <option value="">-- All DSO --</option>
-          </select>
+          <label>Select DSO (একাধিক নির্বাচন)</label>
+          <div id="listDsoMulti" class="dropdown-check-list" tabindex="100">
+            <span class="anchor" onclick="toggleMultiDsoDropdown()">-- All DSO --</span>
+            <ul class="items" id="multiDsoOptions">
+              <li><label><input type="checkbox" id="selectAllDsoCheck" onchange="toggleSelectAllDsos(this)"> <strong>[Select All]</strong></label></li>
+            </ul>
+          </div>
         </div>
         <button class="btn" style="width: auto; background: #00838f; padding: 8px 12px; font-size: 12px;" onclick="filterThisMonth()">📅 এই মাস</button>
         <button class="btn" style="width: auto; background: #455a64; padding: 8px 12px; font-size: 12px;" onclick="filterAllData()">🌐 সকল ডাটা</button>
@@ -1182,36 +1193,90 @@
       });
     }
 
+    /* Multiple Selection Dropdown Control Functions */
+    function toggleMultiDsoDropdown() {
+      const checkList = document.getElementById('listDsoMulti');
+      if (checkList.classList.contains('visible')) checkList.classList.remove('visible');
+      else checkList.classList.add('visible');
+    }
+
+    document.addEventListener('click', function(e) {
+      const checkList = document.getElementById('listDsoMulti');
+      if (checkList && !checkList.contains(e.target)) {
+        checkList.classList.remove('visible');
+      }
+    });
+
+    function toggleSelectAllDsos(masterCert) {
+      const checkboxes = document.querySelectorAll('#multiDsoOptions input[type="checkbox"]:not(#selectAllDsoCheck)');
+      checkboxes.forEach(cb => cb.checked = masterCert.checked);
+      updateSelectedDsosLabel();
+      applyAdminFilters();
+    }
+
+    function updateSelectedDsosLabel() {
+      const checkboxes = document.querySelectorAll('#multiDsoOptions input[type="checkbox"]:not(#selectAllDsoCheck)');
+      const selected = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+      const anchor = document.querySelector('#listDsoMulti .anchor');
+      
+      if (selected.length === 0 || selected.length === checkboxes.length) {
+        anchor.innerText = "-- All DSO --";
+        if (selected.length === checkboxes.length) {
+          document.getElementById('selectAllDsoCheck').checked = true;
+        }
+      } else {
+        document.getElementById('selectAllDsoCheck').checked = false;
+        if (selected.length <= 3) {
+          anchor.innerText = selected.map(s => "DSO " + s).join(", ");
+        } else {
+          anchor.innerText = `${selected.length} DSOs Selected`;
+        }
+      }
+    }
+
+    function getSelectedDsoValues() {
+      const checkboxes = document.querySelectorAll('#multiDsoOptions input[type="checkbox"]:not(#selectAllDsoCheck)');
+      const selected = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+      if (selected.length === 0 || selected.length === checkboxes.length) {
+        return [];
+      }
+      return selected;
+    }
+
     function populateDsoDropdown(data) {
-      const dsoSelect = document.getElementById("filterDso");
+      const multiContainer = document.getElementById("multiDsoOptions");
       const targetUserSelect = document.getElementById("targetUserSelect");
 
-      let selectedVal = dsoSelect.value;
       let selectedUserVal = targetUserSelect.value;
+      
+      // Preserve currently checked DSOs
+      let prevSelected = getSelectedDsoValues();
 
-      dsoSelect.innerHTML = '<option value="">-- All DSO --</option>';
+      multiContainer.innerHTML = '<li><label><input type="checkbox" id="selectAllDsoCheck" onchange="toggleSelectAllDsos(this)"> <strong>[Select All]</strong></label></li>';
       targetUserSelect.innerHTML = '<option value="">-- Select User --</option>';
 
       let dsoSet = new Set();
       for (let i = 801; i <= 845; i++) { dsoSet.add(String(i)); }
 
       if (data) {
-        Object.values(data).forEach(r => { if (r.userId && r.userId !== "admin") dsoSet.add(r.userId); });
+        Object.values(data).forEach(r => { if (r.userId && r.userId !== "admin") dsoSet.add(String(r.userId).trim()); });
       }
 
       // Sort DSO Options A-Z
       let sortedDsos = Array.from(dsoSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
       sortedDsos.forEach(dso => {
-        let opt1 = document.createElement("option"); opt1.value = dso; opt1.textContent = `DSO ${dso}`;
-        dsoSelect.appendChild(opt1);
+        let li = document.createElement("li");
+        let isChecked = prevSelected.length === 0 || prevSelected.includes(dso) ? 'checked' : '';
+        li.innerHTML = `<label><input type="checkbox" value="${dso}" ${isChecked} onchange="updateSelectedDsosLabel(); applyAdminFilters();"> DSO ${dso}</label>`;
+        multiContainer.appendChild(li);
 
         let opt2 = document.createElement("option"); opt2.value = dso; opt2.textContent = `DSO ${dso}`;
         targetUserSelect.appendChild(opt2);
       });
 
-      dsoSelect.value = selectedVal;
       targetUserSelect.value = selectedUserVal;
+      updateSelectedDsosLabel();
     }
 
     function applyAdminFilters() {
@@ -1224,7 +1289,7 @@
       }
       
       let filterDate = document.getElementById("filterDate").value;
-      let filterDso = document.getElementById("filterDso").value;
+      let selectedDsos = getSelectedDsoValues();
 
       let filteredData = {};
       let submittedDsoSet = new Set();
@@ -1232,7 +1297,7 @@
       Object.keys(globalAllData).forEach(key => {
         let item = globalAllData[key];
         let matchDate = !filterDate || item.date === filterDate;
-        let matchDso = !filterDso || String(item.userId) === String(filterDso);
+        let matchDso = selectedDsos.length === 0 || selectedDsos.includes(String(item.userId).trim());
 
         if (matchDate && item.userId) submittedDsoSet.add(String(item.userId).trim());
         if (matchDate && matchDso) filteredData[key] = item;
@@ -1247,7 +1312,7 @@
     function filterThisMonth() {
       if (!globalAllData) return;
       document.getElementById("filterDate").value = ""; 
-      let filterDso = document.getElementById("filterDso").value;
+      let selectedDsos = getSelectedDsoValues();
       let currentMonth = new Date().toISOString().slice(0, 7);
       let filteredData = {};
       let submittedDsoSet = new Set();
@@ -1255,7 +1320,7 @@
       Object.keys(globalAllData).forEach(key => {
         let item = globalAllData[key];
         let isThisMonth = item.date && item.date.startsWith(currentMonth);
-        let matchDso = !filterDso || String(item.userId) === String(filterDso);
+        let matchDso = selectedDsos.length === 0 || selectedDsos.includes(String(item.userId).trim());
 
         if (isThisMonth && item.userId) submittedDsoSet.add(String(item.userId).trim());
         if (isThisMonth && matchDso) filteredData[key] = item;
@@ -1270,13 +1335,13 @@
     function filterAllData() {
       if (!globalAllData) return;
       document.getElementById("filterDate").value = ""; 
-      let filterDso = document.getElementById("filterDso").value;
+      let selectedDsos = getSelectedDsoValues();
       let filteredData = {};
       let submittedDsoSet = new Set();
 
       Object.keys(globalAllData).forEach(key => {
         let item = globalAllData[key];
-        let matchDso = !filterDso || String(item.userId) === String(filterDso);
+        let matchDso = selectedDsos.length === 0 || selectedDsos.includes(String(item.userId).trim());
         if (item.userId) submittedDsoSet.add(String(item.userId).trim());
         if (matchDso) filteredData[key] = item;
       });
@@ -1318,10 +1383,12 @@
     function resetAdminFilters() {
       let today = new Date().toISOString().split('T')[0];
       document.getElementById("filterDate").value = today;
-      document.getElementById("filterDso").value = "";
       document.getElementById("filterDsoStart").value = "801";
       document.getElementById("filterDsoEnd").value = "845";
-      applyAdminFilters();
+
+      const master = document.getElementById("selectAllDsoCheck");
+      if (master) { master.checked = true; toggleSelectAllDsos(master); }
+      else { applyAdminFilters(); }
     }
 
     function renderAdminTable(data) {
@@ -1922,16 +1989,19 @@
 
         let slipsHtml = "";
         let slipsList = item.slips || [];
-        if(slipsList.length > 0) {
-          slipsList.forEach(s => {
-            if (s.img) slipsHtml += `<img src="${s.img}" class="slip-img-preview" style="display:inline-block; margin:2px;" onclick="openImageModal('${s.img}', '${s.bankName || ''}', ${s.amt || 0})">`;
+        if (slipsList.length > 0) {
+          slipsList.forEach((s, i) => {
+            if (s.img) {
+              slipsHtml += `<img src="${s.img}" class="slip-img-preview" style="display:inline-block; margin:2px;" onclick="openImageModal('${s.img}', '${s.bankName}', ${s.amt})">`;
+            }
           });
         }
+        if (!slipsHtml) slipsHtml = "-";
 
         let isApproved = item.approvalStatus === "approved";
         let statusBadge = isApproved 
           ? `<span class="status-approved">✅ Approved</span>` 
-          : `<span class="status-pending">⏳ Approval Pending</span>`;
+          : `<span class="status-pending">⏳ Pending</span>`;
 
         let tr = document.createElement("tr");
         tr.innerHTML = `
@@ -1939,23 +2009,89 @@
           <td class="bg-received">৳ ${formatBD(totalRec)}</td>
           <td class="bg-return">৳ ${formatBD(totalRet)}</td>
           <td class="bg-diff">৳ ${formatBD(diff)}</td>
-          <td>${item.bankName || '-'}</td>
+          <td>${item.bankName || '-'}<br><small style="color:#00695c;">(৳ ${formatBD(item.bankDeposit)})</small></td>
           <td style="text-align:left;">${notesText || '-'}</td>
-          <td>${slipsHtml || '-'}</td>
+          <td>${slipsHtml}</td>
           <td>${statusBadge}</td>
-          <td>
-            <button class="btn-details" onclick="showDetailsModal('${item.key}')">ℹ️ Details</button>
-          </td>
+          <td><button class="btn-details" onclick="showDetailsModal('${item.key}')">ℹ️ View Details</button></td>
         `;
         tbody.appendChild(tr);
       });
     }
 
     function exportToExcel() {
-      let table = document.getElementById("dataTable");
-      let wb = XLSX.utils.table_to_book(table, { sheet: "Collection Report" });
-      let filterDate = document.getElementById("filterDate").value || "All_Dates";
-      XLSX.writeFile(wb, `Collection_Report_${filterDate}.xlsx`);
+      if (!globalAllData || Object.keys(globalAllData).length === 0) {
+        alert("⚠️ এক্সপোর্ট করার মতো কোনো ডাটা নেই!");
+        return;
+      }
+
+      let filterDate = document.getElementById("filterDate").value;
+      let selectedDsos = getSelectedDsoValues();
+
+      let exportRows = [];
+
+      let sortedKeys = Object.keys(globalAllData).sort((a, b) => {
+        let idA = String(globalAllData[a].userId || '');
+        let idB = String(globalAllData[b].userId || '');
+        return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+      });
+
+      sortedKeys.forEach(key => {
+        let item = globalAllData[key];
+        let matchDate = !filterDate || item.date === filterDate;
+        let matchDso = selectedDsos.length === 0 || selectedDsos.includes(String(item.userId).trim());
+
+        if (matchDate && matchDso) {
+          let emRec = item.emReceived || 0;
+          let cashRec = item.cashReceived || 0;
+          let dsoRecSum = Array.isArray(item.dsoReceivedList) ? item.dsoReceivedList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoReceived || 0);
+          let totalRec = emRec + cashRec + dsoRecSum;
+
+          let emRet = item.emReturn || 0;
+          let bankDep = item.bankDeposit || 0;
+          let cashDep = item.cashDeposit || 0;
+          let dsoTransSum = Array.isArray(item.dsoTransferList) ? item.dsoTransferList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoTransfer || 0);
+          let totalRet = emRet + bankDep + dsoTransSum + cashDep;
+          let diff = totalRec - totalRet;
+
+          let notes = item.notes || {};
+
+          exportRows.push({
+            "Date": item.date || '',
+            "DSO ID": item.userId || '',
+            "e-Money Received": emRec,
+            "Cash Received": cashRec,
+            "DSO Received Total": dsoRecSum,
+            "Total Received": totalRec,
+            "e-Money Return": emRet,
+            "Cash Deposit": cashDep,
+            "Bank Deposit": bankDep,
+            "Bank Name": item.bankName || '',
+            "DSO Transfer Total": dsoTransSum,
+            "Total Return": totalRet,
+            "Difference": diff,
+            "1000 Note": notes.n1000 || 0,
+            "500 Note": notes.n500 || 0,
+            "200 Note": notes.n200 || 0,
+            "100 Note": notes.n100 || 0,
+            "50 Note": notes.n50 || 0,
+            "Calculated Cash Note Total": item.totalCash || 0,
+            "Approval Status": item.approvalStatus || 'pending'
+          });
+        }
+      });
+
+      if (exportRows.length === 0) {
+        alert("⚠️ ফিল্টার অনুযায়ী কোনো ডাটা পাওয়া যায়নি!");
+        return;
+      }
+
+      let worksheet = XLSX.utils.json_to_sheet(exportRows);
+      let workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Collection Report");
+
+      let fileName = `Collection_Report_${filterDate || 'All'}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
     }
   </script>
 </body>
