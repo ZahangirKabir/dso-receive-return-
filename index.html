@@ -79,30 +79,33 @@
     .filter-group label { font-size: 11px; font-weight: bold; color: #004d40; }
     .filter-group input, .filter-group select { padding: 6px; border: 1px solid #004d40; border-radius: 4px; width: 100%; font-size: 12px; }
     
-    /* Dynamic Checkbox DSO Container Styling */
+    /* Dynamic Checkbox Multi-Select DSO Container Styling */
     .dso-checkbox-container {
-      background: #ffffff;
+      height: 75px;
+      overflow-y: auto;
       border: 1px solid #004d40;
       border-radius: 4px;
-      max-height: 100px;
-      overflow-y: auto;
-      padding: 6px;
+      background: #fff;
+      padding: 4px 6px;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
-      gap: 6px;
+      grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+      gap: 4px;
     }
     .dso-checkbox-item {
       display: flex;
       align-items: center;
       gap: 4px;
       font-size: 11px;
-      font-weight: bold;
-      color: #004d40;
       cursor: pointer;
+      user-select: none;
+      background: #f0f7f7;
+      padding: 2px 4px;
+      border-radius: 3px;
+      border: 1px solid #b2dfdb;
     }
     .dso-checkbox-item input[type="checkbox"] {
-      width: auto;
       cursor: pointer;
+      width: auto;
     }
 
     .missing-box { background: #ffebee; border: 2px dashed #c62828; border-radius: 8px; padding: 12px; margin-bottom: 15px; }
@@ -251,7 +254,7 @@
     <!-- ADMIN VIEW -->
     <div id="adminView" style="display: none;">
       
-      <!-- GLOBAL FILTER PANEL WITH CHECKBOX DSO LIST -->
+      <!-- GLOBAL FILTER PANEL WITH CHECKBOX MULTI-SELECT DSO -->
       <div class="filter-panel" id="adminFilterPanel">
         <div class="filter-group">
           <label>তারিখ নির্বাচন করুন</label>
@@ -266,15 +269,15 @@
           <input type="number" id="filterDsoEnd" value="845" onchange="applyAdminFilters()">
         </div>
         
-        <!-- Checkbox DSO Select Container -->
-        <div class="filter-group" style="flex: 2; min-width: 250px;">
-          <label>Select DSO (টিক মার্ক দিন report দেখার জন্য)</label>
-          <div class="dso-checkbox-container" id="filterDsoCheckboxList">
-            <!-- Dynamic Checkboxes will be inserted here -->
+        <!-- Checkbox Multi-Select DSO Container -->
+        <div class="filter-group" style="flex: 2; min-width: 220px;">
+          <label>Select Specific DSO(s)</label>
+          <div class="dso-checkbox-container" id="filterDsoCheckboxContainer">
+            <!-- Dynamic Checkboxes will be rendered here -->
           </div>
           <div style="display:flex; gap:4px; margin-top:3px;">
             <button type="button" style="font-size:10px; cursor:pointer; padding:2px 6px; background:#00695c; color:white; border:none; border-radius:2px;" onclick="selectAllDsos()">Select All</button>
-            <button type="button" style="font-size:10px; cursor:pointer; padding:2px 6px; background:#c62828; color:white; border:none; border-radius:2px;" onclick="clearDsoSelection()">Uncheck All</button>
+            <button type="button" style="font-size:10px; cursor:pointer; padding:2px 6px; background:#c62828; color:white; border:none; border-radius:2px;" onclick="clearDsoSelection()">Clear All</button>
           </div>
         </div>
 
@@ -1215,12 +1218,12 @@
       });
     }
 
-    // UPDATED POPULATE FUNCTION FOR CHECKBOX DSO LIST
+    // CHECKBOX MULTI-SELECT POPULATE FUNCTION
     function populateDsoDropdown(data) {
-      const checkboxContainer = document.getElementById("filterDsoCheckboxList");
+      const checkboxContainer = document.getElementById("filterDsoCheckboxContainer");
       const targetUserSelect = document.getElementById("targetUserSelect");
 
-      let selectedVals = getSelectedDsoValues();
+      let currentlyChecked = getSelectedDsoValues();
       let selectedUserVal = targetUserSelect.value;
 
       checkboxContainer.innerHTML = '';
@@ -1237,50 +1240,42 @@
       let sortedDsos = Array.from(dsoSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
       sortedDsos.forEach(dso => {
-        // Build Checkbox List for Filter Panel
+        // Create Checkbox Items
+        let isChecked = currentlyChecked.includes(dso);
         let label = document.createElement("label");
         label.className = "dso-checkbox-item";
-        
-        let checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.value = dso;
-        checkbox.className = "dso-chk";
-        if (selectedVals.includes(dso)) { checkbox.checked = true; }
-        checkbox.onchange = applyAdminFilters;
-
-        label.appendChild(checkbox);
-        label.appendChild(document.createTextNode(`DSO ${dso}`));
+        label.innerHTML = `
+          <input type="checkbox" class="dso-chk" value="${dso}" ${isChecked ? 'checked' : ''} onchange="applyAdminFilters()">
+          ${dso}
+        `;
         checkboxContainer.appendChild(label);
 
-        // Build Option List for Settings Target User
-        let opt2 = document.createElement("option"); opt2.value = dso; opt2.textContent = `DSO ${dso}`;
-        targetUserSelect.appendChild(opt2);
+        // Populate Target User Select (Settings Tab)
+        let opt = document.createElement("option"); opt.value = dso; opt.textContent = `DSO ${dso}`;
+        targetUserSelect.appendChild(opt);
       });
 
       targetUserSelect.value = selectedUserVal;
     }
 
-    // CHECKBOX HELPER FUNCTIONS
+    // MULTI-SELECT HELPER FUNCTIONS
     function getSelectedDsoValues() {
-      let checkboxes = document.querySelectorAll(".dso-chk:checked");
-      let selected = [];
-      checkboxes.forEach(chk => selected.push(chk.value));
-      return selected;
+      const checkboxes = document.querySelectorAll(".dso-chk:checked");
+      let selectedValues = Array.from(checkboxes).map(chk => chk.value);
+      return selectedValues;
     }
 
     function selectAllDsos() {
-      let checkboxes = document.querySelectorAll(".dso-chk");
-      checkboxes.forEach(chk => chk.checked = true);
+      document.querySelectorAll(".dso-chk").forEach(chk => chk.checked = true);
       applyAdminFilters();
     }
 
     function clearDsoSelection() {
-      let checkboxes = document.querySelectorAll(".dso-chk");
-      checkboxes.forEach(chk => chk.checked = false);
+      document.querySelectorAll(".dso-chk").forEach(chk => chk.checked = false);
       applyAdminFilters();
     }
 
-    // UPDATED FILTER LOGIC FOR MULTIPLE DSO CHECKBOX SELECTION
+    // UPDATED FILTER LOGIC FOR CHECKBOX SELECTION
     function applyAdminFilters() {
       if (!globalAllData) { 
         renderMissingDsoList(new Set()); 
@@ -1942,142 +1937,6 @@
           alert("এন্ট্রি সফলভাবে মুছে ফেলা হয়েছে!");
         } catch (err) { alert("মুছে ফেলা সম্ভব হয়নি: " + err.message); }
       }
-    }
-
-    function renderDsoHistory(data) {
-      const tbody = document.getElementById("dsoHistoryBody");
-      tbody.innerHTML = "";
-
-      if (!data) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;">কোনো পূর্বের জমা হিসাব পাওয়া যায়নি</td></tr>`;
-        return;
-      }
-
-      let dateFilterVal = document.getElementById("dsoHistoryDateFilter") ? document.getElementById("dsoHistoryDateFilter").value : "";
-
-      let myHistory = [];
-      Object.keys(data).forEach(key => {
-        let item = data[key];
-        if (String(item.userId) === String(currentUser)) {
-          let matchDate = !dateFilterVal || item.date === dateFilterVal;
-          if (matchDate) { myHistory.push({ ...item, key: key }); }
-        }
-      });
-
-      myHistory.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-      if (myHistory.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;">আপনার নির্বাচিত ফিল্টারে কোনো জমা হিসাব পাওয়া যায়নি</td></tr>`;
-        return;
-      }
-
-      myHistory.forEach(item => {
-        let emRec = item.emReceived || 0;
-        let cashRec = item.cashReceived || 0;
-        let dsoRecSum = 0;
-        if (Array.isArray(item.dsoReceivedList)) { item.dsoReceivedList.forEach(d => dsoRecSum += d.amount || 0); }
-        else { dsoRecSum = item.dsoReceived || 0; }
-        let totalRec = emRec + cashRec + dsoRecSum;
-
-        let emRet = item.emReturn || 0;
-        let bankDep = item.bankDeposit || 0;
-        let dsoTransSum = 0;
-        if (Array.isArray(item.dsoTransferList)) { item.dsoTransferList.forEach(d => dsoTransSum += d.amount || 0); }
-        else { dsoTransSum = item.dsoTransfer || 0; }
-        let cashDep = item.cashDeposit || 0;
-        let totalRet = emRet + bankDep + dsoTransSum + cashDep;
-
-        let diff = totalRec - totalRet;
-
-        let notes = item.notes || {};
-        let n1000 = notes.n1000 || 0, n500 = notes.n500 || 0, n200 = notes.n200 || 0, n100 = notes.n100 || 0, n50 = notes.n50 || 0;
-        let noteSummaryText = `1000×${n1000}, 500×${n500}, 200×${n200}, 100×${n100}, 50×${n50}`;
-
-        let slipsList = item.slips || [];
-
-        let isApproved = item.approvalStatus === "approved";
-        let statusBadge = isApproved 
-          ? `<span class="status-approved">✅ Approved</span>` 
-          : `<span class="status-pending">⏳ Approval Pending</span>`;
-
-        let tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${item.date}</td>
-          <td class="bg-received">৳ ${formatBD(totalRec)}</td>
-          <td class="bg-return">৳ ${formatBD(totalRet)}</td>
-          <td class="bg-diff">৳ ${formatBD(diff)}</td>
-          <td>${item.bankName || '-'} (৳ ${formatBD(bankDep)})</td>
-          <td><span class="note-badge">${noteSummaryText}</span></td>
-          <td>${slipsList.length} Slips</td>
-          <td>${statusBadge}</td>
-          <td><button class="btn-details" onclick="showDetailsModal('${item.key}')">ℹ️ Details</button></td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    function exportToExcel() {
-      if (!globalAllData) { alert("এক্সপোর্ট করার মতো কোনো ডাটা নেই!"); return; }
-
-      let excelData = [];
-      let filterDate = document.getElementById("filterDate").value;
-      let selectedDsos = getSelectedDsoValues();
-
-      Object.keys(globalAllData).forEach(key => {
-        let item = globalAllData[key];
-        let matchDate = !filterDate || item.date === filterDate;
-        let matchDso = (selectedDsos.length === 0) || selectedDsos.includes(String(item.userId));
-
-        if (matchDate && matchDso) {
-          let emRec = item.emReceived || 0;
-          let cashRec = item.cashReceived || 0;
-          let dsoRecSum = 0;
-          if (Array.isArray(item.dsoReceivedList)) { item.dsoReceivedList.forEach(d => dsoRecSum += d.amount || 0); }
-          else { dsoRecSum = item.dsoReceived || 0; }
-          let totalRec = emRec + cashRec + dsoRecSum;
-
-          let emRet = item.emReturn || 0;
-          let bankDep = item.bankDeposit || 0;
-          let dsoTransSum = 0;
-          if (Array.isArray(item.dsoTransferList)) { item.dsoTransferList.forEach(d => dsoTransSum += d.amount || 0); }
-          else { dsoTransSum = item.dsoTransfer || 0; }
-          let cashDep = item.cashDeposit || 0;
-          let totalRet = emRet + bankDep + dsoTransSum + cashDep;
-
-          let diff = totalRec - totalRet;
-          let notes = item.notes || {};
-
-          excelData.push({
-            "Date": item.date,
-            "DSO ID": item.userId,
-            "Approval Status": item.approvalStatus || "pending",
-            "e-Money Rec": emRec,
-            "Cash Rec": cashRec,
-            "DSO Rec Total": dsoRecSum,
-            "Total Received": totalRec,
-            "e-Money Ret": emRet,
-            "Cash Deposit": cashDep,
-            "Bank Deposit": bankDep,
-            "Bank Name": item.bankName || "",
-            "DSO Trans Total": dsoTransSum,
-            "Total Return": totalRet,
-            "Difference (Diff)": diff,
-            "1000 Note": notes.n1000 || 0,
-            "500 Note": notes.n500 || 0,
-            "200 Note": notes.n200 || 0,
-            "100 Note": notes.n100 || 0,
-            "50 Note": notes.n50 || 0,
-            "Total Calculated Cash": item.totalCash || 0
-          });
-        }
-      });
-
-      if (excelData.length === 0) { alert("ফিল্টার করার পরে এক্সপোর্ট করার মতো ডাটা পাওয়া যায়নি!"); return; }
-
-      const worksheet = XLSX.utils.json_to_sheet(excelData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Collection Report");
-      XLSX.writeFile(workbook, `Collection_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
   </script>
 </body>
