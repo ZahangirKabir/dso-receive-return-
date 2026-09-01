@@ -50,6 +50,9 @@
     .btn-details { background: #0288d1; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; }
     .btn-details:hover { background: #01579b; }
 
+    .btn-approve { background: #2e7d32; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-right: 3px; }
+    .btn-approve:hover { background: #1b5e20; }
+
     .btn-clear-slip { background: #d32f2f; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
     .btn-clear-slip:hover { background: #b71c1c; }
 
@@ -102,6 +105,9 @@
     .calc-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
 
     .ocr-status { font-size: 11px; color: #00695c; margin-top: 4px; font-weight: bold; }
+
+    .status-pending { background-color: #fff3e0; color: #e65100; font-weight: bold; padding: 3px 6px; border-radius: 4px; border: 1px solid #ffe0b2; display: inline-block; }
+    .status-approved { background-color: #e8f5e9; color: #2e7d32; font-weight: bold; padding: 3px 6px; border-radius: 4px; border: 1px solid #c8e6c9; display: inline-block; }
 
     .table-container { 
       max-height: 70vh; 
@@ -234,9 +240,9 @@
           <input type="number" id="filterDsoEnd" value="845" onchange="applyAdminFilters()">
         </div>
         <div class="filter-group">
-          <label>Specific DSO</label>
+          <label>Specific DSO Select</label>
           <select id="filterDso" onchange="applyAdminFilters()">
-            <option value="">-- All --</option>
+            <option value="">-- All DSO --</option>
           </select>
         </div>
         <button class="btn" style="width: auto; background: #00838f; padding: 8px 12px; font-size: 12px;" onclick="filterThisMonth()">📅 এই মাস</button>
@@ -277,11 +283,12 @@
                 <th colspan="3" class="th-dso">DSO BREAKDOWN & DIFF</th>
                 <th colspan="3" class="th-diff">CALCULATION & DIFF</th>
                 <th class="th-info">Slips & OCR Details</th>
+                <th class="th-info">Status</th>
                 <th class="th-info">Action</th>
               </tr>
               <tr>
                 <th class="th-info sticky-col-1">Date</th>
-                <th class="th-info sticky-col-2">DSO ID</th>
+                <th class="th-info sticky-col-2">DSO ID (A-Z)</th>
                 <th class="th-received">e-Mon Rec</th>
                 <th class="th-received">Cash Rec</th>
                 <th class="th-received">DSO Rec Breakdown</th>
@@ -300,6 +307,7 @@
                 <th class="th-diff">ব্যবধন (Diff)</th>
 
                 <th class="th-info">Slips & OCR Sum</th>
+                <th class="th-info">Approval Status</th>
                 <th class="th-info">Action</th>
               </tr>
             </thead>
@@ -502,6 +510,7 @@
                 <th class="th-return">ব্যাংকের বিবরণ</th>
                 <th class="th-info">ক্যাশ নোটের বিবরণ</th>
                 <th class="th-info">ডিপোজিট স্লিপ</th>
+                <th class="th-info">স্ট্যাটাস (Approval)</th>
                 <th class="th-info">বিস্তারিত</th>
               </tr>
             </thead>
@@ -1117,11 +1126,12 @@
           notes: { n1000, n500, n200, n100, n50 },
           totalCash: totalCashVal,
           slips: slipsData,
+          approvalStatus: "pending", // Default Pending Status
           timestamp: Date.now()
         };
 
         await database.ref('collections').push().set(payload);
-        alert("ডাটা সফলভাবে সেভ হয়েছে!");
+        alert("ডাটা সফলভাবে সেভ হয়েছে! (Approval Pending)");
         resetForm();
       } catch (err) {
         alert("ডাটা সেভ হয়নি! কারণ: " + err.message);
@@ -1179,7 +1189,7 @@
       let selectedVal = dsoSelect.value;
       let selectedUserVal = targetUserSelect.value;
 
-      dsoSelect.innerHTML = '<option value="">-- All --</option>';
+      dsoSelect.innerHTML = '<option value="">-- All DSO --</option>';
       targetUserSelect.innerHTML = '<option value="">-- Select User --</option>';
 
       let dsoSet = new Set();
@@ -1189,11 +1199,14 @@
         Object.values(data).forEach(r => { if (r.userId && r.userId !== "admin") dsoSet.add(r.userId); });
       }
 
-      dsoSet.forEach(dso => {
-        let opt1 = document.createElement("option"); opt1.value = dso; opt1.textContent = dso;
+      // Sort DSO Options A-Z
+      let sortedDsos = Array.from(dsoSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+      sortedDsos.forEach(dso => {
+        let opt1 = document.createElement("option"); opt1.value = dso; opt1.textContent = `DSO ${dso}`;
         dsoSelect.appendChild(opt1);
 
-        let opt2 = document.createElement("option"); opt2.value = dso; opt2.textContent = dso;
+        let opt2 = document.createElement("option"); opt2.value = dso; opt2.textContent = `DSO ${dso}`;
         targetUserSelect.appendChild(opt2);
       });
 
@@ -1321,12 +1334,19 @@
       let sumEmRec = 0, sumCashRec = 0, sumEmRet = 0, sumCashDep = 0;
 
       if (!data || Object.keys(data).length === 0) {
-        tbody.innerHTML = `<tr><td colspan="17" style="text-align:center; font-weight:bold; padding:20px; color:#c62828;">আজকের দিনে এখনো কোনো ডাটা জমা হয়নি। নতুন ডাটা না আসা পর্যন্ত টেবিল ব্লাঙ্ক থাকবে।</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="18" style="text-align:center; font-weight:bold; padding:20px; color:#c62828;">আজকের দিনে এখনো কোনো ডাটা জমা হয়নি। নতুন ডাটা না আসা পর্যন্ত টেবিল ব্লাঙ্ক থাকবে।</td></tr>`;
         updateSummaryCards(0, 0, 0, 0, 0, 0, 0, 0, 0);
         return;
       }
 
-      Object.keys(data).forEach(key => {
+      // Convert Object to Array & Sort DSO ID A-Z (Alphabetical / Numerical)
+      let sortedKeys = Object.keys(data).sort((a, b) => {
+        let idA = String(data[a].userId || '');
+        let idB = String(data[b].userId || '');
+        return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+      });
+
+      sortedKeys.forEach(key => {
         let item = data[key];
         count++;
 
@@ -1371,10 +1391,15 @@
         totalDsoRecSum += dsoRecSum; totalDsoTransSum += dsoTransSum; totalDsoDiffSum += dsoDiff;
         totalBankDepSum += bankDep; totalSlipOcrSum += totalSlipAmt;
 
+        let isApproved = item.approvalStatus === "approved";
+        let statusBadge = isApproved 
+          ? `<span class="status-approved">✅ Approved</span>` 
+          : `<span class="status-pending">⏳ Approval Pending</span>`;
+
         let tr = document.createElement("tr");
         tr.innerHTML = `
           <td class="sticky-col-1">${item.date || '-'}</td>
-          <td class="sticky-col-2"><strong>${item.userId || '-'}</strong></td>
+          <td class="sticky-col-2"><strong>DSO ${item.userId || '-'}</strong></td>
           <td>৳ ${formatBD(emRec)}</td>
           <td>৳ ${formatBD(cashRec)}</td>
           <td style="text-align: left;">${dsoRecText || '-'}</td>
@@ -1393,7 +1418,9 @@
           <td class="bg-diff">৳ ${formatBD(diff)}</td>
 
           <td style="font-weight:bold; color:#00695c;">${slipsList.length || (item.slip1?1:0)} Slips (৳ ${formatBD(totalSlipAmt)})</td>
+          <td>${statusBadge}</td>
           <td style="white-space: nowrap;">
+            ${!isApproved ? `<button class="btn-approve" onclick="approveEntry('${key}')">✔ Approve</button>` : ''}
             <button class="btn-details" onclick="showDetailsModal('${key}')">ℹ️ Details</button>
             <button class="btn-delete" onclick="deleteEntry('${key}')">🗑️ Delete</button>
           </td>
@@ -1420,10 +1447,22 @@
         <td class="bg-diff">৳ ${formatBD(totalDiffSum)}</td>
         <td style="color:#00695c;">৳ ${formatBD(totalSlipOcrSum)}</td>
         <td>-</td>
+        <td>-</td>
       `;
       tbody.appendChild(tfootRow);
 
       updateSummaryCards(count, totalRecSum, totalRetSum, totalDiffSum, totalDsoRecSum, totalDsoTransSum, totalDsoDiffSum, totalBankDepSum, totalSlipOcrSum);
+    }
+
+    async function approveEntry(key) {
+      if (confirm("আপনি কি এই রিপোর্টটি Approve করতে চান?")) {
+        try {
+          await database.ref('collections/' + key).update({ approvalStatus: "approved" });
+          alert("রিপোর্টটি সফলভাবে Approved করা হয়েছে!");
+        } catch (err) {
+          alert("Approve করতে সমস্যা হয়েছে: " + err.message);
+        }
+      }
     }
 
     function renderBankDetailsTable(data) {
@@ -1483,6 +1522,9 @@
         }
       });
 
+      // Sort Entries by DSO ID (A-Z)
+      entriesList.sort((a, b) => String(a.dsoId).localeCompare(String(b.dsoId), undefined, { numeric: true, sensitivity: 'base' }));
+
       let uniqueBanks = Object.keys(bankTotals);
 
       if (uniqueBanks.length === 0) {
@@ -1515,7 +1557,7 @@
       let headerTr = document.createElement("tr");
       headerTr.innerHTML = `
         <th class="th-info">তারিখ</th>
-        <th class="th-info">DSO ID</th>
+        <th class="th-info">DSO ID (A-Z)</th>
       `;
       uniqueBanks.forEach(bName => {
         headerTr.innerHTML += `<th class="th-bank">${bName} (Amount)</th>`;
@@ -1595,7 +1637,14 @@
       let grandTotalCash = 0;
       let count = 0;
 
-      Object.keys(data).forEach(key => {
+      // Sort by DSO ID A-Z
+      let sortedKeys = Object.keys(data).sort((a, b) => {
+        let idA = String(data[a].userId || '');
+        let idB = String(data[b].userId || '');
+        return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+      });
+
+      sortedKeys.forEach(key => {
         let item = data[key];
         let notes = item.notes || {};
         let n1000 = notes.n1000 || 0;
@@ -1699,6 +1748,11 @@
       let n1000 = notes.n1000 || 0, n500 = notes.n500 || 0, n200 = notes.n200 || 0, n100 = notes.n100 || 0, n50 = notes.n50 || 0;
       let notesTotal = (n1000*1000) + (n500*500) + (n200*200) + (n100*100) + (n50*50);
 
+      let isApproved = item.approvalStatus === "approved";
+      let statusHtml = isApproved 
+        ? `<span class="status-approved">✅ Approved</span>` 
+        : `<span class="status-pending">⏳ Approval Pending</span>`;
+
       let slips = item.slips || [];
       let slipsHtml = "";
       slips.forEach((s, idx) => {
@@ -1715,6 +1769,10 @@
       if (!slipsHtml) slipsHtml = `<div style="font-size:12px; color:#777;">কোনো স্লিপ আপলোড করা হয়নি।</div>`;
 
       let modalContentHtml = `
+        <div class="detail-section" style="background: #f5f5f5;">
+          <div class="detail-row"><span><b>Approval Status:</b></span><b>${statusHtml}</b></div>
+        </div>
+
         <div class="detail-section" style="background: #e8f5e9;">
           <h4 style="color: #2e7d32;">📥 Received Section Breakdown</h4>
           <div class="detail-row"><span>e-Money Received:</span><b>৳ ${formatBD(emRec)}</b></div>
@@ -1778,7 +1836,7 @@
 
     function closeDetailsModal() { document.getElementById("detailsModal").style.display = "none"; }
     
-    // Enhanced Zoom View Modal Function
+    // Zoom View Modal Function
     function openImageModal(base64Img, bankName = '', amount = 0) {
       const zoomModal = document.getElementById("imageZoomModal");
       const zoomImg = document.getElementById("zoomedImageSrc");
@@ -1824,7 +1882,7 @@
       tbody.innerHTML = "";
 
       if (!data) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;">কোনো পূর্বের জমা হিসাব পাওয়া যায়নি</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;">কোনো পূর্বের জমা হিসাব পাওয়া যায়নি</td></tr>`;
         return;
       }
 
@@ -1842,7 +1900,7 @@
       myHistory.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
       if (myHistory.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;">আপনার নির্বাচিত ফিল্টারে কোনো জমা হিসাব পাওয়া যায়নি</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;">আপনার নির্বাচিত ফিল্টারে কোনো জমা হিসাব পাওয়া যায়নি</td></tr>`;
         return;
       }
 
@@ -1870,6 +1928,11 @@
           });
         }
 
+        let isApproved = item.approvalStatus === "approved";
+        let statusBadge = isApproved 
+          ? `<span class="status-approved">✅ Approved</span>` 
+          : `<span class="status-pending">⏳ Approval Pending</span>`;
+
         let tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${item.date || '-'}</td>
@@ -1879,6 +1942,7 @@
           <td>${item.bankName || '-'}</td>
           <td style="text-align:left;">${notesText || '-'}</td>
           <td>${slipsHtml || '-'}</td>
+          <td>${statusBadge}</td>
           <td>
             <button class="btn-details" onclick="showDetailsModal('${item.key}')">ℹ️ Details</button>
           </td>
