@@ -47,6 +47,9 @@
     .btn-delete { background: #c62828; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-left: 3px; }
     .btn-delete:hover { background: #b71c1c; }
 
+    .btn-edit { background: #f57c00; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; margin-right: 3px; }
+    .btn-edit:hover { background: #e65100; }
+
     .btn-details { background: #0288d1; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; }
     .btn-details:hover { background: #01579b; }
 
@@ -106,6 +109,10 @@
     .missing-box h3 { color: #c62828; font-size: 14px; margin-bottom: 8px; display: flex; justify-content: space-between; flex-wrap: wrap; }
     .missing-list { display: flex; flex-wrap: wrap; gap: 6px; }
     .missing-badge { background: #c62828; color: white; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+
+    .notification-banner { background: #e3f2fd; border: 1px solid #2196f3; border-radius: 6px; padding: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+    .notification-banner p { font-size: 12px; color: #0d47a1; font-weight: bold; }
+    .btn-dismiss { background: #1976d2; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
 
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 15px; }
     .section-box { padding: 15px; border-radius: 8px; border: 2px solid #ccc; background: #fff; }
@@ -402,6 +409,12 @@
     <!-- DSO VIEW -->
     <div id="dsoView" style="display: none;">
 
+      <!-- NOTIFICATION BANNER FOR DSO -->
+      <div id="dsoNotificationBanner" class="notification-banner" style="display: none;">
+        <p id="dsoNotificationText">🔔 আপনার হিসাবটি Admin দ্বারা আপডেট/সংশোধন করা হয়েছে।</p>
+        <button class="btn-dismiss" onclick="dismissDsoNotification()">পঠিত হয়েছে (Dismiss)</button>
+      </div>
+
       <!-- DSO TAB 1: ENTRY FORM PAGE -->
       <div id="dsoPageForm">
         <div class="section-box" style="margin-bottom: 15px; background: #e0f2f1; border-color: #00695c;">
@@ -487,6 +500,7 @@
             <span><strong>ব্যবধন / পার্থক্য (Received - Return):</strong></span>
             <span style="font-weight: bold; color: #e65100;">৳ <span id="formDifference">0</span></span>
           </div>
+          <div id="diffValidationMsg"></div>
         </div>
 
         <!-- DYNAMIC DEPOSIT SLIP CONTAINER -->
@@ -546,6 +560,33 @@
         <button class="modal-close" onclick="closeDetailsModal()">✖ Close</button>
       </div>
       <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- EDIT MODAL FOR ADMIN -->
+  <div id="editModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="editModalTitle">Edit Record</h3>
+        <button class="modal-close" onclick="closeEditModal()">✖ Close</button>
+      </div>
+      <div id="editModalBody">
+        <input type="hidden" id="editKey">
+        <input type="hidden" id="editUserId">
+        <div class="form-group">
+          <label>e-Money Received</label>
+          <input type="text" id="editEmReceived" class="amt-field" oninput="handleAmountInput(this)">
+        </div>
+        <div class="form-group">
+          <label>Cash Received</label>
+          <input type="text" id="editCashReceived" class="amt-field" oninput="handleAmountInput(this)">
+        </div>
+        <div class="form-group">
+          <label>e-Money Return</label>
+          <input type="text" id="editEmReturn" class="amt-field" oninput="handleAmountInput(this)">
+        </div>
+        <button class="btn" onclick="saveEditedData()" style="margin-top:10px;">Save Updated Record</button>
+      </div>
     </div>
   </div>
 
@@ -710,6 +751,7 @@
           document.getElementById("adminTabNav").style.display = "none";
           switchDsoTab('form');
           resetForm();
+          checkDsoNotifications();
         }
         listenRealtimeData();
       } catch (e) {
@@ -940,6 +982,19 @@
     }
 
     function validateFormAndSubmitBtn() {
+      let emRec = parseRawNumber(document.getElementById("emReceived").value);
+      let cashRec = parseRawNumber(document.getElementById("cashReceived").value);
+      let dsoRecSum = getDsoReceivedList().reduce((acc, item) => acc + item.amount, 0);
+      let totalRec = emRec + cashRec + dsoRecSum;
+
+      let emRet = parseRawNumber(document.getElementById("emReturn").value);
+      let bankDep = parseRawNumber(document.getElementById("bankDeposit").value);
+      let dsoTransSum = getDsoTransferList().reduce((acc, item) => acc + item.amount, 0);
+      let cashDep = parseRawNumber(document.getElementById("cashDeposit").value);
+      let totalRet = emRet + bankDep + dsoTransSum + cashDep;
+
+      let diff = totalRec - totalRet;
+
       let totalCashCalculated = 0;
       document.querySelectorAll(".denom").forEach(input => {
         let count = parseInt(input.value, 10) || 0;
@@ -955,9 +1010,18 @@
       let subBtn = document.getElementById("subBtn");
       let msgBox = document.getElementById("cashNoteValidationMsg");
       let bankMsgBox = document.getElementById("bankValidationMsg");
+      let diffMsgBox = document.getElementById("diffValidationMsg");
 
       let isCashValid = true;
       let isBankValid = true;
+      let isDiffValid = true;
+
+      if (diff !== 0) {
+        diffMsgBox.innerHTML = `<p class="note-warning">❌ Receive ও Return এর মধ্যে ব্যবধান (৳${formatBD(diff)}) রয়েছে! ব্যবধান থাকলে Submit অফ থাকবে।</p>`;
+        isDiffValid = false;
+      } else {
+        diffMsgBox.innerHTML = `<p class="note-success">✅ Receive ও Return হুবহু মিলেছে (ব্যবধন ৳0)</p>`;
+      }
 
       if (cashDepositAmt > 0) {
         if (totalCashCalculated === 0) {
@@ -1009,7 +1073,7 @@
         bankMsgBox.innerHTML = "";
       }
 
-      subBtn.disabled = !(isCashValid && isBankValid);
+      subBtn.disabled = !(isCashValid && isBankValid && isDiffValid);
     }
 
     function calcCash() {
@@ -1193,8 +1257,32 @@
           applyAdminFilters();
         } else {
           renderDsoHistory(globalAllData);
+          checkDsoNotifications();
         }
       });
+    }
+
+    async function checkDsoNotifications() {
+      if (!currentUser || currentUser === "admin") return;
+      try {
+        let snap = await database.ref('notifications/' + currentUser).once('value');
+        let notif = snap.val();
+        let banner = document.getElementById("dsoNotificationBanner");
+        if (notif && notif.unread) {
+          document.getElementById("dsoNotificationText").innerText = "🔔 " + (notif.message || "আপনার হিসাবটি Admin দ্বারা আপডেট করা হয়েছে।");
+          banner.style.display = "flex";
+        } else {
+          banner.style.display = "none";
+        }
+      } catch(e){}
+    }
+
+    async function dismissDsoNotification() {
+      if (!currentUser) return;
+      try {
+        await database.ref('notifications/' + currentUser).update({ unread: false });
+        document.getElementById("dsoNotificationBanner").style.display = "none";
+      } catch(e){}
     }
 
     // DSO HISTORY & MY REPORTS TABLE RENDER LOGIC
@@ -1511,6 +1599,18 @@
       applyAdminFilters();
     }
 
+    function updateSummaryCards(count, totalRecSum, totalRetSum, totalDiffSum, totalDsoRecSum, totalDsoTransSum, totalDsoDiffSum, totalBankDepSum, totalSlipOcrSum) {
+      document.getElementById("totalEntriesCount").innerText = count;
+      document.getElementById("totalReceivedAllSum").innerText = formatBD(totalRecSum);
+      document.getElementById("totalReturnAllSum").innerText = formatBD(totalRetSum);
+      document.getElementById("totalDiffAllSum").innerText = formatBD(totalDiffSum);
+      document.getElementById("totalDsoRecAllSum").innerText = formatBD(totalDsoRecSum);
+      document.getElementById("totalDsoTransAllSum").innerText = formatBD(totalDsoTransSum);
+      document.getElementById("totalDsoDiffAllSum").innerText = formatBD(totalDsoDiffSum);
+      document.getElementById("totalBankDepSum").innerText = formatBD(totalBankDepSum);
+      document.getElementById("totalSlipOcrSum").innerText = formatBD(totalSlipOcrSum);
+    }
+
     function renderAdminTable(data) {
       const tbody = document.getElementById("adminTableBody");
       tbody.innerHTML = "";
@@ -1607,6 +1707,7 @@
           <td>${statusBadge}</td>
           <td style="white-space: nowrap;">
             ${!isApproved ? `<button class="btn-approve" onclick="approveEntry('${key}')">✔ Approve</button>` : ''}
+            <button class="btn-edit" onclick="openEditModal('${key}')">✏️ Edit</button>
             <button class="btn-details" onclick="showDetailsModal('${key}')">ℹ️ Details</button>
             <button class="btn-delete" onclick="deleteEntry('${key}')">🗑️ Delete</button>
           </td>
@@ -1648,6 +1749,73 @@
         } catch (err) {
           alert("Approve করতে সমস্যা হয়েছে: " + err.message);
         }
+      }
+    }
+
+    function openEditModal(key) {
+      if (!globalAllData || !globalAllData[key]) return;
+      let item = globalAllData[key];
+      document.getElementById("editKey").value = key;
+      document.getElementById("editUserId").value = item.userId;
+      document.getElementById("editModalTitle").innerText = `Edit Record - DSO ${item.userId} (${item.date})`;
+      document.getElementById("editEmReceived").value = formatBD(item.emReceived || 0);
+      document.getElementById("editCashReceived").value = formatBD(item.cashReceived || 0);
+      document.getElementById("editEmReturn").value = formatBD(item.emReturn || 0);
+      document.getElementById("editModal").style.display = "flex";
+    }
+
+    function closeEditModal() {
+      document.getElementById("editModal").style.display = "none";
+    }
+
+    async function saveEditedData() {
+      let key = document.getElementById("editKey").value;
+      let targetUserId = document.getElementById("editUserId").value;
+      let emRec = parseRawNumber(document.getElementById("editEmReceived").value);
+      let cashRec = parseRawNumber(document.getElementById("editCashReceived").value);
+      let emRet = parseRawNumber(document.getElementById("editEmReturn").value);
+
+      try {
+        await database.ref('collections/' + key).update({
+          emReceived: emRec,
+          cashReceived: cashRec,
+          emReturn: emRet
+        });
+
+        await database.ref('notifications/' + targetUserId).set({
+          unread: true,
+          message: `Admin দ্বারা আপনার ${globalAllData[key]?.date || ''} তারিখের হিসাব আপডেট করা হয়েছে।`,
+          timestamp: Date.now()
+        });
+
+        alert("হিসাব সফলভাবে আপডেট করা হয়েছে এবং DSO-কে নোটিফিকেশন পাঠানো হয়েছে!");
+        closeEditModal();
+      } catch (err) {
+        alert("আপডেট করতে সমস্যা হয়েছে: " + err.message);
+      }
+    }
+
+    async function deleteEntry(key) {
+      if (!globalAllData || !globalAllData[key]) return;
+      let item = globalAllData[key];
+      let dsoId = item.userId;
+
+      let confirmPass = prompt(`ডিলেট নিশ্চিত করতে Admin Password প্রদান করুন (DSO ID: ${dsoId}):`);
+      if (confirmPass === null) return;
+
+      try {
+        let passSnapshot = await database.ref('users/admin/password').once('value');
+        let adminPass = passSnapshot.val() || "123456";
+
+        if (confirmPass.trim() !== String(adminPass).trim()) {
+          alert("ভুল এডমিন পাসওয়ার্ড! মুছে ফেলা সম্ভব হয়নি।");
+          return;
+        }
+
+        await database.ref('collections/' + key).remove();
+        alert(`DSO ID: ${dsoId} এর রেকর্ড সফলভাবে ডিলেট করা হয়েছে।`);
+      } catch (err) {
+        alert("ডিলেট করতে সমস্যা হয়েছে: " + err.message);
       }
     }
 
@@ -1938,132 +2106,97 @@
         : `<span class="status-pending">⏳ Approval Pending</span>`;
 
       let slips = item.slips || [];
-      let slipsHtml = "";
-      slips.forEach((s, idx) => {
-        if (s.img || s.amt || s.bankName) {
-          slipsHtml += `
+      let slipsGridHtml = "";
+      if (slips.length > 0) {
+        slipsGridHtml = `<div class="slip-grid-modal">`;
+        slips.forEach((s, idx) => {
+          slipsGridHtml += `
             <div class="slip-card-modal">
-              <div style="font-size:10px; font-weight:bold; margin-bottom:2px;">Slip ${idx+1} (${s.bankName || 'N/A'})</div>
-              ${s.img ? `<img src="${s.img}" onclick="openImageModal('${s.img}', '${s.bankName}', ${s.amt})">` : '<div style="height:80px; line-height:80px; color:#aaa; font-size:11px;">No Image</div>'}
-              <div style="font-size:10px; font-weight:bold; color:#00695c; margin-top:2px;">৳ ${formatBD(s.amt || 0)}</div>
+              <div style="font-size:11px; font-weight:bold; color:#00695c;">Slip #${idx+1} (${s.bankName || 'Unknown'})</div>
+              ${s.img ? `<img src="${s.img}" onclick="openImageModal('${s.img}', '${s.bankName || ''}', ${s.amt || 0})">` : '<div style="height:100px; display:flex; align-items:center; justify-content:center; color:#aaa; font-size:11px;">No Image</div>'}
+              <div style="font-size:11px; font-weight:bold; color:#2e7d32; margin-top:4px;">৳ ${formatBD(s.amt || 0)}</div>
+              ${s.ocrAmt ? `<div style="font-size:9px; color:#00838f;">OCR: ৳${formatBD(s.ocrAmt)}</div>` : ''}
             </div>
           `;
-        }
-      });
-      if (!slipsHtml) slipsHtml = `<div style="font-size:12px; color:#777;">কোনো স্লিপ আপলোড করা হয়নি।</div>`;
+        });
+        slipsGridHtml += `</div>`;
+      } else {
+        slipsGridHtml = `<div style="font-size:12px; color:#777; text-align:center; padding:10px;">কোনো স্লিপ সংযোজিত নেই।</div>`;
+      }
 
-      let modalContentHtml = `
-        <div class="detail-section" style="background: #f5f5f5;">
-          <div class="detail-row"><span><b>Approval Status:</b></span><b>${statusHtml}</b></div>
-        </div>
-
-        <div class="detail-section" style="background: #e8f5e9;">
-          <h4 style="color: #2e7d32;">📥 Received Section Breakdown</h4>
+      let modalContent = `
+        <div class="detail-section">
+          <h4>📥 Received Details</h4>
           <div class="detail-row"><span>e-Money Received:</span><b>৳ ${formatBD(emRec)}</b></div>
           <div class="detail-row"><span>Cash Received:</span><b>৳ ${formatBD(cashRec)}</b></div>
           ${dsoRecHtml}
-          <div class="detail-row" style="border-top:1px dashed #a5d6a7; padding-top:4px; margin-top:4px; color:#2e7d32;">
-            <span><b>মোট রিসিভড:</b></span><b>৳ ${formatBD(totalRec)}</b>
-          </div>
+          <div class="detail-row" style="border-top:1px dashed #ccc; padding-top:4px; margin-top:4px;"><span>মোট রিসিভড:</span><b style="color:#2e7d32;">৳ ${formatBD(totalRec)}</b></div>
         </div>
 
-        <div class="detail-section" style="background: #ffebee;">
-          <h4 style="color: #c62828;">📤 Return Section Breakdown</h4>
+        <div class="detail-section">
+          <h4>📤 Return & Deposit Details</h4>
           <div class="detail-row"><span>e-Money Return:</span><b>৳ ${formatBD(emRet)}</b></div>
           <div class="detail-row"><span>Cash Deposit:</span><b>৳ ${formatBD(cashDep)}</b></div>
-          <div class="detail-row"><span>Bank Deposit Amount:</span><b>৳ ${formatBD(bankDep)}</b></div>
-          <div class="detail-row"><span>Bank Name(s):</span><b>${item.bankName || 'N/A'}</b></div>
+          <div class="detail-row"><span>Bank Deposit:</span><b>৳ ${formatBD(bankDep)}</b></div>
           ${dsoTransHtml}
-          <div class="detail-row" style="border-top:1px dashed #ef9a9a; padding-top:4px; margin-top:4px; color:#c62828;">
-            <span><b>মোট রিটার্ন:</b></span><b>৳ ${formatBD(totalRet)}</b>
-          </div>
+          <div class="detail-row" style="border-top:1px dashed #ccc; padding-top:4px; margin-top:4px;"><span>মোট রিটার্ন:</span><b style="color:#c62828;">৳ ${formatBD(totalRet)}</b></div>
         </div>
 
-        <div class="detail-section" style="background: #e0f7fa; border-color: #b2ebf2;">
-          <h4 style="color: #00838f;">🔄 DSO Exchange Calculation</h4>
-          <div class="detail-row"><span>মোট DSO Received:</span><b>৳ ${formatBD(dsoRecSum)}</b></div>
-          <div class="detail-row"><span>মোট DSO Transfer:</span><b>৳ ${formatBD(dsoTransSum)}</b></div>
-          <div class="detail-row" style="border-top:1px dashed #80deea; padding-top:4px; margin-top:4px; color:#00838f;">
-            <span><b>DSO ব্যবধান:</b></span><b>৳ ${formatBD(dsoDiff)}</b>
-          </div>
+        <div class="detail-section" style="background:#fff3e0;">
+          <h4>📊 Balance & Diff Summary</h4>
+          <div class="detail-row"><span>Received vs Return Diff:</span><b style="color:#e65100;">৳ ${formatBD(diff)}</b></div>
+          <div class="detail-row"><span>DSO Rec vs Trans Diff:</span><b style="color:#00838f;">৳ ${formatBD(dsoDiff)}</b></div>
+          <div class="detail-row"><span>Approval Status:</span>${statusHtml}</div>
         </div>
 
-        <div class="detail-section" style="background: #fff3e0; border-color: #ffe0b2;">
-          <h4 style="color: #e65100;">⚖️ Calculation & Difference</h4>
-          <div class="detail-row" style="font-size: 14px; color: #e65100;">
-            <span><b>ব্যবধন (Received - Return):</b></span>
-            <span><b>৳ ${formatBD(diff)}</b></span>
+        <div class="detail-section">
+          <h4>💵 Cash Note Breakdown (Total: ৳ ${formatBD(notesTotal)})</h4>
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap:5px; font-size:11px; text-align:center;">
+            <div style="background:#fff; border:1px solid #ccc; padding:4px; border-radius:4px;">৳1000 × ${n1000}</div>
+            <div style="background:#fff; border:1px solid #ccc; padding:4px; border-radius:4px;">৳500 × ${n500}</div>
+            <div style="background:#fff; border:1px solid #ccc; padding:4px; border-radius:4px;">৳200 × ${n200}</div>
+            <div style="background:#fff; border:1px solid #ccc; padding:4px; border-radius:4px;">৳100 × ${n100}</div>
+            <div style="background:#fff; border:1px solid #ccc; padding:4px; border-radius:4px;">৳50 × ${n50}</div>
           </div>
         </div>
 
         <div class="detail-section">
-          <h4>💵 ক্যাশ নোটের বিস্তারিত (Cash Notes Breakdown)</h4>
-          <div class="detail-row"><span>৳ 1000 × ${n1000} টি:</span><b>৳ ${formatBD(n1000*1000)}</b></div>
-          <div class="detail-row"><span>৳ 500 × ${n500} টি:</span><b>৳ ${formatBD(n500*500)}</b></div>
-          <div class="detail-row"><span>৳ 200 × ${n200} টি:</span><b>৳ ${formatBD(n200*200)}</b></div>
-          <div class="detail-row"><span>৳ 100 × ${n100} টি:</span><b>৳ ${formatBD(n100*100)}</b></div>
-          <div class="detail-row"><span>৳ 50 × ${n50} টি:</span><b>৳ ${formatBD(n50*50)}</b></div>
-          <div class="detail-row" style="border-top:1px dashed #ccc; padding-top:4px; margin-top:4px;">
-            <span><b>মোট ক্যাশ নোট গণনার হিসাব:</b></span><b>৳ ${formatBD(notesTotal)}</b>
-          </div>
-        </div>
-
-        <div class="detail-section">
-          <h4>🧾 ব্যাংক স্লিপ ও বিস্তারিত (ছবিতে ক্লিক করে জুম দেখুন)</h4>
-          <div class="slip-grid-modal">${slipsHtml}</div>
+          <h4>🧾 Bank Deposit Slips</h4>
+          ${slipsGridHtml}
         </div>
       `;
 
-      document.getElementById("modalBody").innerHTML = modalContentHtml;
+      document.getElementById("modalBody").innerHTML = modalContent;
       document.getElementById("detailsModal").style.display = "flex";
     }
 
-    function closeDetailsModal() { document.getElementById("detailsModal").style.display = "none"; }
-    
-    function openImageModal(base64Img, bankName = '', amount = 0) {
-      const zoomModal = document.getElementById("imageZoomModal");
-      const zoomImg = document.getElementById("zoomedImageSrc");
-      const zoomDetails = document.getElementById("zoomImageDetails");
+    function closeDetailsModal() {
+      document.getElementById("detailsModal").style.display = "none";
+    }
 
-      zoomImg.src = base64Img;
-      
-      let detailsHtml = "";
-      if (bankName) detailsHtml += `<span>🏦 Bank: ${bankName}</span>`;
-      if (amount > 0) detailsHtml += `<span>💵 Amount: ৳ ${formatBD(amount)}</span>`;
-
-      zoomDetails.innerHTML = detailsHtml;
-      zoomModal.style.display = "flex";
+    function openImageModal(imgSrc, bankName, amt) {
+      document.getElementById("zoomedImageSrc").src = imgSrc;
+      document.getElementById("zoomImageDetails").innerHTML = `
+        <span>🏦 Bank: ${bankName || 'Unknown'}</span>
+        <span>💵 Amount: ৳ ${formatBD(amt)}</span>
+      `;
+      document.getElementById("imageZoomModal").style.display = "flex";
     }
 
     function closeImageZoomModal() {
       document.getElementById("imageZoomModal").style.display = "none";
     }
 
-    function updateSummaryCards(count, rec, ret, diff, dsoRec, dsoTrans, dsoDiff, bank, slip) {
-      document.getElementById("totalEntriesCount").innerText = count;
-      document.getElementById("totalReceivedAllSum").innerText = formatBD(rec);
-      document.getElementById("totalReturnAllSum").innerText = formatBD(ret);
-      document.getElementById("totalDiffAllSum").innerText = formatBD(diff);
-      document.getElementById("totalDsoRecAllSum").innerText = formatBD(dsoRec);
-      document.getElementById("totalDsoTransAllSum").innerText = formatBD(dsoTrans);
-      document.getElementById("totalDsoDiffAllSum").innerText = formatBD(dsoDiff);
-      document.getElementById("totalBankDepSum").innerText = formatBD(bank);
-      document.getElementById("totalSlipOcrSum").innerText = formatBD(slip);
-    }
-
-    async function deleteEntry(key) {
-      if (confirm("আপনি কি নিশ্চিত যে এই এন্ট্রিটি স্থায়ীভাবে মুছে ফেলতে চান?")) {
-        try {
-          await database.ref('collections').child(key).remove();
-          alert("এন্ট্রি সফলভাবে মুছে ফেলা হয়েছে!");
-        } catch (err) { alert("মুছে ফেলা সম্ভব হয়নি: " + err.message); }
-      }
-    }
-
     function exportToExcel() {
-      if (!globalAllData) { alert("এক্সপোর্ট করার মতো ডাটা পাওয়া যায়নি!"); return; }
-      let sheetData = [];
-      Object.values(globalAllData).forEach(item => {
+      if (!globalAllData || Object.keys(globalAllData).length === 0) {
+        alert("এক্সপোর্ট করার জন্য কোনো ডাটা পাওয়া যায়নি!");
+        return;
+      }
+
+      let exportData = [];
+      Object.keys(globalAllData).forEach(key => {
+        let item = globalAllData[key];
+        
         let emRec = item.emReceived || 0;
         let cashRec = item.cashReceived || 0;
         let dsoRecSum = Array.isArray(item.dsoReceivedList) ? item.dsoReceivedList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoReceived || 0);
@@ -2075,26 +2208,29 @@
         let dsoTransSum = Array.isArray(item.dsoTransferList) ? item.dsoTransferList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoTransfer || 0);
         let totalRet = emRet + bankDep + cashDep + dsoTransSum;
 
-        sheetData.push({
-          "Date": item.date || '',
-          "DSO ID": item.userId || '',
-          "e-Money Rec": emRec,
-          "Cash Rec": cashRec,
-          "DSO Rec Total": dsoRecSum,
+        let diff = totalRec - totalRet;
+
+        exportData.push({
+          "Date": item.date || "",
+          "DSO ID": item.userId || "",
+          "e-Money Received": emRec,
+          "Cash Received": cashRec,
+          "DSO Received Total": dsoRecSum,
           "Total Received": totalRec,
           "e-Money Return": emRet,
           "Cash Deposit": cashDep,
           "Bank Deposit": bankDep,
-          "DSO Trans Total": dsoTransSum,
+          "Bank Name": item.bankName || "",
+          "DSO Transfer Total": dsoTransSum,
           "Total Return": totalRet,
-          "Difference": totalRec - totalRet,
-          "Approval Status": item.approvalStatus || 'pending'
+          "Difference": diff,
+          "Status": item.approvalStatus || "pending"
         });
       });
 
-      let worksheet = XLSX.utils.json_to_sheet(sheetData);
-      let workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Collection Data");
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Collection Reports");
       XLSX.writeFile(workbook, `Collection_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
   </script>
