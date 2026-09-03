@@ -980,6 +980,7 @@
         let missingBankName = false;
         let missingFile = false;
 
+        let activeSlipCount = 0;
         if (slipRows.length === 0) {
           isBankValid = false;
         } else {
@@ -989,13 +990,17 @@
             let fileInput = row.querySelector(".slip-file-input");
             
             if (amt > 0) {
+              activeSlipCount++;
               if (!bankSelect) missingBankName = true;
               if (!fileInput || !fileInput.files || fileInput.files.length === 0) missingFile = true;
             }
           });
+          if (activeSlipCount === 0) isBankValid = false;
         }
 
-        if (missingBankName && missingFile) {
+        if (activeSlipCount === 0) {
+          bankMsgBox.innerHTML = `<p class="note-warning">❌ Bank Deposit আছে, কিন্তু কোনো Deposit Amount সহ Slip দেওয়া হয়নি!</p>`;
+        } else if (missingBankName && missingFile) {
           bankMsgBox.innerHTML = `<p class="note-warning">❌ ব্যাংক ডিপোজিটের জন্য Bank Name নির্বাচন এবং ব্যাংক স্লিপ আপলোড করা বাধ্যতামূলক! Submit বন্ধ রয়েছে।</p>`;
           isBankValid = false;
         } else if (missingBankName) {
@@ -1066,14 +1071,24 @@
 
       if (bankDepositVal > 0) {
         let missingInfo = false;
+        let activeSlipCount = 0;
+
         slipRows.forEach(row => {
-          let bankName = row.querySelector(".slip-bank-name").value;
-          let fileInput = row.querySelector(".slip-file-input");
-          if (!bankName || !fileInput.files[0]) { missingInfo = true; }
+          const amtInput = row.querySelector(".slip-amt-val");
+          const slipAmt = parseRawNumber(amtInput ? amtInput.value : 0);
+          const bankName = row.querySelector(".slip-bank-name").value;
+          const fileInput = row.querySelector(".slip-file-input");
+          const hasFile = !!(fileInput && fileInput.files && fileInput.files[0]);
+
+          // শুধু Amount দেওয়া Slip row validate হবে; খালি extra row Submit block করবে না।
+          if (slipAmt > 0) {
+            activeSlipCount++;
+            if (!bankName || !hasFile) missingInfo = true;
+          }
         });
 
-        if (missingInfo || slipRows.length === 0) {
-          alert("⚠️ Bank Deposit এর জন্য Bank Name এবং Bank Slip ফাইল দেওয়া বাধ্যতামূলক!");
+        if (missingInfo || activeSlipCount === 0) {
+          alert("⚠️ Deposit Amount দেওয়া প্রতিটি Slip-এর জন্য Bank Name এবং Bank Slip ফাইল দেওয়া বাধ্যতামূলক!");
           return;
         }
       }
