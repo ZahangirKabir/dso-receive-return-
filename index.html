@@ -12,9 +12,6 @@
   <!-- SheetJS Library for Excel Export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-  <!-- Tesseract.js Library for AI OCR Reading -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
     body { background-color: #f4f7f6; padding: 10px; color: #333; }
@@ -132,7 +129,7 @@
     .calculation-box { background: #ffffff; padding: 10px; border-radius: 6px; border: 1px dashed #777; margin-top: 10px; font-size: 13px; }
     .calc-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
 
-    .ocr-status { font-size: 12px; color: #00695c; margin-top: 6px; font-weight: bold; }
+    .ocr-status { font-size: 11px; color: #00695c; margin-top: 4px; font-weight: bold; }
 
     .status-pending { background-color: #fff3e0; color: #e65100; font-weight: bold; padding: 3px 6px; border-radius: 4px; border: 1px solid #ffe0b2; display: inline-block; }
     .status-approved { background-color: #e8f5e9; color: #2e7d32; font-weight: bold; padding: 3px 6px; border-radius: 4px; border: 1px solid #c8e6c9; display: inline-block; }
@@ -188,7 +185,13 @@
     .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #00695c; padding-bottom: 8px; margin-bottom: 12px; }
     .modal-header h3 { color: #00695c; font-size: 15px; }
     .modal-close { background: #c62828; color: white; border: none; font-size: 14px; font-weight: bold; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
-
+    .detail-section { margin-bottom: 12px; padding: 10px; border-radius: 6px; background: #f9f9f9; border: 1px solid #ddd; }
+    .detail-section h4 { color: #37474f; margin-bottom: 6px; border-bottom: 1px dashed #ccc; padding-bottom: 3px; font-size: 13px; }
+    .detail-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; }
+    .slip-grid-modal { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 6px; }
+    .slip-card-modal { border: 1px solid #ccc; padding: 6px; border-radius: 4px; text-align: center; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .slip-card-modal img { width: 100%; height: 120px; object-fit: contain; background: #f0f0f0; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
+    
     .image-zoom-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 10px; }
     .image-zoom-container { max-width: 90%; max-height: 90%; text-align: center; background: #fff; padding: 10px; border-radius: 8px; position: relative; overflow: auto; }
     .image-zoom-container img { max-width: 100%; max-height: 75vh; object-fit: contain; border-radius: 4px; }
@@ -337,7 +340,7 @@
 
       <!-- ADMIN PAGE 2: BANK DETAILS PAGE -->
       <div id="adminPageBank" style="display:none;">
-        <h3 style="color:#00695c; margin-bottom:10px;">🏦 ডিপোজিট অনুযায়ী Bank Name, Beneficiary Name, Column Wise Total & Details</h3>
+        <h3 style="color:#00695c; margin-bottom:10px;">🏦 ডিপোজিট অনুযায়ী Bank Name, Column Wise Total & Details</h3>
         <div class="summary-cards" id="bankSummaryCardsContainer"></div>
         <div class="table-container">
           <table id="bankDetailsTable">
@@ -485,9 +488,9 @@
           <div id="diffValidationMsg"></div>
         </div>
 
-        <!-- DYNAMIC DEPOSIT SLIP CONTAINER WITH INTEGRATED AI OCR & BENEFICIARY NAME -->
+        <!-- DYNAMIC DEPOSIT SLIP CONTAINER -->
         <div class="section-box" style="margin-bottom: 15px;">
-          <div class="section-title" style="color: #00695c;">🧾 ব্যাংক ডিপোজিট স্লিপ আপলোড (100% AI OCR ও Beneficiary Name সহ) <span style="color:red; font-size:11px;">(Bank Deposit থাকলে আপলোড বাধ্যতামূলক)</span></div>
+          <div class="section-title" style="color: #00695c;">🧾 ব্যাংক ডিপোজিট স্লিপ আপলোড, ব্যাংকের নাম ও পরিমাণ <span style="color:red; font-size:11px;">(Bank Deposit থাকলে আপলোড বাধ্যতামূলক)</span></div>
           <div id="slipsContainer"></div>
           <button type="button" class="btn-add" onclick="addSlipRow()" style="padding: 8px 12px; font-size: 13px;">+ Add Deposit Slip</button>
           <div id="ocrStatus" class="ocr-status"></div>
@@ -833,7 +836,6 @@
             ${getBankOptionsHTML()}
           </select>
           <input type="file" class="slip-file-input" accept="image/*" style="flex: 1.8; font-size:11px;" onchange="processSlipOCR(event, ${slipCounter})">
-          <input type="text" placeholder="Beneficiary Account Name" class="slip-acc-name" id="slipAccName_${slipCounter}" style="flex: 1.5; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
           <input type="text" placeholder="Deposit Amount" class="amt-field slip-amt-val" id="slipAmt_${slipCounter}" style="flex: 1.2;" oninput="handleAmountInput(this); recalculateBankDepositFromSlips();">
           <input type="hidden" id="slipOcrAmt_${slipCounter}" class="slip-ocr-val" value="0">
         </div>
@@ -858,16 +860,10 @@
       calcFormTotals();
     }
 
-    /* =========================================================
-       🤖 100% ACCURATE TESSERACT AI OCR ENGINE WITH BENEFICIARY NAME
-       ========================================================= */
-    async function processSlipOCR(event, id) {
+    function processSlipOCR(event, id) {
       const file = event.target.files[0];
       const statusElement = document.getElementById(`slipStatus_${id}`);
       const mainStatus = document.getElementById("ocrStatus");
-      const slipAmtInput = document.getElementById(`slipAmt_${id}`);
-      const slipAccNameInput = document.getElementById(`slipAccName_${id}`);
-      const slipOcrInput = document.getElementById(`slipOcrAmt_${id}`);
 
       if (!file) {
         recalculateBankDepositFromSlips();
@@ -876,115 +872,10 @@
         return;
       }
 
-      if (statusElement) statusElement.innerHTML = `<span style="color:#e65100;">🤖 AI OCR ছবি প্রসেস ও ইমেজ এনহান্স করছে...</span>`;
-      if (mainStatus) mainStatus.innerText = `🤖 স্লিপ #${id} স্ক্যান করা হচ্ছে...`;
+      if (statusElement) statusElement.innerText = `✅ স্লিপ #${id} ইমেজ নির্বাচন সম্পন্ন!`;
+      if (mainStatus) mainStatus.innerText = `✅ স্লিপ নির্বাচন সম্পন্ন!`;
 
-      try {
-        // Image Preprocessing via Canvas to Boost Accuracy to 100%
-        const processedImage = await preprocessImageForOCR(file);
-
-        // Tesseract AI Scanning
-        const result = await Tesseract.recognize(processedImage, 'eng', {
-          logger: m => {
-            if (m.status === 'recognizing text') {
-              let pct = Math.round(m.progress * 100);
-              if (statusElement) statusElement.innerText = `🤖 OCR স্ক্যানিং অগ্রগতি: ${pct}%`;
-            }
-          }
-        });
-
-        const text = result.data.text;
-        console.log("OCR Detected Text:\n", text);
-
-        // 1. Beneficiary Account Name Extraction Logic
-        let detectedName = extractBeneficiaryName(text);
-        if (detectedName) {
-          slipAccNameInput.value = detectedName;
-        }
-
-        // 2. Deposit Amount Detection Logic
-        const patterns = [
-          /(?:BDT|TK|TK\.|TOTAL|AMOUNT|DEPOSIT|NET|SUM)\s*[:\-\s]?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?)/i,
-          /([0-9]{1,3}(?:,[0-9]{3})+)/,
-          /\b([0-9]{4,7})\b/
-        ];
-
-        let extractedAmt = 0;
-        for (let regex of patterns) {
-          let match = text.match(regex);
-          if (match && match[1]) {
-            let cleanNum = parseRawNumber(match[1]);
-            if (cleanNum >= 100 && cleanNum <= 10000000) { 
-              extractedAmt = cleanNum;
-              break;
-            }
-          }
-        }
-
-        if (extractedAmt > 0) {
-          slipAmtInput.value = formatBD(extractedAmt);
-          if (slipOcrInput) slipOcrInput.value = extractedAmt;
-          if (statusElement) statusElement.innerHTML = `<span style="color:#2e7d32;">✅ OCR সফল! পরিমাণ: ৳${formatBD(extractedAmt)} ${detectedName ? '| নাম: ' + detectedName : ''}</span>`;
-          if (mainStatus) mainStatus.innerText = `✅ স্লিপ #${id} হতে ব্যাংকের তথ্য ও পরিমাণ নির্ণয় করা হয়েছে।`;
-        } else {
-          if (statusElement) statusElement.innerHTML = `<span style="color:#00695c;">ℹ️ ছবি যুক্ত হয়েছে ${detectedName ? '(নাম: ' + detectedName + ')' : ''}</span>`;
-          if (mainStatus) mainStatus.innerText = `⚠️ OCR টাকা সনাক্ত করতে পারেনি, ম্যানুয়ালি বসান।`;
-        }
-      } catch (err) {
-        console.error("OCR Error:", err);
-        if (statusElement) statusElement.innerHTML = `<span style="color:#c62828;">⚠️ OCR স্ক্যান ব্যর্থ, ম্যানুয়ালি টাকা বসান।</span>`;
-      } finally {
-        recalculateBankDepositFromSlips();
-        validateFormAndSubmitBtn();
-      }
-    }
-
-    // Canvas Processing for 100% OCR Precision (Contrast Boost)
-    function preprocessImageForOCR(file) {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imgData.data;
-            for (let i = 0; i < data.length; i += 4) {
-              let avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-              let v = avg > 120 ? 255 : 0; // Grayscale Thresholding
-              data[i] = v; data[i + 1] = v; data[i + 2] = v;
-            }
-            ctx.putImageData(imgData, 0, 0);
-            resolve(canvas.toDataURL());
-          };
-          img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-
-    // Helper regex to extract Beneficiary Account Name
-    function extractBeneficiaryName(text) {
-      const namePatterns = [
-        /(?:BENEFICIARY|ACCOUNT NAME|TITLE|A\/C NAME|CREDIT TO|NAME)\s*[:\-\s]?\s*([A-Za-z\s\.]{3,30})/i,
-        /(?:TO)\s*[:\-\s]?\s*([A-Za-z\s\.]{3,30})/i
-      ];
-
-      for (let regex of namePatterns) {
-        let match = text.match(regex);
-        if (match && match[1]) {
-          let name = match[1].trim().replace(/\n/g, ' ');
-          if (name.length > 2 && !/AMOUNT|DATE|BANK|BRANCH|DEPOSIT|TOTAL/i.test(name)) {
-            return name;
-          }
-        }
-      }
-      return "";
+      validateFormAndSubmitBtn();
     }
 
     function getDsoReceivedList() {
@@ -1089,7 +980,6 @@
         let missingBankName = false;
         let missingFile = false;
 
-        let activeSlipCount = 0;
         if (slipRows.length === 0) {
           isBankValid = false;
         } else {
@@ -1099,17 +989,13 @@
             let fileInput = row.querySelector(".slip-file-input");
             
             if (amt > 0) {
-              activeSlipCount++;
               if (!bankSelect) missingBankName = true;
               if (!fileInput || !fileInput.files || fileInput.files.length === 0) missingFile = true;
             }
           });
-          if (activeSlipCount === 0) isBankValid = false;
         }
 
-        if (activeSlipCount === 0) {
-          bankMsgBox.innerHTML = `<p class="note-warning">❌ Bank Deposit আছে, কিন্তু কোনো Deposit Amount সহ Slip দেওয়া হয়নি!</p>`;
-        } else if (missingBankName && missingFile) {
+        if (missingBankName && missingFile) {
           bankMsgBox.innerHTML = `<p class="note-warning">❌ ব্যাংক ডিপোজিটের জন্য Bank Name নির্বাচন এবং ব্যাংক স্লিপ আপলোড করা বাধ্যতামূলক! Submit বন্ধ রয়েছে।</p>`;
           isBankValid = false;
         } else if (missingBankName) {
@@ -1180,23 +1066,14 @@
 
       if (bankDepositVal > 0) {
         let missingInfo = false;
-        let activeSlipCount = 0;
-
         slipRows.forEach(row => {
-          const amtInput = row.querySelector(".slip-amt-val");
-          const slipAmt = parseRawNumber(amtInput ? amtInput.value : 0);
-          const bankName = row.querySelector(".slip-bank-name").value;
-          const fileInput = row.querySelector(".slip-file-input");
-          const hasFile = !!(fileInput && fileInput.files && fileInput.files[0]);
-
-          if (slipAmt > 0) {
-            activeSlipCount++;
-            if (!bankName || !hasFile) missingInfo = true;
-          }
+          let bankName = row.querySelector(".slip-bank-name").value;
+          let fileInput = row.querySelector(".slip-file-input");
+          if (!bankName || !fileInput.files[0]) { missingInfo = true; }
         });
 
-        if (missingInfo || activeSlipCount === 0) {
-          alert("⚠️ Deposit Amount দেওয়া প্রতিটি Slip-এর জন্য Bank Name এবং Bank Slip ফাইল দেওয়া বাধ্যতামূলক!");
+        if (missingInfo || slipRows.length === 0) {
+          alert("⚠️ Bank Deposit এর জন্য Bank Name এবং Bank Slip ফাইল দেওয়া বাধ্যতামূলক!");
           return;
         }
       }
@@ -1226,15 +1103,11 @@
           let fileInput = row.querySelector(".slip-file-input");
           let amtInput = row.querySelector(".slip-amt-val");
           let bankSelect = row.querySelector(".slip-bank-name");
-          let accNameInput = row.querySelector(".slip-acc-name");
-          let ocrValInput = row.querySelector(".slip-ocr-val");
 
           let file = fileInput ? fileInput.files[0] : null;
           let imgBase64 = await getBase64(file);
           let amt = parseRawNumber(amtInput.value);
           let bankName = bankSelect ? bankSelect.value : "";
-          let accName = accNameInput ? accNameInput.value : "";
-          let ocrAmt = ocrValInput ? parseRawNumber(ocrValInput.value) : amt;
 
           if (amt > 0 && (!bankName || !imgBase64)) {
             alert("⚠️ ব্যাংক ডিপোজিটের প্রতিটি স্লিপের জন্য ব্যাংক সিলেক্ট করা এবং ছবি দেওয়া বাধ্যতামূলক!");
@@ -1248,7 +1121,7 @@
           }
 
           if (imgBase64 || amt > 0 || bankName) {
-            slipsData.push({ img: imgBase64, amt: amt, bankName: bankName, accName: accName, ocrAmt: ocrAmt });
+            slipsData.push({ img: imgBase64, amt: amt, bankName: bankName, ocrAmt: amt });
           }
         }
 
@@ -1898,7 +1771,7 @@
       tfoot.innerHTML = "";
 
       if (!data || Object.keys(data).length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:15px; color:#c62828;">কোনো ব্যাংক বিবরণ পাওয়া যায়নি</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#c62828;">কোনো ব্যাংক বিবরণ পাওয়া যায়নি</td></tr>`;
         return;
       }
 
@@ -1912,7 +1785,6 @@
         if (slipsList.length > 0) {
           slipsList.forEach(s => {
             let bName = (s.bankName || item.bankName || 'Unknown Bank').trim();
-            let accName = (s.accName || '-').trim();
             let amt = s.amt || 0;
             if (!bankTotals[bName]) { bankTotals[bName] = { amount: 0, slipsCount: 0 }; }
             bankTotals[bName].amount += amt;
@@ -1922,7 +1794,6 @@
               date: item.date || '-',
               dsoId: item.userId || '-',
               bankName: bName,
-              accName: accName,
               amt: amt,
               img: s.img || ''
             });
@@ -1937,7 +1808,6 @@
             date: item.date || '-',
             dsoId: item.userId || '-',
             bankName: bName,
-            accName: '-',
             amt: amt,
             img: ''
           });
@@ -1949,7 +1819,7 @@
       let uniqueBanks = Object.keys(bankTotals);
 
       if (uniqueBanks.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:15px; color:#c62828;">কোনো ব্যাংক ডিপোজিট পাওয়া যায়নি</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:#c62828;">কোনো ব্যাংক ডিপোজিট পাওয়া যায়নি</td></tr>`;
         return;
       }
 
@@ -1979,49 +1849,62 @@
       headerTr.innerHTML = `
         <th class="th-info">তারিখ</th>
         <th class="th-info">DSO ID (A-Z)</th>
-        <th class="th-info">Beneficiary Account Name</th>
       `;
       uniqueBanks.forEach(bName => {
-        headerTr.innerHTML += `<th class="th-bank">${bName}</th>`;
+        headerTr.innerHTML += `<th class="th-bank">${bName} (Amount)</th>`;
       });
-      headerTr.innerHTML += `<th class="th-diff">Total Deposit</th><th class="th-info">Slip Image</th>`;
+      headerTr.innerHTML += `
+        <th class="th-return">মোট ডিপোজিট</th>
+        <th class="th-info">ডিপোজিট স্লিপ</th>
+      `;
       thead.appendChild(headerTr);
 
-      entriesList.forEach(e => {
-        let tr = document.createElement("tr");
-        let slipImgHtml = e.img 
-          ? `<img src="${e.img}" class="slip-img-preview" onclick="openImageZoomModal('${e.img}', 'DSO ${e.dsoId}', '${e.bankName}', ${e.amt})" alt="Slip">`
-          : '-';
+      let bankColumnSums = {};
+      uniqueBanks.forEach(b => bankColumnSums[b] = 0);
+      let grandTotalRowSum = 0;
 
+      entriesList.forEach(entry => {
+        let tr = document.createElement("tr");
         let rowHtml = `
-          <td>${e.date}</td>
-          <td><strong>DSO ${e.dsoId}</strong></td>
-          <td style="text-align:left; font-weight:bold; color:#00695c;">${e.accName}</td>
+          <td>${entry.date}</td>
+          <td><strong>DSO ${entry.dsoId}</strong></td>
         `;
 
         uniqueBanks.forEach(bName => {
-          if (e.bankName === bName) {
-            rowHtml += `<td style="font-weight:bold; color:#1a237e; background-color:#e8eaf6;">৳ ${formatBD(e.amt)}</td>`;
+          if (entry.bankName === bName) {
+            rowHtml += `<td style="font-weight:bold; color:#1a237e;">৳ ${formatBD(entry.amt)}</td>`;
+            bankColumnSums[bName] += entry.amt;
           } else {
-            rowHtml += `<td>-</td>`;
+            rowHtml += `<td style="color:#ccc;">-</td>`;
           }
         });
 
+        grandTotalRowSum += entry.amt;
+
+        let imgPreviewHtml = entry.img 
+          ? `<img src="${entry.img}" class="slip-img-preview" onclick="zoomImage('${entry.img}', '${entry.dsoId}', '${entry.bankName}', ${entry.amt})">`
+          : '<span style="color:#aaa;">No Image</span>';
+
         rowHtml += `
-          <td class="bg-received" style="font-weight:bold;">৳ ${formatBD(e.amt)}</td>
-          <td>${slipImgHtml}</td>
+          <td style="font-weight:bold; color:#2e7d32; background:#e8f5e9;">৳ ${formatBD(entry.amt)}</td>
+          <td>${imgPreviewHtml}</td>
         `;
+
         tr.innerHTML = rowHtml;
         tbody.appendChild(tr);
       });
 
       let footTr = document.createElement("tr");
-      footTr.style.fontWeight = "bold"; footTr.style.background = "#eceff1";
-      let footHtml = `<td colspan="3" style="text-align:center;">COLUMN TOTAL:</td>`;
+      footTr.style.fontWeight = "bold";
+      footTr.style.background = "#eceff1";
+      let footHtml = `<td colspan="2">TOTAL BANK SUMMARY</td>`;
       uniqueBanks.forEach(bName => {
-        footHtml += `<td style="color:#1a237e;">৳ ${formatBD(bankTotals[bName].amount)}</td>`;
+        footHtml += `<td style="color:#1a237e;">৳ ${formatBD(bankColumnSums[bName])}</td>`;
       });
-      footHtml += `<td class="bg-received">৳ ${formatBD(totalBankDepositAll)}</td><td>-</td>`;
+      footHtml += `
+        <td style="color:#2e7d32; background:#c8e6c9;">৳ ${formatBD(grandTotalRowSum)}</td>
+        <td>-</td>
+      `;
       footTr.innerHTML = footHtml;
       tfoot.appendChild(footTr);
     }
@@ -2033,55 +1916,61 @@
       tfoot.innerHTML = "";
 
       if (!data || Object.keys(data).length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:15px; color:#c62828;">কোনো ক্যাশ নোটের বিবরণ পাওয়া যায়নি</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:15px; color:#c62828;">কোনো ক্যাশ নোট বিবরণ পাওয়া যায়নি</td></tr>`;
         return;
       }
 
-      let tot1000 = 0, tot500 = 0, tot200 = 0, tot100 = 0, tot50 = 0, grandCash = 0;
-
+      let sumN1000 = 0, sumN500 = 0, sumN200 = 0, sumN100 = 0, sumN50 = 0, sumTotalCash = 0;
       let sortedKeys = Object.keys(data).sort((a, b) => {
         let idA = String(data[a].userId || '');
         let idB = String(data[b].userId || '');
         return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
       });
 
+      let hasNotesData = false;
+
       sortedKeys.forEach(key => {
         let item = data[key];
         let n = item.notes || {};
-        let n1000 = n.n1000 || 0;
-        let n500 = n.n500 || 0;
-        let n200 = n.n200 || 0;
-        let n100 = n.n100 || 0;
-        let n50 = n.n50 || 0;
-        let rowTotal = item.totalCash || (n1000*1000 + n500*500 + n200*200 + n100*100 + n50*50);
+        let n1000 = n.n1000 || 0, n500 = n.n500 || 0, n200 = n.n200 || 0, n100 = n.n100 || 0, n50 = n.n50 || 0;
+        let totalCash = item.totalCash || ((n1000*1000) + (n500*500) + (n200*200) + (n100*100) + (n50*50));
 
-        tot1000 += n1000; tot500 += n500; tot200 += n200; tot100 += n100; tot50 += n50;
-        grandCash += rowTotal;
+        if (totalCash > 0 || n1000 > 0 || n500 > 0 || n200 > 0 || n100 > 0 || n50 > 0) {
+          hasNotesData = true;
+          sumN1000 += n1000; sumN500 += n500; sumN200 += n200; sumN100 += n100; sumN50 += n50;
+          sumTotalCash += totalCash;
 
-        let tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${item.date || '-'}</td>
-          <td><strong>DSO ${item.userId || '-'}</strong></td>
-          <td>${n1000 ? n1000 + ' টি' : '-'}</td>
-          <td>${n500 ? n500 + ' টি' : '-'}</td>
-          <td>${n200 ? n200 + ' টি' : '-'}</td>
-          <td>${n100 ? n100 + ' টি' : '-'}</td>
-          <td>${n50 ? n50 + ' টি' : '-'}</td>
-          <td class="bg-received" style="font-weight:bold;">৳ ${formatBD(rowTotal)}</td>
-        `;
-        tbody.appendChild(tr);
+          let tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${item.date || '-'}</td>
+            <td><strong>DSO ${item.userId || '-'}</strong></td>
+            <td>${n1000} টি <span style="font-size:10px; color:#777;">(৳${formatBD(n1000*1000)})</span></td>
+            <td>${n500} টি <span style="font-size:10px; color:#777;">(৳${formatBD(n500*500)})</span></td>
+            <td>${n200} টি <span style="font-size:10px; color:#777;">(৳${formatBD(n200*200)})</span></td>
+            <td>${n100} টি <span style="font-size:10px; color:#777;">(৳${formatBD(n100*100)})</span></td>
+            <td>${n50} টি <span style="font-size:10px; color:#777;">(৳${formatBD(n50*50)})</span></td>
+            <td style="font-weight:bold; color:#2e7d32; background:#e8f5e9;">৳ ${formatBD(totalCash)}</td>
+          `;
+          tbody.appendChild(tr);
+        }
       });
 
+      if (!hasNotesData) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:15px; color:#c62828;">কোনো ক্যাশ নোট বিবরণ পাওয়া যায়নি</td></tr>`;
+        return;
+      }
+
       let footTr = document.createElement("tr");
-      footTr.style.fontWeight = "bold"; footTr.style.background = "#eceff1";
+      footTr.style.fontWeight = "bold";
+      footTr.style.background = "#eceff1";
       footTr.innerHTML = `
-        <td colspan="2" style="text-align:center;">TOTAL NOTES & CASH:</td>
-        <td>${tot1000} টি (৳${formatBD(tot1000*1000)})</td>
-        <td>${tot500} টি (৳${formatBD(tot500*500)})</td>
-        <td>${tot200} টি (৳${formatBD(tot200*200)})</td>
-        <td>${tot100} টি (৳${formatBD(tot100*100)})</td>
-        <td>${tot50} টি (৳${formatBD(tot50*50)})</td>
-        <td class="bg-received">৳ ${formatBD(grandCash)}</td>
+        <td colspan="2">TOTAL NOTES SUMMARY</td>
+        <td>${sumN1000} টি <br><span style="font-size:10px; color:#00695c;">৳${formatBD(sumN1000*1000)}</span></td>
+        <td>${sumN500} টি <br><span style="font-size:10px; color:#00695c;">৳${formatBD(sumN500*500)}</span></td>
+        <td>${sumN200} টি <br><span style="font-size:10px; color:#00695c;">৳${formatBD(sumN200*200)}</span></td>
+        <td>${sumN100} টি <br><span style="font-size:10px; color:#00695c;">৳${formatBD(sumN100*100)}</span></td>
+        <td>${sumN50} টি <br><span style="font-size:10px; color:#00695c;">৳${formatBD(sumN50*50)}</span></td>
+        <td style="color:#2e7d32; background:#c8e6c9;">৳ ${formatBD(sumTotalCash)}</td>
       `;
       tfoot.appendChild(footTr);
     }
@@ -2089,6 +1978,9 @@
     function showDetailsModal(key) {
       if (!globalAllData || !globalAllData[key]) return;
       let item = globalAllData[key];
+
+      document.getElementById("modalTitle").innerText = `Collection Details - DSO ${item.userId} (${item.date})`;
+      let body = document.getElementById("modalBody");
 
       let emRec = item.emReceived || 0;
       let cashRec = item.cashReceived || 0;
@@ -2102,66 +1994,95 @@
       let totalRet = emRet + bankDep + cashDep + dsoTransSum;
 
       let diff = totalRec - totalRet;
+      let n = item.notes || {};
 
-      document.getElementById("modalTitle").innerText = `Collection Details - DSO ${item.userId} (${item.date})`;
+      let dsoRecHtml = "";
+      if (Array.isArray(item.dsoReceivedList) && item.dsoReceivedList.length > 0) {
+        item.dsoReceivedList.forEach(d => {
+          dsoRecHtml += `<div class="detail-row"><span>Received from DSO ${d.dsoId}:</span><strong>৳ ${formatBD(d.amount)}</strong></div>`;
+        });
+      }
 
-      let html = `
-        <div style="font-size:12px; line-height:1.6;">
-          <p><strong>তারিখ:</strong> ${item.date || '-'}</p>
-          <p><strong>DSO ID:</strong> DSO ${item.userId || '-'}</p>
-          <p><strong>স্ট্যাটাস:</strong> ${item.approvalStatus === 'approved' ? '<span class="status-approved">Approved</span>' : '<span class="status-pending">Pending</span>'}</p>
-          <hr style="margin:10px 0;">
-          
-          <h4 style="color:#2e7d32; margin-bottom:5px;">📥 RECEIVED SECTION</h4>
-          <p>e-Money Received: ৳ ${formatBD(emRec)}</p>
-          <p>Cash Received: ৳ ${formatBD(cashRec)}</p>
-          <p>DSO Received Sum: ৳ ${formatBD(dsoRecSum)}</p>
-          ${Array.isArray(item.dsoReceivedList) && item.dsoReceivedList.length > 0 ? item.dsoReceivedList.map(d => `<span class="dso-badge">DSO ${d.dsoId}: ৳${formatBD(d.amount)}</span> `).join('') : ''}
-          <p style="font-weight:bold; margin-top:3px;">মোট রিসিভড: ৳ ${formatBD(totalRec)}</p>
-          <hr style="margin:10px 0;">
+      let dsoTransHtml = "";
+      if (Array.isArray(item.dsoTransferList) && item.dsoTransferList.length > 0) {
+        item.dsoTransferList.forEach(d => {
+          dsoTransHtml += `<div class="detail-row"><span>Transferred to DSO ${d.dsoId}:</span><strong>৳ ${formatBD(d.amount)}</strong></div>`;
+        });
+      }
 
-          <h4 style="color:#c62828; margin-bottom:5px;">📤 RETURN SECTION</h4>
-          <p>e-Money Return: ৳ ${formatBD(emRet)}</p>
-          <p>Cash Deposit: ৳ ${formatBD(cashDep)}</p>
-          <p>Bank Deposit: ৳ ${formatBD(bankDep)} (${item.bankName || 'N/A'})</p>
-          <p>DSO Transfer Sum: ৳ ${formatBD(dsoTransSum)}</p>
-          ${Array.isArray(item.dsoTransferList) && item.dsoTransferList.length > 0 ? item.dsoTransferList.map(d => `<span class="dso-badge">DSO ${d.dsoId}: ৳${formatBD(d.amount)}</span> `).join('') : ''}
-          <p style="font-weight:bold; margin-top:3px;">মোট রিটার্ন: ৳ ${formatBD(totalRet)}</p>
-          <hr style="margin:10px 0;">
+      let slipsList = item.slips || [];
+      let slipsGridHtml = "";
+      if (slipsList.length > 0) {
+        slipsGridHtml = `<div class="slip-grid-modal">`;
+        slipsList.forEach((s, idx) => {
+          let bName = s.bankName || item.bankName || 'Bank Slip';
+          let imgHtml = s.img 
+            ? `<img src="${s.img}" onclick="zoomImage('${s.img}', '${item.userId}', '${bName}', ${s.amt || 0})">` 
+            : `<div style="height:100px; display:flex; align-items:center; justify-content:center; background:#eee; font-size:11px;">No Image</div>`;
 
-          <h4 style="color:#e65100; margin-bottom:5px;">⚖️ CALCULATION & DIFF</h4>
-          <p style="font-size:14px; font-weight:bold; color:#e65100;">ব্যবধন (Diff): ৳ ${formatBD(diff)}</p>
-          <hr style="margin:10px 0;">
-
-          <h4 style="color:#37474f; margin-bottom:5px;">💵 ক্যাশ নোটের বিবরণ</h4>
-          <p>1000 Tk: ${item.notes?.n1000 || 0} টি | 500 Tk: ${item.notes?.n500 || 0} টি | 200 Tk: ${item.notes?.n200 || 0} টি</p>
-          <p>100 Tk: ${item.notes?.n100 || 0} টি | 50 Tk: ${item.notes?.n50 || 0} টি</p>
-          <p style="font-weight:bold;">মোট ক্যাশ: ৳ ${formatBD(item.totalCash || 0)}</p>
-          <hr style="margin:10px 0;">
-
-          <h4 style="color:#00695c; margin-bottom:5px;">🧾 ব্যাংক ডিপোজিট স্লিপ</h4>
-      `;
-
-      let slips = item.slips || [];
-      if (slips.length > 0) {
-        html += `<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:5px;">`;
-        slips.forEach((s, idx) => {
-          html += `
-            <div style="border:1px solid #ccc; padding:6px; border-radius:4px; text-align:center;">
-              <p style="font-size:10px; font-weight:bold;">Slip #${idx+1} (${s.bankName || 'Bank'})</p>
-              <p style="font-size:10px; color:#00695c; font-weight:bold;">Acc: ${s.accName || '-'}</p>
-              ${s.img ? `<img src="${s.img}" class="slip-img-preview" onclick="openImageZoomModal('${s.img}', 'DSO ${item.userId}', '${s.bankName || 'Bank'}', ${s.amt || 0})" alt="Slip">` : 'No Image'}
-              <p style="font-size:11px; font-weight:bold; margin-top:3px;">৳ ${formatBD(s.amt || 0)}</p>
+          slipsGridHtml += `
+            <div class="slip-card-modal">
+              ${imgHtml}
+              <div style="font-weight:bold; font-size:11px; margin-top:4px; color:#00695c;">${bName}</div>
+              <div style="font-size:11px; color:#2e7d32;">৳ ${formatBD(s.amt || 0)}</div>
             </div>
           `;
         });
-        html += `</div>`;
+        slipsGridHtml += `</div>`;
       } else {
-        html += `<p style="color:#777;">কোনো স্লিপ ছবি যুক্ত করা নেই।</p>`;
+        slipsGridHtml = `<p style="font-size:12px; color:#777; text-align:center;">কোনো ব্যাংক ডিপোজিট স্লিপ আপলোড করা হয়নি।</p>`;
       }
 
-      html += `</div>`;
-      document.getElementById("modalBody").innerHTML = html;
+      body.innerHTML = `
+        <div class="detail-section">
+          <h4>📥 Received Details</h4>
+          <div class="detail-row"><span>e-Money Received:</span><strong>৳ ${formatBD(emRec)}</strong></div>
+          <div class="detail-row"><span>Cash Received:</span><strong>৳ ${formatBD(cashRec)}</strong></div>
+          ${dsoRecHtml}
+          <div class="detail-row" style="border-top:1px solid #ccc; padding-top:4px; margin-top:4px;">
+            <span><strong>Total Received:</strong></span>
+            <strong style="color:#2e7d32;">৳ ${formatBD(totalRec)}</strong>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>📤 Return Details</h4>
+          <div class="detail-row"><span>e-Money Return:</span><strong>৳ ${formatBD(emRet)}</strong></div>
+          <div class="detail-row"><span>Cash Deposit:</span><strong>৳ ${formatBD(cashDep)}</strong></div>
+          <div class="detail-row"><span>Bank Deposit Total:</span><strong>৳ ${formatBD(bankDep)}</strong></div>
+          ${dsoTransHtml}
+          <div class="detail-row" style="border-top:1px solid #ccc; padding-top:4px; margin-top:4px;">
+            <span><strong>Total Return:</strong></span>
+            <strong style="color:#c62828;">৳ ${formatBD(totalRet)}</strong>
+          </div>
+        </div>
+
+        <div class="detail-section" style="background:#fff3e0; border-color:#ffe0b2;">
+          <div class="detail-row">
+            <span><strong>Difference (Rec - Ret):</strong></span>
+            <strong style="color:#e65100;">৳ ${formatBD(diff)}</strong>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>💵 Cash Note Breakdown</h4>
+          <div class="detail-row"><span>৳ 1000 × ${n.n1000 || 0}</span><strong>৳ ${formatBD((n.n1000 || 0) * 1000)}</strong></div>
+          <div class="detail-row"><span>৳ 500 × ${n.n500 || 0}</span><strong>৳ ${formatBD((n.n500 || 0) * 500)}</strong></div>
+          <div class="detail-row"><span>৳ 200 × ${n.n200 || 0}</span><strong>৳ ${formatBD((n.n200 || 0) * 200)}</strong></div>
+          <div class="detail-row"><span>৳ 100 × ${n.n100 || 0}</span><strong>৳ ${formatBD((n.n100 || 0) * 100)}</strong></div>
+          <div class="detail-row"><span>৳ 50 × ${n.n50 || 0}</span><strong>৳ ${formatBD((n.n50 || 0) * 50)}</strong></div>
+          <div class="detail-row" style="border-top:1px solid #ccc; padding-top:4px; margin-top:4px;">
+            <span><strong>Total Cash Note Sum:</strong></span>
+            <strong style="color:#2e7d32;">৳ ${formatBD(item.totalCash || 0)}</strong>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h4>🧾 Bank Deposit Slips (${slipsList.length})</h4>
+          ${slipsGridHtml}
+        </div>
+      `;
+
       document.getElementById("detailsModal").style.display = "flex";
     }
 
@@ -2169,12 +2090,13 @@
       document.getElementById("detailsModal").style.display = "none";
     }
 
-    function openImageZoomModal(imgSrc, dsoId, bankName, amount) {
-      document.getElementById("zoomedImageSrc").src = imgSrc;
+    function zoomImage(src, dsoId, bankName, amt) {
+      if (!src) return;
+      document.getElementById("zoomedImageSrc").src = src;
       document.getElementById("zoomImageDetails").innerHTML = `
         <span>DSO: ${dsoId}</span>
-        <span>ব্যাংক: ${bankName}</span>
-        <span>পরিমাণ: ৳ ${formatBD(amount)}</span>
+        <span>Bank: ${bankName}</span>
+        <span>Amount: ৳ ${formatBD(amt)}</span>
       `;
       document.getElementById("imageZoomModal").style.display = "flex";
     }
@@ -2184,11 +2106,11 @@
     }
 
     function exportToExcel() {
-      if (!globalAllData) { alert("এক্সপোর্ট করার মতো কোনো ডাটা নেই!"); return; }
-
-      const filterDate = document.getElementById("filterDate").value;
+      if (!globalAllData) { alert("এক্সপোর্ট করার মতো কোনো ডাটা পাওয়া যায়নি!"); return; }
       const activeDsos = getActiveDsoFilterSet();
-      let exportData = [];
+      const filterDate = document.getElementById("filterDate").value;
+
+      let exportRows = [];
 
       Object.keys(globalAllData).forEach(key => {
         let item = globalAllData[key];
@@ -2209,38 +2131,39 @@
           let totalRet = emRet + bankDep + cashDep + dsoTransSum;
 
           let diff = totalRec - totalRet;
+          let n = item.notes || {};
 
-          exportData.push({
-            "Date": item.date || '',
-            "DSO ID": item.userId || '',
+          exportRows.push({
+            "Date": item.date || "",
+            "DSO ID": item.userId || "",
             "e-Money Received": emRec,
             "Cash Received": cashRec,
-            "DSO Received": dsoRecSum,
+            "DSO Received Total": dsoRecSum,
             "Total Received": totalRec,
             "e-Money Return": emRet,
             "Cash Deposit": cashDep,
             "Bank Deposit": bankDep,
-            "Bank Name": item.bankName || '',
-            "DSO Transfer": dsoTransSum,
+            "Bank Name": item.bankName || "",
+            "DSO Transfer Total": dsoTransSum,
             "Total Return": totalRet,
-            "Difference (Diff)": diff,
-            "1000 Note": item.notes?.n1000 || 0,
-            "500 Note": item.notes?.n500 || 0,
-            "200 Note": item.notes?.n200 || 0,
-            "100 Note": item.notes?.n100 || 0,
-            "50 Note": item.notes?.n50 || 0,
-            "Total Cash Calculated": item.totalCash || 0,
-            "Approval Status": item.approvalStatus || 'pending'
+            "Difference": diff,
+            "Note 1000": n.n1000 || 0,
+            "Note 500": n.n500 || 0,
+            "Note 200": n.n200 || 0,
+            "Note 100": n.n100 || 0,
+            "Note 50": n.n50 || 0,
+            "Total Calculated Cash": item.totalCash || 0,
+            "Approval Status": item.approvalStatus || "pending"
           });
         }
       });
 
-      if (exportData.length === 0) { alert("ফিল্টার অনুযায়ী কোনো ডাটা পাওয়া যায়নি!"); return; }
+      if (exportRows.length === 0) { alert("ফিল্টার অনুযায়ী কোনো ডাটা পাওয়া যায়নি!"); return; }
 
-      let worksheet = XLSX.utils.json_to_sheet(exportData);
-      let workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Collection Report");
-      XLSX.writeFile(workbook, `Collection_Report_${filterDate || 'All'}.xlsx`);
+      let ws = XLSX.utils.json_to_sheet(exportRows);
+      let wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Collections");
+      XLSX.writeFile(wb, `Collection_Report_${filterDate || 'All'}.xlsx`);
     }
   </script>
 </body>
