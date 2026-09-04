@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DSO & Admin Collection Portal — Fast v31</title>
+  <title>DSO & Admin Collection Portal — Fixed v32</title>
   
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -1554,8 +1554,11 @@
       return xlsxLoadPromise;
     }
     function scheduleHeavyLibrariesPreload(){
+      // Keep the login/data path responsive. OCR is loaded only after the
+      // browser has had time to finish the first screen and Firebase sync.
       const run=()=>{ ensureTesseractLoaded().catch(()=>{}); };
-      if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:2500}); else setTimeout(run,800);
+      if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:6000});
+      else setTimeout(run,2500);
     }
 
     async function getSlipOCRWorker(statusEl, id) {
@@ -2227,6 +2230,11 @@
       if(minimumBad.length){ alert("❌ e-Money Received, Cash Received ও Bank Amount-এ ৩ digit amount গ্রহণযোগ্য নয়। ন্যূনতম ৳1,000 দিন।"); validateFormAndSubmitBtn(); return; }
 
       let bankDepositVal = parseRawNumber(document.getElementById("bankDeposit").value);
+      if (bankDepositVal < 0) {
+        alert("❌ Bank Deposit amount সঠিক নয়।");
+        validateFormAndSubmitBtn();
+        return;
+      }
       const slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
 
       if (bankDepositVal > 0) {
@@ -2330,8 +2338,11 @@
       } catch (err) {
         alert("ডাটা সেভ হয়নি! কারণ: " + err.message);
       } finally {
-        subBtn.disabled = false;
         subBtn.innerText = "Submit Data";
+        // Re-run the full validation instead of blindly enabling Submit.
+        // This prevents a successful reset or any validation error from
+        // accidentally leaving the button enabled.
+        validateFormAndSubmitBtn();
       }
     }
 
@@ -2340,6 +2351,8 @@
       document.querySelectorAll(".denom").forEach(input => input.value = "");
       document.getElementById("cashDeposit").value = "";
       document.getElementById("totalCashDisplay").innerText = "0";
+      const cashMsg = document.getElementById("cashNoteValidationMsg");
+      if (cashMsg) cashMsg.innerHTML = "";
 
       document.getElementById("dsoReceivedContainer").innerHTML = `
         <div class="dynamic-row">
@@ -2365,7 +2378,10 @@
       calcFormTotals();
     }
 
+    let realtimeListenerAttached = false;
     function listenRealtimeData() {
+      if (realtimeListenerAttached) return;
+      realtimeListenerAttached = true;
       database.ref('collections').on('value', (snapshot) => {
         globalAllData = snapshot.val();
         if (currentUser === "admin" || currentUser === "sub-admin") {
