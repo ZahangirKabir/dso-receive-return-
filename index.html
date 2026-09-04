@@ -126,7 +126,7 @@
 
     #dataTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
     #dataTable thead tr:nth-child(2) th { position: sticky; top: 28px; z-index: 9; }
-    #bankDetailsTable thead tr:nth-child(1) th, #notesSummaryTable thead tr:nth-child(1) th, #dsoHistoryTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
+    #bankDetailsTable thead tr:nth-child(1) th, #notesSummaryTable thead tr:nth-child(1) th, #dsoHistoryTable thead tr:nth-child(1) th, #emoneyReportTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
 
     .th-info { background: #37474f; color: white; }
     .th-received { background: #2e7d32; color: white; }
@@ -176,6 +176,7 @@
     <!-- ADMIN PANEL NAVIGATION -->
     <div id="adminTabNav" class="tab-nav" style="display:none;">
       <button class="tab-btn active" id="tabAdminReportBtn" onclick="switchAdminTab('report')">📊 Main Report</button>
+      <button class="tab-btn" id="tabAdminEmoneyBtn" onclick="switchAdminTab('emoney')">📲 e-Money Report</button>
       <button class="tab-btn" id="tabAdminBankBtn" onclick="switchAdminTab('bank')">🏦 Bank Details</button>
       <button class="tab-btn" id="tabAdminNotesBtn" onclick="switchAdminTab('notes')">💵 Note Summary</button>
       <button class="tab-btn" id="tabAdminSettingsBtn" onclick="switchAdminTab('settings')">⚙️ Settings</button>
@@ -280,6 +281,34 @@
               </tr>
             </thead>
             <tbody id="adminTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ADMIN PAGE NEW: E-MONEY REPORT PAGE -->
+      <div id="adminPageEmoney" style="display:none;">
+        <h3 style="color:#00695c; margin-bottom:10px;">📲 e-Money Receive & e-Money Return Report</h3>
+        
+        <div class="summary-cards">
+          <div class="card green"><h3>মোট e-Money Receive</h3><p>৳ <span id="totalEmoneyReceiveSum">0</span></p></div>
+          <div class="card red"><h3>মোট e-Money Return</h3><p>৳ <span id="totalEmoneyReturnSum">0</span></p></div>
+          <div class="card diff"><h3>e-Money ব্যবধান (Diff)</h3><p>৳ <span id="totalEmoneyDiffSum">0</span></p></div>
+        </div>
+
+        <div class="table-container">
+          <table id="emoneyReportTable">
+            <thead>
+              <tr>
+                <th class="th-info">তারিখ</th>
+                <th class="th-info">DSO ID</th>
+                <th class="th-received">e-Money Receive</th>
+                <th class="th-return">e-Money Return</th>
+                <th class="th-diff">ব্যবধন (Diff)</th>
+                <th class="th-info">স্ট্যাটাস</th>
+              </tr>
+            </thead>
+            <tbody id="emoneyReportTableBody"></tbody>
+            <tfoot id="emoneyReportTableFoot"></tfoot>
           </table>
         </div>
       </div>
@@ -488,11 +517,13 @@
 
     function switchAdminTab(tab) {
       document.getElementById("tabAdminReportBtn").classList.remove("active");
+      document.getElementById("tabAdminEmoneyBtn").classList.remove("active");
       document.getElementById("tabAdminBankBtn").classList.remove("active");
       document.getElementById("tabAdminNotesBtn").classList.remove("active");
       document.getElementById("tabAdminSettingsBtn").classList.remove("active");
 
       document.getElementById("adminPageReport").style.display = "none";
+      document.getElementById("adminPageEmoney").style.display = "none";
       document.getElementById("adminPageBank").style.display = "none";
       document.getElementById("adminPageNotes").style.display = "none";
       document.getElementById("adminPageSettings").style.display = "none";
@@ -500,6 +531,10 @@
       if (tab === 'report') {
         document.getElementById("tabAdminReportBtn").classList.add("active");
         document.getElementById("adminPageReport").style.display = "block";
+      } else if (tab === 'emoney') {
+        document.getElementById("tabAdminEmoneyBtn").classList.add("active");
+        document.getElementById("adminPageEmoney").style.display = "block";
+        renderEmoneyReportTab(globalAllData);
       } else if (tab === 'bank') {
         document.getElementById("tabAdminBankBtn").classList.add("active");
         document.getElementById("adminPageBank").style.display = "block";
@@ -594,6 +629,7 @@
       });
 
       renderAdminReportTable(filtered);
+      renderEmoneyReportTab(filtered);
       renderBankDetailsTab(filtered);
     }
 
@@ -640,7 +676,61 @@
     }
 
     /* =========================================================================
-       NEW FEATURE: BANK DETAILS PAGE WITH CARDS, DYNAMIC TABLE & SLIP PREVIEW
+       NEW FEATURE: E-MONEY RECEIVE & E-MONEY RETURN REPORT TAB
+       ========================================================================= */
+    function renderEmoneyReportTab(dataList) {
+      if (!dataList) return;
+      let list = Array.isArray(dataList) ? dataList : Object.values(dataList);
+
+      let tbody = document.getElementById("emoneyReportTableBody");
+      tbody.innerHTML = "";
+
+      let totEmReceive = 0;
+      let totEmReturn = 0;
+
+      list.forEach(item => {
+        let emRec = parseRawNumber(item.emReceived);
+        let emRet = parseRawNumber(item.emReturn);
+
+        // Only show rows that have e-Money activity or show all for tracking
+        totEmReceive += emRec;
+        totEmReturn += emRet;
+        let diff = emRec - emRet;
+
+        let tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${item.date || ''}</td>
+          <td><b>DSO ${item.userId || ''}</b></td>
+          <td style="color:#2e7d32; font-weight:bold;">৳ ${formatBD(emRec)}</td>
+          <td style="color:#c62828; font-weight:bold;">৳ ${formatBD(emRet)}</td>
+          <td style="color:${diff >= 0 ? '#00695c' : '#e65100'}; font-weight:bold;">৳ ${formatBD(diff)}</td>
+          <td><span class="status-approved">Approved</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      let totDiff = totEmReceive - totEmReturn;
+
+      // Update Summary Cards
+      document.getElementById("totalEmoneyReceiveSum").innerText = formatBD(totEmReceive);
+      document.getElementById("totalEmoneyReturnSum").innerText = formatBD(totRet);
+      document.getElementById("totalEmoneyDiffSum").innerText = formatBD(totDiff);
+
+      // Render Table Footer
+      let tfoot = document.getElementById("emoneyReportTableFoot");
+      tfoot.innerHTML = `
+        <tr style="background:#eceff1; font-weight:bold;">
+          <td colspan="2">সর্বমোট (Total)</td>
+          <td style="color:#2e7d32;">৳ ${formatBD(totEmReceive)}</td>
+          <td style="color:#c62828;">৳ ${formatBD(totEmReturn)}</td>
+          <td style="color:${totDiff >= 0 ? '#00695c' : '#e65100'};">৳ ${formatBD(totDiff)}</td>
+          <td>-</td>
+        </tr>
+      `;
+    }
+
+    /* =========================================================================
+       BANK DETAILS PAGE WITH CARDS, DYNAMIC TABLE & SLIP PREVIEW
        ========================================================================= */
     function renderBankDetailsTab(dataList) {
       if (!dataList) return;
