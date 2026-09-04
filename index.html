@@ -868,13 +868,30 @@
     }
 
     let loginInProgress = false;
+    function normalizeLoginId(value) {
+      return String(value || '').trim().replace(/[০-৯]/g, d => '০১২৩৪৫৬৭৮৯'.indexOf(d));
+    }
+    function showLoginScreen() {
+      document.getElementById('loginSection').style.display = 'block';
+      document.getElementById('appContainer').style.display = 'none';
+      document.getElementById('adminView').style.display = 'none';
+      document.getElementById('dsoView').style.display = 'none';
+      document.getElementById('adminTabNav').style.display = 'none';
+      document.getElementById('dsoTabNav').style.display = 'none';
+      const idBox = document.getElementById('loginId');
+      const passBox = document.getElementById('loginPass');
+      if (idBox) idBox.value = '';
+      if (passBox) passBox.value = '';
+      setTimeout(() => idBox && idBox.focus(), 50);
+    }
     async function handleLogin() {
       if (loginInProgress) return;
-      const id = document.getElementById("loginId").value.trim();
+      const id = normalizeLoginId(document.getElementById("loginId").value);
       const pass = document.getElementById("loginPass").value.trim();
       const btn = document.getElementById("loginBtn");
+      document.getElementById("loginId").value = id;
       if (!id || !pass) { alert("ইউজার আইডি এবং পাসওয়ার্ড লিখুন!"); return; }
-      let userIdNum = parseInt(id, 10);
+      const userIdNum = parseInt(id, 10);
       const isPrivileged = id === "admin" || isGroupAdmin(id);
       if (!isPrivileged && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
         alert("অপ্রবেশযোগ্য আইডি! শুধুমাত্র ৮০১ থেকে ৮৪৫ অথবা অনুমোদিত Admin ID ব্যবহার করুন।"); return;
@@ -884,16 +901,22 @@
       try {
         let dbPass;
         if (isGroupAdmin(id)) {
-          // Group Admin login is fixed to the requested password.
           dbPass = SUB_ADMIN_PASSWORD;
         } else {
-          const path = 'users/' + id + '/password';
-          const snap = await database.ref(path).once('value');
+          const snap = await Promise.race([
+            database.ref('users/' + id + '/password').once('value'),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Firebase connection timeout.')), 12000))
+          ]);
           dbPass = snap.val();
-          if (dbPass === null || dbPass === undefined) dbPass = id === 'admin' ? '123456' : '123456';
+          if (dbPass === null || dbPass === undefined || dbPass === '') dbPass = '123456';
         }
         if (pass !== String(dbPass).trim()) { alert("ভুল পাসওয়ার্ড! দয়া করে সঠিক পাসওয়ার্ড দিন।"); return; }
 
+        // Cleanly close any previous UI/listener state before opening the new session.
+        if (typeof database !== 'undefined' && typeof database.ref === 'function') {
+          try { database.ref('collections').off('value'); } catch (_) {}
+        }
+        realtimeListenerAttached = false;
         currentUser = id;
         document.getElementById("loginSection").style.display = "none";
         document.getElementById("appContainer").style.display = "block";
@@ -910,8 +933,6 @@
           document.getElementById("dsoView").style.display = "none";
           document.getElementById("dsoTabNav").style.display = "none";
           switchAdminTab('report');
-          // All admins see the same compact filter bar. Group admins are restricted
-          // to their assigned DSO IDs by getActiveDsoFilterSet()/populateDsoDropdown().
           document.getElementById("filterDate").value = new Date().toISOString().split('T')[0];
           document.getElementById("adminFilterPanel").style.display = "flex";
         } else {
@@ -924,12 +945,11 @@
           resetForm();
           checkDsoNotifications();
         }
-        // Do not wait for realtime data before opening the portal.
         listenRealtimeData();
-        // Preload OCR in the background after login, without blocking the UI.
         scheduleHeavyLibrariesPreload();
       } catch (e) {
-        alert("লগইন চেক করতে সমস্যা হয়েছে: " + e.message);
+        console.error('Login error:', e);
+        alert("লগইন চেক করতে সমস্যা হয়েছে: " + (e && e.message ? e.message : e));
       } finally {
         loginInProgress = false;
         if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent='Login';}
@@ -967,7 +987,20 @@
       } catch (err) { alert("পাসওয়ার্ড সেভ করা যায়নি: " + err.message); }
     }
 
-    function logout() { location.reload(); }
+    function logout() {
+      try {
+        if (typeof database !== 'undefined' && typeof database.ref === 'function') {
+          database.ref('collections').off('value');
+        }
+      } catch (_) {}
+      realtimeListenerAttached = false;
+      globalAllData = null;
+      currentUser = null;
+      loginInProgress = false;
+      // Reset the whole UI without reloading the page, so logout works reliably
+      // even when the HTML is opened locally or the browser blocks a reload.
+      showLoginScreen();
+    }
 
     function addDsoReceivedRow() {
       const container = document.getElementById("dsoReceivedContainer");
