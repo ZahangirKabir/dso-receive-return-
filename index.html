@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DSO & Admin Collection Portal — Fixed v32</title>
+  <title>DSO & Admin Collection Portal — Fixed v33</title>
   
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -687,19 +687,17 @@
       <div id="editModalBody">
         <input type="hidden" id="editKey">
         <input type="hidden" id="editUserId">
-        <div class="form-group">
-          <label>e-Money Received</label>
-          <input type="text" id="editEmReceived" class="amt-field" oninput="handleAmountInput(this)">
-        </div>
-        <div class="form-group">
-          <label>Cash Received</label>
-          <input type="text" id="editCashReceived" class="amt-field" oninput="handleAmountInput(this)">
-        </div>
-        <div class="form-group">
-          <label>e-Money Return</label>
-          <input type="text" id="editEmReturn" class="amt-field" oninput="handleAmountInput(this)">
-        </div>
-        <button class="btn" onclick="saveEditedData()" style="margin-top:10px;">Save Updated Record</button>
+        <div class="form-group"><label>e-Money Received</label><input type="text" id="editEmReceived" class="amt-field" oninput="handleAmountInput(this)"></div>
+        <div class="form-group"><label>Cash Received</label><input type="text" id="editCashReceived" class="amt-field" oninput="handleAmountInput(this)"></div>
+        <div class="form-group"><label>e-Money Return</label><input type="text" id="editEmReturn" class="amt-field" oninput="handleAmountInput(this)"></div>
+        <div class="form-group"><label>Cash Deposit</label><input type="text" id="editCashDeposit" class="amt-field" oninput="handleAmountInput(this)"></div>
+        <div class="form-group"><label>Bank Deposit</label><input type="text" id="editBankDeposit" class="amt-field" oninput="handleAmountInput(this)"></div>
+        <div class="form-group"><label>Bank Name</label><input type="text" id="editBankName"></div>
+        <div class="form-group"><label>DSO Received List (JSON)</label><textarea id="editDsoReceivedList" rows="4" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea></div>
+        <div class="form-group"><label>DSO Transfer List (JSON)</label><textarea id="editDsoTransferList" rows="4" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea></div>
+        <div class="form-group"><label>Bank Slips (JSON)</label><textarea id="editSlips" rows="5" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea></div>
+        <div class="form-group"><label>Cash Notes (JSON)</label><textarea id="editNotes" rows="4" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;"></textarea></div>
+        <button class="btn" onclick="saveEditedData()" style="margin-top:10px;">💾 Save & Submit Updated হিসাব</button>
       </div>
     </div>
   </div>
@@ -822,6 +820,21 @@
       return html;
     }
 
+    // Restricted Group Admin groups: each account can VIEW ONLY the report of its assigned DSO IDs.
+    const SUB_ADMIN_GROUPS = {
+      adminSadar: new Set(["801","802","803","804","806","808","809","811","812","813","814","815"]),
+      adminSaturia: new Set(["805","807","816","817","818","819","820","821","822","823"]),
+      adminSingair: new Set(["810","835","836","837","838","839","840","841","842","843","844","845"]),
+      adminGhior: new Set(["824","825","826","827","828","829","830","831","832","833","834"])
+    };
+    const SUB_ADMIN_PASSWORD = "1234";
+    function isGroupAdmin(id) { return Object.prototype.hasOwnProperty.call(SUB_ADMIN_GROUPS, String(id)); }
+    function allowedDsoForCurrentUser(dsoId) {
+      if (currentUser === "admin") return true;
+      if (isGroupAdmin(currentUser)) return SUB_ADMIN_GROUPS[currentUser].has(String(dsoId));
+      return false;
+    }
+
     let loginInProgress = false;
     async function handleLogin() {
       if (loginInProgress) return;
@@ -830,31 +843,46 @@
       const btn = document.getElementById("loginBtn");
       if (!id || !pass) { alert("ইউজার আইডি এবং পাসওয়ার্ড লিখুন!"); return; }
       let userIdNum = parseInt(id, 10);
-      if (id !== "admin" && id !== "sub-admin" && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
-        alert("অপ্রবেশযোগ্য আইডি! শুধুমাত্র ৮০১ থেকে ৮৪৫, admin এবং sub-admin অনুমতি প্রাপ্ত।"); return;
+      const isPrivileged = id === "admin" || isGroupAdmin(id);
+      if (!isPrivileged && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
+        alert("অপ্রবেশযোগ্য আইডি! শুধুমাত্র ৮০১ থেকে ৮৪৫ অথবা অনুমোদিত Admin ID ব্যবহার করুন।"); return;
       }
       loginInProgress = true;
       if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Checking…';}
       try {
-        const path = id === "sub-admin" ? 'users/sub-admin/password' : 'users/' + id + '/password';
-        const snap = await database.ref(path).once('value');
-        let dbPass = snap.val();
-        if (dbPass === null || dbPass === undefined) dbPass = id === 'sub-admin' ? '1234' : '123456';
+        let dbPass;
+        if (isGroupAdmin(id)) {
+          // Group Admin login is fixed to the requested password.
+          dbPass = SUB_ADMIN_PASSWORD;
+        } else {
+          const path = 'users/' + id + '/password';
+          const snap = await database.ref(path).once('value');
+          dbPass = snap.val();
+          if (dbPass === null || dbPass === undefined) dbPass = id === 'admin' ? '123456' : '123456';
+        }
         if (pass !== String(dbPass).trim()) { alert("ভুল পাসওয়ার্ড! দয়া করে সঠিক পাসওয়ার্ড দিন।"); return; }
 
         currentUser = id;
         document.getElementById("loginSection").style.display = "none";
         document.getElementById("appContainer").style.display = "block";
 
-        if (id === "admin" || id === "sub-admin") {
-          document.getElementById("portalTitle").innerText = id === "admin" ? "Admin Control Dashboard" : "Sub-Admin Dashboard (Read Only)";
+        if (id === "admin" || isGroupAdmin(id)) {
+          const groupLabel = isGroupAdmin(id) ? `Group Admin — Report Only — ${id}` : "Admin Control Dashboard";
+          document.getElementById("portalTitle").innerText = groupLabel;
           document.getElementById("adminView").style.display = "block";
           document.getElementById("adminTabNav").style.display = "flex";
-          document.getElementById("tabAdminSettingsBtn").style.display = id === "sub-admin" ? "none" : "inline-block";
+          document.getElementById("tabAdminSettingsBtn").style.display = id === "admin" ? "inline-block" : "none";
+          document.getElementById("tabAdminBankBtn").style.display = isGroupAdmin(id) ? "none" : "inline-block";
+          document.getElementById("tabAdminNotesBtn").style.display = isGroupAdmin(id) ? "none" : "inline-block";
           document.getElementById("dsoView").style.display = "none";
           document.getElementById("dsoTabNav").style.display = "none";
           switchAdminTab('report');
-          document.getElementById("filterDate").value = new Date().toISOString().split('T')[0];
+          document.getElementById("filterDate").value = isGroupAdmin(id) ? "" : new Date().toISOString().split('T')[0];
+          if (isGroupAdmin(id)) {
+            document.getElementById("adminFilterPanel").style.display = "none";
+          } else {
+            document.getElementById("adminFilterPanel").style.display = "block";
+          }
         } else {
           document.getElementById("portalTitle").innerText = "DSO Entry Portal (ID: " + id + ")";
           document.getElementById("dsoView").style.display = "block";
@@ -2384,7 +2412,7 @@
       realtimeListenerAttached = true;
       database.ref('collections').on('value', (snapshot) => {
         globalAllData = snapshot.val();
-        if (currentUser === "admin" || currentUser === "sub-admin") {
+        if (currentUser === "admin" || isGroupAdmin(currentUser)) {
           populateDsoDropdown(globalAllData);
           applyAdminFilters();
         } else {
@@ -2395,7 +2423,7 @@
     }
 
     async function checkDsoNotifications() {
-      if (!currentUser || currentUser === "admin" || currentUser === "sub-admin") return;
+      if (!currentUser || currentUser === "admin" || isGroupAdmin(currentUser)) return;
       try {
         let snap = await database.ref('notifications/' + currentUser).once('value');
         let notif = snap.val();
@@ -2505,7 +2533,7 @@
       for (let i = 801; i <= 845; i++) { dsoSet.add(String(i)); }
 
       if (data) {
-        Object.values(data).forEach(r => { if (r.userId && r.userId !== "admin" && r.userId !== "sub-admin") dsoSet.add(r.userId); });
+        Object.values(data).forEach(r => { if (r.userId && r.userId !== "admin" && !isGroupAdmin(r.userId)) dsoSet.add(r.userId); });
       }
 
       let sortedDsos = Array.from(dsoSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
@@ -2591,6 +2619,7 @@
     });
 
     function getActiveDsoFilterSet() {
+      if (isGroupAdmin(currentUser)) return new Set(SUB_ADMIN_GROUPS[currentUser]);
       const selectedDsos = getSelectedDsoValues();
       if (selectedDsos.length > 0) return new Set(selectedDsos.map(String));
 
@@ -2813,8 +2842,9 @@
           : `<span class="status-pending">⏳ Approval Pending</span>`;
 
         let actionButtons = "";
-        if (currentUser === "sub-admin") {
-          actionButtons = `<button class="btn-details" onclick="showDetailsModal('${key}')">ℹ️ Details</button>`;
+        if (isGroupAdmin(currentUser)) {
+          // Group Admins are strictly REPORT-ONLY. No edit, approve, or delete controls.
+          actionButtons = `<span style="color:#1565c0;font-weight:bold;">👁️ Report Only</span>`;
         } else {
           actionButtons = `
             ${!isApproved ? `<button class="btn-approve" onclick="approveEntry('${key}')">✔ Approve</button>` : ''}
@@ -2879,6 +2909,8 @@
     }
 
     async function approveEntry(key) {
+      if (currentUser !== "admin") { alert("❌ এই কাজটি শুধুমাত্র Master Admin করতে পারবেন।"); return; }
+      if (!globalAllData?.[key]) return;
       if (confirm("আপনি কি নিশ্চিত যে এই রিপোর্টটি Approve করতে চান?")) {
         try {
           await database.ref('collections/' + key).update({ approvalStatus: "approved" });
@@ -2890,6 +2922,7 @@
     }
 
     function openEditModal(key) {
+      if (currentUser !== "admin") { alert("❌ Full Edit শুধুমাত্র Master Admin-এর জন্য।"); return; }
       if (!globalAllData || !globalAllData[key]) return;
       let item = globalAllData[key];
       document.getElementById("editKey").value = key;
@@ -2898,6 +2931,13 @@
       document.getElementById("editEmReceived").value = formatBD(item.emReceived || 0);
       document.getElementById("editCashReceived").value = formatBD(item.cashReceived || 0);
       document.getElementById("editEmReturn").value = formatBD(item.emReturn || 0);
+      document.getElementById("editCashDeposit").value = formatBD(item.cashDeposit || 0);
+      document.getElementById("editBankDeposit").value = formatBD(item.bankDeposit || 0);
+      document.getElementById("editBankName").value = item.bankName || "";
+      document.getElementById("editDsoReceivedList").value = JSON.stringify(item.dsoReceivedList || [], null, 2);
+      document.getElementById("editDsoTransferList").value = JSON.stringify(item.dsoTransferList || [], null, 2);
+      document.getElementById("editSlips").value = JSON.stringify(item.slips || [], null, 2);
+      document.getElementById("editNotes").value = JSON.stringify(item.notes || {}, null, 2);
       document.getElementById("editModal").style.display = "flex";
     }
 
@@ -2906,26 +2946,54 @@
     }
 
     async function saveEditedData() {
-      let key = document.getElementById("editKey").value;
-      let targetUserId = document.getElementById("editUserId").value;
-      let emRec = parseRawNumber(document.getElementById("editEmReceived").value);
-      let cashRec = parseRawNumber(document.getElementById("editCashReceived").value);
-      let emRet = parseRawNumber(document.getElementById("editEmReturn").value);
+      if (currentUser !== "admin") { alert("❌ Full Edit/Submit শুধুমাত্র Master Admin-এর জন্য।"); return; }
+      const key = document.getElementById("editKey").value;
+      const original = globalAllData?.[key];
+      if (!original) return;
+
+      const emRec = parseRawNumber(document.getElementById("editEmReceived").value);
+      const cashRec = parseRawNumber(document.getElementById("editCashReceived").value);
+      const emRet = parseRawNumber(document.getElementById("editEmReturn").value);
+      const cashDep = parseRawNumber(document.getElementById("editCashDeposit").value);
+      const bankDep = parseRawNumber(document.getElementById("editBankDeposit").value);
+      const bankName = document.getElementById("editBankName").value.trim();
+
+      let dsoReceivedList, dsoTransferList, slips, notes;
+      try {
+        dsoReceivedList = JSON.parse(document.getElementById("editDsoReceivedList").value || "[]");
+        dsoTransferList = JSON.parse(document.getElementById("editDsoTransferList").value || "[]");
+        slips = JSON.parse(document.getElementById("editSlips").value || "[]");
+        notes = JSON.parse(document.getElementById("editNotes").value || "{}");
+        if (!Array.isArray(dsoReceivedList) || !Array.isArray(dsoTransferList) || !Array.isArray(slips) || typeof notes !== "object" || Array.isArray(notes)) throw new Error("JSON format ভুল");
+      } catch (e) { alert("❌ JSON data সঠিক নয়: " + e.message); return; }
+
+      const sumList = arr => arr.reduce((s, x) => s + (Number(x?.amount) || 0), 0);
+      const dsoRec = sumList(dsoReceivedList);
+      const dsoTrans = sumList(dsoTransferList);
+      const totalReceived = emRec + cashRec + dsoRec;
+      const totalReturn = emRet + cashDep + bankDep + dsoTrans;
+      const totalCash = (Number(notes.n1000)||0)*1000 + (Number(notes.n500)||0)*500 + (Number(notes.n200)||0)*200 + (Number(notes.n100)||0)*100 + (Number(notes.n50)||0)*50;
+
+      const positiveAmounts = [emRec, cashRec, emRet, cashDep, bankDep].filter(v => v > 0);
+      if (positiveAmounts.some(v => v > 0 && v < 1000)) { alert("❌ e-Money Received, Cash Received, e-Money Return, Cash Deposit ও Bank Deposit-এ ৳1,000-এর কম amount গ্রহণযোগ্য নয়।"); return; }
+      if (cashDep > 0 && totalCash !== cashDep) { alert(`❌ Cash Deposit ৳${formatBD(cashDep)} এবং Cash Note মোট ৳${formatBD(totalCash)} মিলছে না।`); return; }
+      if (totalReceived !== totalReturn) { alert(`❌ Receive ৳${formatBD(totalReceived)} এবং Return/Deposit ৳${formatBD(totalReturn)} সমান নয়। আগে হিসাব ঠিক করুন।`); return; }
+
+      // Preserve immutable identity/date, while allowing the group admin to edit the complete financial record.
+      const update = {
+        emReceived: emRec, cashReceived: cashRec, emReturn: emRet, cashDeposit: cashDep, bankDeposit: bankDep,
+        bankName, dsoReceivedList, dsoTransferList, slips, notes, totalCash,
+        dsoReceived: dsoRec, dsoTransfer: dsoTrans, updatedAt: Date.now(), updatedBy: currentUser, approvalStatus: "pending"
+      };
 
       try {
-        await database.ref('collections/' + key).update({
-          emReceived: emRec,
-          cashReceived: cashRec,
-          emReturn: emRet
-        });
-
-        await database.ref('notifications/' + targetUserId).set({
+        await database.ref('collections/' + key).update(update);
+        await database.ref('notifications/' + original.userId).set({
           unread: true,
-          message: `Admin দ্বারা আপনার ${globalAllData[key]?.date || ''} তারিখের হিসাব আপডেট করা হয়েছে।`,
+          message: `${currentUser} দ্বারা আপনার ${original.date || ''} তারিখের হিসাব সম্পূর্ণভাবে আপডেট করা হয়েছে।`,
           timestamp: Date.now()
         });
-
-        alert("হিসাব সফলভাবে আপডেট করা হয়েছে এবং DSO-কে নোটিফিকেশন পাঠানো হয়েছে!");
+        alert("✅ সম্পূর্ণ হিসাব সফলভাবে আপডেট ও Submit হয়েছে।");
         closeEditModal();
       } catch (err) {
         alert("আপডেট করতে সমস্যা হয়েছে: " + err.message);
@@ -2933,6 +3001,7 @@
     }
 
     async function deleteEntry(key) {
+      if (currentUser !== "admin") { alert("❌ Delete শুধুমাত্র Master Admin করতে পারবেন।"); return; }
       if (!globalAllData || !globalAllData[key]) return;
       let item = globalAllData[key];
       let dsoId = item.userId;
