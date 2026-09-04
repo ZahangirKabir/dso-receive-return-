@@ -99,11 +99,9 @@
     .section-box { padding: 15px; border-radius: 8px; border: 2px solid #ccc; background: #fff; }
     .section-received { border-color: #2e7d32; background-color: #f1f8e9; }
     .section-return { border-color: #c62828; background-color: #fbe9e7; }
-    .section-b2b { border-color: #0288d1; background-color: #e1f5fe; }
     .section-title { font-size: 15px; font-weight: bold; margin-bottom: 12px; padding-bottom: 5px; border-bottom: 2px solid; }
     .title-received { color: #2e7d32; border-color: #a5d6a7; }
     .title-return { color: #c62828; border-color: #ef9a9a; }
-    .title-b2b { color: #0288d1; border-color: #81d4fa; }
 
     .form-group { margin-bottom: 10px; }
     .form-group label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 12px; }
@@ -128,7 +126,7 @@
 
     #dataTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
     #dataTable thead tr:nth-child(2) th { position: sticky; top: 28px; z-index: 9; }
-    #bankDetailsTable thead tr:nth-child(1) th, #notesSummaryTable thead tr:nth-child(1) th, #b2bDetailsTable thead tr:nth-child(1) th, #dsoHistoryTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
+    #bankDetailsTable thead tr:nth-child(1) th, #notesSummaryTable thead tr:nth-child(1) th, #dsoHistoryTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
 
     .th-info { background: #37474f; color: white; }
     .th-received { background: #2e7d32; color: white; }
@@ -136,7 +134,6 @@
     .th-diff { background: #e65100; color: white; }
     .th-dso { background: #00838f; color: white; }
     .th-bank { background: #1a237e; color: white; }
-    .th-b2b { background: #0288d1; color: white; }
 
     .slip-img-preview { width: 45px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; display: inline-block; margin: 2px; cursor: pointer; transition: transform 0.2s; }
     .slip-img-preview:hover { transform: scale(1.1); }
@@ -180,7 +177,6 @@
     <div id="adminTabNav" class="tab-nav" style="display:none;">
       <button class="tab-btn active" id="tabAdminReportBtn" onclick="switchAdminTab('report')">📊 Main Report</button>
       <button class="tab-btn" id="tabAdminBankBtn" onclick="switchAdminTab('bank')">🏦 Bank Details</button>
-      <button class="tab-btn" id="tabAdminB2bBtn" onclick="switchAdminTab('b2b')">🔄 B2B Rec & Ret</button>
       <button class="tab-btn" id="tabAdminNotesBtn" onclick="switchAdminTab('notes')">💵 Note Summary</button>
       <button class="tab-btn" id="tabAdminSettingsBtn" onclick="switchAdminTab('settings')">⚙️ Settings</button>
     </div>
@@ -304,36 +300,7 @@
         </div>
       </div>
 
-      <!-- ADMIN PAGE 3: NEW B2B RECEIVE & RETURN PAGE -->
-      <div id="adminPageB2b" style="display:none;">
-        <h3 style="color:#0288d1; margin-bottom:10px;">🔄 B2B Receive & Return Detailed Report</h3>
-        
-        <!-- Summary Cards for B2B -->
-        <div class="summary-cards">
-          <div class="card green"><h3>B2B Total Received</h3><p>৳ <span id="b2bTotalRecSum">0</span></p></div>
-          <div class="card red"><h3>B2B Total Return</h3><p>৳ <span id="b2bTotalRetSum">0</span></p></div>
-          <div class="card diff"><h3>Net B2B Balance</h3><p>৳ <span id="b2bNetBalanceSum">0</span></p></div>
-        </div>
-
-        <div class="table-container">
-          <table id="b2bDetailsTable">
-            <thead>
-              <tr>
-                <th class="th-info">তারিখ</th>
-                <th class="th-info">DSO ID</th>
-                <th class="th-b2b">B2B Received Amount</th>
-                <th class="th-b2b">Received Details / Ref</th>
-                <th class="th-return">B2B Return Amount</th>
-                <th class="th-return">Return Details / Ref</th>
-                <th class="th-diff">Net Balance</th>
-              </tr>
-            </thead>
-            <tbody id="b2bDetailsTableBody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- ADMIN PAGE 4: NOTE QUANTITY PAGE -->
+      <!-- ADMIN PAGE 3: NOTE QUANTITY PAGE -->
       <div id="adminPageNotes" style="display:none;">
         <h3 style="color:#00695c; margin-bottom:10px;">💵 DSO ID ও Note অনুযায়ী ক্যাশ গণনা</h3>
         <div class="table-container">
@@ -355,7 +322,7 @@
         </div>
       </div>
 
-      <!-- ADMIN TAB 5: SETTINGS -->
+      <!-- ADMIN TAB 4: SETTINGS -->
       <div id="adminPageSettings" style="display:none;">
         <div class="section-box" style="margin-bottom: 20px; background: #e0f2f1; border-color: #00695c;">
           <div class="section-title" style="color: #004d40;">🔑 পাসওয়ার্ড ম্যানেজমেন্ট</div>
@@ -421,31 +388,9 @@
             </div>
           </div>
 
-          <!-- NEW B2B SECTION FOR DSO FORM -->
-          <div class="section-box section-b2b">
-            <div class="section-title title-b2b">🔄 ৩. B2B RECEIVE & RETURN SECTION</div>
-            <div class="form-group">
-              <label>B2B Received Amount</label>
-              <input type="text" id="b2bReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();">
-            </div>
-            <div class="form-group">
-              <label>B2B Received Details / Reference</label>
-              <input type="text" id="b2bRecDetails" placeholder="Ref/Note Details">
-            </div>
-            <hr style="margin: 10px 0; border: 0; border-top: 1px dashed #0288d1;">
-            <div class="form-group">
-              <label>B2B Return Amount</label>
-              <input type="text" id="b2bReturn" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();">
-            </div>
-            <div class="form-group">
-              <label>B2B Return Details / Reference</label>
-              <input type="text" id="b2bRetDetails" placeholder="Ref/Note Details">
-            </div>
-          </div>
-
           <!-- DENOMINATION SECTION -->
           <div class="section-box" id="cashNoteBox">
-            <div class="section-title" style="color: #37474f;">💵 ৪. ক্যাশ নোট গণনার হিসাব</div>
+            <div class="section-title" style="color: #37474f;">💵 ৩. ক্যাশ নোট গণনার হিসাব</div>
             <div class="form-group"><label>৳ 1000 ×</label><input type="number" id="note1000" class="denom" data-value="1000" placeholder="টি" oninput="calcCash()"></div>
             <div class="form-group"><label>৳ 500 ×</label><input type="number" id="note500" class="denom" data-value="500" placeholder="টি" oninput="calcCash()"></div>
             <div class="form-group"><label>৳ 200 ×</label><input type="number" id="note200" class="denom" data-value="200" placeholder="টি" oninput="calcCash()"></div>
@@ -544,13 +489,11 @@
     function switchAdminTab(tab) {
       document.getElementById("tabAdminReportBtn").classList.remove("active");
       document.getElementById("tabAdminBankBtn").classList.remove("active");
-      document.getElementById("tabAdminB2bBtn").classList.remove("active");
       document.getElementById("tabAdminNotesBtn").classList.remove("active");
       document.getElementById("tabAdminSettingsBtn").classList.remove("active");
 
       document.getElementById("adminPageReport").style.display = "none";
       document.getElementById("adminPageBank").style.display = "none";
-      document.getElementById("adminPageB2b").style.display = "none";
       document.getElementById("adminPageNotes").style.display = "none";
       document.getElementById("adminPageSettings").style.display = "none";
 
@@ -561,10 +504,6 @@
         document.getElementById("tabAdminBankBtn").classList.add("active");
         document.getElementById("adminPageBank").style.display = "block";
         renderBankDetailsTab(globalAllData);
-      } else if (tab === 'b2b') {
-        document.getElementById("tabAdminB2bBtn").classList.add("active");
-        document.getElementById("adminPageB2b").style.display = "block";
-        renderB2bDetailsTab(globalAllData);
       } else if (tab === 'notes') {
         document.getElementById("tabAdminNotesBtn").classList.add("active");
         document.getElementById("adminPageNotes").style.display = "block";
@@ -656,7 +595,6 @@
 
       renderAdminReportTable(filtered);
       renderBankDetailsTab(filtered);
-      renderB2bDetailsTab(filtered);
     }
 
     function renderAdminReportTable(data) {
@@ -701,6 +639,9 @@
       document.getElementById("totalBankDepSum").innerText = formatBD(totBank);
     }
 
+    /* =========================================================================
+       NEW FEATURE: BANK DETAILS PAGE WITH CARDS, DYNAMIC TABLE & SLIP PREVIEW
+       ========================================================================= */
     function renderBankDetailsTab(dataList) {
       if (!dataList) return;
       let list = Array.isArray(dataList) ? dataList : Object.values(dataList);
@@ -709,6 +650,7 @@
       let bankTotals = {};
       let totalBankDepositAmount = 0;
 
+      // Filter and map slips data
       list.forEach(item => {
         if (item.slips && Array.isArray(item.slips)) {
           item.slips.forEach(slip => {
@@ -725,14 +667,17 @@
 
       let activeBanks = Array.from(activeBanksSet).sort();
 
+      // 1. Render Summary Cards
       let cardsContainer = document.getElementById("bankSummaryCardsContainer");
       cardsContainer.innerHTML = "";
 
+      // Total Bank Card
       let totalCard = document.createElement("div");
       totalCard.className = "card bank-card";
       totalCard.innerHTML = `<h3>🏢 Total Banks Deposito</h3><p>৳ ${formatBD(totalBankDepositAmount)}</p>`;
       cardsContainer.appendChild(totalCard);
 
+      // Bank Wise Total Cards
       activeBanks.forEach(bName => {
         let card = document.createElement("div");
         card.className = "card green";
@@ -740,6 +685,7 @@
         cardsContainer.appendChild(card);
       });
 
+      // 2. Render Dynamic Table Header
       let thead = document.getElementById("bankDetailsTableHead");
       let headerHTML = `<tr>
         <th class="th-info">তারিখ</th>
@@ -754,6 +700,7 @@
       </tr>`;
       thead.innerHTML = headerHTML;
 
+      // 3. Render Table Body
       let tbody = document.getElementById("bankDetailsTableBody");
       tbody.innerHTML = "";
       let columnTotals = {};
@@ -800,6 +747,7 @@
         }
       });
 
+      // 4. Render Table Footer (Column Wise Total)
       let tfoot = document.getElementById("bankDetailsTableFoot");
       let footHTML = `<tr style="background:#eceff1; font-weight:bold;">
         <td colspan="2">Column Wise Total</td>`;
@@ -810,47 +758,6 @@
 
       footHTML += `<td style="color:#2e7d32;">৳ ${formatBD(grandTotal)}</td><td>-</td></tr>`;
       tfoot.innerHTML = footHTML;
-    }
-
-    /* =========================================================================
-       NEW FEATURE: B2B RECEIVE & RETURN TAB RENDER FUNCTION
-       ========================================================================= */
-    function renderB2bDetailsTab(dataList) {
-      if (!dataList) return;
-      let list = Array.isArray(dataList) ? dataList : Object.values(dataList);
-
-      let tbody = document.getElementById("b2bDetailsTableBody");
-      tbody.innerHTML = "";
-
-      let totalB2bRec = 0;
-      let totalB2bRet = 0;
-
-      list.forEach(item => {
-        let b2bRec = parseRawNumber(item.b2bReceived);
-        let b2bRet = parseRawNumber(item.b2bReturn);
-
-        if (b2bRec > 0 || b2bRet > 0) {
-          totalB2bRec += b2bRec;
-          totalB2bRet += b2bRet;
-          let netBalance = b2bRec - b2bRet;
-
-          let tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${item.date || ''}</td>
-            <td><b>DSO ${item.userId || ''}</b></td>
-            <td style="color:#0288d1; font-weight:bold;">৳ ${formatBD(b2bRec)}</td>
-            <td>${item.b2bRecDetails || '-'}</td>
-            <td style="color:#c62828; font-weight:bold;">৳ ${formatBD(b2bRet)}</td>
-            <td>${item.b2bRetDetails || '-'}</td>
-            <td style="color:${netBalance >= 0 ? '#2e7d32' : '#c62828'}; font-weight:bold;">৳ ${formatBD(netBalance)}</td>
-          `;
-          tbody.appendChild(tr);
-        }
-      });
-
-      document.getElementById("b2bTotalRecSum").innerText = formatBD(totalB2bRec);
-      document.getElementById("b2bTotalRetSum").innerText = formatBD(totalB2bRet);
-      document.getElementById("b2bNetBalanceSum").innerText = formatBD(totalB2bRec - totalB2bRet);
     }
 
     function zoomImage(url) {
