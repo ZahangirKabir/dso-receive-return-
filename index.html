@@ -216,6 +216,7 @@
     .bg-return { background-color: #ffebee !important; color: #b71c1c; }
     .bg-diff { background-color: #fff3e0 !important; color: #e65100; font-weight: bold; }
     .bg-dso-diff { background-color: #e0f7fa !important; color: #00838f; font-weight: bold; }
+    .admin-loading-row td { padding:18px !important; font-weight:800; color:#00695c; }
 
     .slip-img-preview { width: 45px; height: 45px; object-fit: cover; border-radius: 4px; border: 1px solid #00695c; display: block; margin: 0 auto; cursor: pointer; transition: transform 0.2s; }
     .slip-img-preview:hover { transform: scale(1.1); }
@@ -431,7 +432,7 @@
         </div>
         <div class="filter-group date-filter">
           <label>তারিখ নির্বাচন করুন</label>
-          <input type="date" id="filterDate" onchange="applyAdminFilters()">
+          <input type="date" id="filterDate" onchange="onAdminDateFilterChange()">
         </div>
         <div class="filter-group range-filter">
           <label>DSO Range From</label>
@@ -496,9 +497,9 @@
               <tr>
                 <th class="th-info sticky-col-1">Date</th>
                 <th class="th-info sticky-col-2">DSO ID (A-Z)</th>
-                <th class="th-received">e-Mon Rec</th>
                 <th class="th-received">Cash Rec</th>
                 <th class="th-received">DSO Rec Breakdown</th>
+                <th class="th-received">e-Money Receive</th>
                 
                 <th class="th-return">e-Mon Ret</th>
                 <th class="th-return">Cash Dep</th>
@@ -787,6 +788,31 @@
     let realtimeListenerRefs = [];
     let realtimeListenerUser = null;
 
+    // Admin performance state: Master Admin loads only the selected date by default.
+    // "month" and "all" are loaded only when explicitly requested.
+    let masterAdminDataMode = 'date';
+    let masterAdminDataToken = 0;
+    let masterAdminDataLoading = false;
+
+    function getLocalDateString(d = new Date()) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function getLocalMonthString(d = new Date()) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    function getCurrentMonthBounds() {
+      const d = new Date();
+      const start = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+      const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      const end = getLocalDateString(endDate);
+      return {start, end};
+    }
+
     function formatBD(num) {
       if (num === null || num === undefined || isNaN(num) || num === "") return "0";
       return Number(num).toLocaleString('en-IN');
@@ -934,7 +960,7 @@
           switchAdminTab('report');
           // All admins see the same compact filter bar. Group admins are restricted
           // to their assigned DSO IDs by getActiveDsoFilterSet()/populateDsoDropdown().
-          document.getElementById("filterDate").value = new Date().toISOString().split('T')[0];
+          document.getElementById("filterDate").value = getLocalDateString();
           document.getElementById("adminFilterPanel").style.display = "flex";
         } else {
           document.getElementById("portalTitle").innerText = "DSO Entry Portal (ID: " + id + ")";
@@ -2300,18 +2326,28 @@
     }
 
     async function submitData() {
-      const now = new Date();
-      const dateStr = now.toISOString().split('T')[0];
+      const dateStr = getLocalDateString();
 
-      if (globalAllData) {
-        let alreadySubmitted = Object.values(globalAllData).some(item => 
-          String(item.userId) === String(currentUser) && item.date === dateStr
-        );
-
+      // Do not depend on globalAllData for duplicate protection. Admin data may be
+      // date-scoped, and DSO data may be a limited query. Check today's records
+      // directly, then let the actual write be the final source of truth.
+      try {
+        const todaySnap = await database.ref('collections')
+          .orderByChild('date')
+          .equalTo(dateStr)
+          .once('value');
+        const todayData = todaySnap.val() || {};
+        const alreadySubmitted = Object.keys(todayData).some(key => {
+          const item = todayData[key] || {};
+          return String(item.userId) === String(currentUser);
+        });
         if (alreadySubmitted) {
           alert("⚠️ আপনি আজকের (" + dateStr + ") হিসাব ইতিমধ্যে সাবমিট করেছেন। একই দিনে একাধিকবার হিসাব সাবমিট করা যাবে না।");
           return;
         }
+      } catch (duplicateErr) {
+        // A temporary read/index problem must not incorrectly block a valid DSO.
+        console.warn("Duplicate check could not be completed:", duplicateErr);
       }
 
       const minimumBad = validateMainAmountMinimums();
@@ -2510,7 +2546,7 @@
       realtimeListenerAttached = true;
       realtimeListenerUser = currentUser;
 
-      // DSO users only download their own records instead of the complete collections tree.
+      // DSO users only download their own records.
       if (currentUser && !isGroupAdmin(currentUser) && currentUser !== "admin") {
         const ref = database.ref('collections').orderByChild('userId').equalTo(String(currentUser));
         attachRealtimeValueListener(ref, snapshot => {
@@ -2520,7 +2556,7 @@
         return;
       }
 
-      // Group admins only download their assigned DSO records.
+      // Group Admins only download their assigned DSO records.
       if (isGroupAdmin(currentUser)) {
         globalAllData = {};
         const assigned = Array.from(SUB_ADMIN_GROUPS[currentUser] || []).map(String);
@@ -2537,14 +2573,62 @@
         return;
       }
 
-      // Master Admin retains the complete realtime dataset and all existing functionality.
-      const ref = database.ref('collections');
-      attachRealtimeValueListener(ref, snapshot => {
+      // Master Admin: DO NOT download the entire collections tree on login.
+      // Load only the selected date. Full history is available through "All Data".
+      masterAdminDataMode = 'date';
+      loadMasterAdminData('date', getLocalDateString());
+    }
+
+    function loadMasterAdminData(mode = 'date', selectedDate = '') {
+      if (currentUser !== 'admin') return;
+
+      const token = ++masterAdminDataToken;
+      masterAdminDataMode = mode;
+      masterAdminDataLoading = true;
+
+      let queryRef = database.ref('collections');
+
+      if (mode === 'date') {
+        const dateValue = selectedDate || getLocalDateString();
+        queryRef = queryRef.orderByChild('date').equalTo(dateValue);
+      } else if (mode === 'month') {
+        const bounds = getCurrentMonthBounds();
+        queryRef = queryRef.orderByChild('date').startAt(bounds.start).endAt(bounds.end);
+      }
+      // mode === 'all' intentionally uses the complete collections node.
+
+      // Show a lightweight loading state immediately; do not freeze the page.
+      if (activeAdminTab === 'report') {
+        const tbody = document.getElementById('adminTableBody');
+        if (tbody) tbody.innerHTML = `<tr><td colspan="18" style="text-align:center;padding:18px;font-weight:bold;color:#00695c;">⏳ ডাটা লোড হচ্ছে...</td></tr>`;
+      }
+
+      queryRef.once('value').then(snapshot => {
+        if (token !== masterAdminDataToken || currentUser !== 'admin') return;
         globalAllData = snapshot.val() || {};
+        masterAdminDataLoading = false;
         scheduleDataUiUpdate();
+      }).catch(err => {
+        if (token !== masterAdminDataToken || currentUser !== 'admin') return;
+        masterAdminDataLoading = false;
+        globalAllData = {};
+        if (activeAdminTab === 'report') {
+          const tbody = document.getElementById('adminTableBody');
+          if (tbody) tbody.innerHTML = `<tr><td colspan="18" style="text-align:center;padding:18px;font-weight:bold;color:#c62828;">❌ ডাটা লোড করতে সমস্যা হয়েছে। ${escapeHtml(err.message || 'Unknown error')}</td></tr>`;
+          updateSummaryCards(0,0,0,0,0,0,0,0,0);
+        }
+        console.error('Master Admin data load failed:', err);
       });
     }
 
+    function onAdminDateFilterChange() {
+      if (currentUser === 'admin') {
+        const dateValue = document.getElementById('filterDate')?.value || getLocalDateString();
+        loadMasterAdminData('date', dateValue);
+      } else {
+        applyAdminFilters(true);
+      }
+    }
 
     async function checkDsoNotifications() {
       if (!currentUser || currentUser === "admin" || isGroupAdmin(currentUser)) return;
@@ -2816,6 +2900,7 @@
     }
 
     function applyAdminFilters(immediate=false, fromRealtime=false) {
+      if (currentUser === 'admin' && masterAdminDataLoading) return;
       if (!globalAllData) {
         if (activeAdminTab === 'report') {
           renderMissingDsoList(new Set(), getActiveDsoFilterSet());
@@ -2849,9 +2934,14 @@
     }
 
     function filterThisMonth() {
+      if (currentUser === 'admin') {
+        document.getElementById("filterDate").value = "";
+        loadMasterAdminData('month');
+        return;
+      }
       if (!globalAllData) return;
       document.getElementById("filterDate").value = "";
-      const currentMonth = new Date().toISOString().slice(0, 7);
+      const currentMonth = getLocalMonthString();
       const activeDsos = getActiveDsoFilterSet();
       const filteredData = {};
       const submittedDsoSet = new Set();
@@ -2871,11 +2961,15 @@
     }
 
     function filterAllData() {
+      if (currentUser === 'admin') {
+        document.getElementById("filterDate").value = "";
+        loadMasterAdminData('all');
+        return;
+      }
       if (!globalAllData) return;
       document.getElementById("filterDate").value = "";
       applyAdminFilters(true);
     }
-
 
     function renderMissingDsoList(submittedSet, activeDsoSet = null) {
       const activeDsos = activeDsoSet || getActiveDsoFilterSet();
@@ -2914,7 +3008,7 @@
     }
 
     function resetAdminFilters() {
-      let today = new Date().toISOString().split('T')[0];
+      let today = getLocalDateString();
       document.getElementById("filterDate").value = today;
       document.getElementById("filterDsoStart").value = "801";
       document.getElementById("filterDsoEnd").value = "845";
@@ -2922,7 +3016,11 @@
       if (adminFilter) adminFilter.value = "";
       document.querySelectorAll(".dso-chk").forEach(chk => chk.checked = false);
       updateDsoDropdownText();
-      applyAdminFilters();
+      if (currentUser === 'admin') {
+        loadMasterAdminData('date', today);
+      } else {
+        applyAdminFilters();
+      }
     }
 
     function updateSummaryCards(count, totalRecSum, totalRetSum, totalDiffSum, totalDsoRecSum, totalDsoTransSum, totalDsoDiffSum, totalBankDepSum, totalSlipOcrSum) {
@@ -2952,11 +3050,14 @@
         return;
       }
 
-      let sortedKeys = Object.keys(data).sort((a, b) => {
-        let idA = String(data[a].userId || '');
-        let idB = String(data[b].userId || '');
-        return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+      let sortedKeys = Object.keys(data);
+      sortedKeys.sort((a, b) => {
+        const idA = Number(data[a]?.userId);
+        const idB = Number(data[b]?.userId);
+        if (Number.isFinite(idA) && Number.isFinite(idB)) return idA - idB;
+        return String(data[a]?.userId || '').localeCompare(String(data[b]?.userId || ''));
       });
+      const fragment = document.createDocumentFragment();
 
       sortedKeys.forEach(key => {
         let item = data[key];
@@ -3024,9 +3125,9 @@
         tr.innerHTML = `
           <td class="sticky-col-1">${item.date || '-'}</td>
           <td class="sticky-col-2"><strong>DSO ${item.userId || '-'}</strong></td>
-          <td>৳ ${formatBD(emRec)}</td>
           <td>৳ ${formatBD(cashRec)}</td>
           <td style="text-align: left;">${dsoRecText || '-'}</td>
+          <td class="bg-received">৳ ${formatBD(emRec)}</td>
           
           <td>৳ ${formatBD(emRet)}</td>
           <td>৳ ${formatBD(cashDep)}</td>
@@ -3045,16 +3146,18 @@
           <td>${statusBadge}</td>
           <td style="white-space: nowrap;">${actionButtons}</td>
         `;
-        tbody.appendChild(tr);
+        fragment.appendChild(tr);
       });
+
+      tbody.appendChild(fragment);
 
       let tfootRow = document.createElement("tr");
       tfootRow.style.fontWeight = "bold"; tfootRow.style.background = "#eceff1";
       tfootRow.innerHTML = `
         <td colspan="2" class="sticky-col-1" style="text-align:center;">TOTAL SUMMARY</td>
-        <td>৳ ${formatBD(sumEmRec)}</td>
         <td>৳ ${formatBD(sumCashRec)}</td>
         <td style="color:#00838f;">৳ ${formatBD(totalDsoRecSum)}</td>
+        <td class="bg-received">৳ ${formatBD(sumEmRec)}</td>
         <td>৳ ${formatBD(sumEmRet)}</td>
         <td>৳ ${formatBD(sumCashDep)}</td>
         <td>৳ ${formatBD(totalBankDepSum)}</td>
