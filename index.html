@@ -3289,7 +3289,7 @@
       const dsoRec = Array.isArray(original.dsoReceivedList) ? original.dsoReceivedList.reduce((s,x)=>s+(Number(x?.amount)||0),0) : (Number(original.dsoReceived)||0);
       const dsoTrans = Array.isArray(original.dsoTransferList) ? original.dsoTransferList.reduce((s,x)=>s+(Number(x?.amount)||0),0) : (Number(original.dsoTransfer)||0);
       const totalReceived = values.emReceived + values.cashReceived + dsoRec;
-      const totalReturn = values.emReturn + values.cashDeposit + values.bankDeposit + dsoTrans;
+      const totalReturn = values.emReturn + (Number(original.cashDeposit) || 0) + values.bankDeposit + dsoTrans;
       if (totalReceived !== totalReturn) {
         alert(`❌ Receive ৳${formatBD(totalReceived)} এবং Return/Deposit ৳${formatBD(totalReturn)} সমান নয়। হিসাব ঠিক করে Update করুন।`); return;
       }
