@@ -2325,7 +2325,22 @@
       });
     }
 
+    let submitInProgress = false;
+
     async function submitData() {
+      if (submitInProgress) {
+        alert("⏳ হিসাব সাবমিট প্রক্রিয়া চলছে। অনুগ্রহ করে অপেক্ষা করুন।");
+        return;
+      }
+
+      const submitBtn = document.getElementById("subBtn");
+      submitInProgress = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.dataset.originalText = submitBtn.dataset.originalText || submitBtn.innerText;
+        submitBtn.innerText = "⏳ Submitting...";
+      }
+
       const dateStr = getLocalDateString();
 
       // Do not depend on globalAllData for duplicate protection. Admin data may be
@@ -2471,6 +2486,7 @@
       } catch (err) {
         alert("ডাটা সেভ হয়নি! কারণ: " + err.message);
       } finally {
+        submitInProgress = false;
         subBtn.innerText = "Submit Data";
         // Re-run the full validation instead of blindly enabling Submit.
         // This prevents a successful reset or any validation error from
