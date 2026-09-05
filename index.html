@@ -499,9 +499,9 @@
                 <th class="th-info sticky-col-2">DSO ID (A-Z)</th>
                 <th class="th-received">Cash Rec</th>
                 <th class="th-received">DSO Rec Breakdown</th>
-                <th class="th-received">e-Money Receive</th>
+                <th class="th-received">B2B Receive</th>
                 
-                <th class="th-return">e-Mon Ret</th>
+                <th class="th-return">B2B Ret</th>
                 <th class="th-return">Cash Dep</th>
                 <th class="th-return">Bank Dep</th>
                 <th class="th-return">DSO Trans Breakdown</th>
@@ -612,7 +612,7 @@
           <!-- RECEIVED SECTION -->
           <div class="section-box section-received">
             <div class="section-title title-received">📥 ১. RECEIVED SECTION</div>
-            <div class="form-group"><label>e-Money Received</label><input type="text" id="emReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
+            <div class="form-group"><label>B2B Received</label><input type="text" id="emReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
             <div class="form-group"><label>Cash Received</label><input type="text" id="cashReceived" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
             
             <div class="form-group">
@@ -629,7 +629,7 @@
           <!-- RETURN SECTION -->
           <div class="section-box section-return">
             <div class="section-title title-return">📤 ২. RETURN SECTION</div>
-            <div class="form-group"><label>e-Money Return</label><input type="text" id="emReturn" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
+            <div class="form-group"><label>B2B Return</label><input type="text" id="emReturn" class="amt-field" oninput="handleAmountInput(this); calcFormTotals();"></div>
             
             <div class="form-group">
               <label style="color:#c62828;">Cash Deposit (ক্যাশ ডিপোজিট)</label>
@@ -692,11 +692,13 @@
       <!-- DSO TAB 2: HISTORY & REPORT -->
       <div id="dsoPageReport" style="display:none;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
-          <h3>আমার পূর্বের জমা হিসাব (My History & Report)</h3>
-          <div style="display:flex; gap:6px; align-items:center;">
+          <h3 id="dsoHistoryTitle">আমার পূর্বের জমা হিসাব (My History & Report)</h3>
+          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
             <label style="font-size:11px; font-weight:bold; color:#004d40;">তারিখ:</label>
-            <input type="date" id="dsoHistoryDateFilter" onchange="renderDsoHistory(globalAllData)" style="padding:4px; border:1px solid #004d40; border-radius:4px; font-size:12px;">
-            <button class="btn-reset" onclick="document.getElementById('dsoHistoryDateFilter').value=''; renderDsoHistory(globalAllData);">🔄 Reset</button>
+            <input type="date" id="dsoHistoryDateFilter" onchange="renderDsoHistory(globalAllData)" style="padding:6px 7px; border:1px solid #004d40; border-radius:4px; font-size:12px;">
+            <button type="button" class="btn-reset" onclick="setDsoHistoryToday()">📅 আজ</button>
+            <button type="button" class="btn-reset" onclick="setDsoHistoryThisMonth()">🗓️ এই মাস</button>
+            <button type="button" class="btn-reset" onclick="resetDsoHistoryFilter()">🔄 সকল</button>
           </div>
         </div>
 
@@ -746,9 +748,9 @@
         <input type="hidden" id="editUserId">
         <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#2e7d32;font-weight:700;">✏️ Master Admin শুধু এই ৪টি Amount পরিবর্তন করতে পারবেন। অন্য সব তথ্য অপরিবর্তিত থাকবে।</div>
         <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
-          <div class="form-group"><label>e-Money Received</label><input type="text" id="editEmReceived" class="amt-field" oninput="handleAmountInput(this)"></div>
+          <div class="form-group"><label>B2B Received</label><input type="text" id="editEmReceived" class="amt-field" oninput="handleAmountInput(this)"></div>
           <div class="form-group"><label>Cash Received</label><input type="text" id="editCashReceived" class="amt-field" oninput="handleAmountInput(this)"></div>
-          <div class="form-group"><label>e-Money Return</label><input type="text" id="editEmReturn" class="amt-field" oninput="handleAmountInput(this)"></div>
+          <div class="form-group"><label>B2B Return</label><input type="text" id="editEmReturn" class="amt-field" oninput="handleAmountInput(this)"></div>
           <div class="form-group" style="grid-column:1/-1;"><label>Bank Deposit Amount</label><input type="text" id="editBankDeposit" class="amt-field" oninput="handleAmountInput(this)"></div>
         </div>
         <div id="editChangePreview" style="margin-top:4px;background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:10px;font-size:12px;line-height:1.7;">পরিবর্তনগুলো এখানে দেখা যাবে।</div>
@@ -909,8 +911,12 @@
     const SUB_ADMIN_PASSWORD = "1234";
     function isGroupAdmin(id) { return Object.prototype.hasOwnProperty.call(SUB_ADMIN_GROUPS, String(id)); }
     function allowedDsoForCurrentUser(dsoId) {
-      if (currentUser === "admin") return true;
-      if (isGroupAdmin(currentUser)) return SUB_ADMIN_GROUPS[currentUser].has(String(dsoId));
+      const viewer = String(currentUser || "").trim();
+      const target = String(dsoId || "").trim();
+      if (viewer === "admin") return true;
+      if (isGroupAdmin(viewer)) return SUB_ADMIN_GROUPS[viewer].has(target);
+      // A normal DSO can view/filter only their own submitted history and details.
+      if (/^\d+$/.test(viewer)) return viewer === target;
       return false;
     }
 
@@ -964,6 +970,8 @@
           document.getElementById("adminFilterPanel").style.display = "flex";
         } else {
           document.getElementById("portalTitle").innerText = "DSO Entry Portal (ID: " + id + ")";
+          const dsoHistoryTitle = document.getElementById("dsoHistoryTitle");
+          if (dsoHistoryTitle) dsoHistoryTitle.innerText = "আমার পূর্বের জমা হিসাব (My History & Report) — DSO " + id;
           document.getElementById("dsoView").style.display = "block";
           document.getElementById("dsoTabNav").style.display = "flex";
           document.getElementById("adminView").style.display = "none";
@@ -2228,7 +2236,7 @@
 
       const minimumBad = validateMainAmountMinimums();
       if(minimumBad.length){
-        diffMsgBox.innerHTML = `<p class="note-warning">❌ e-Money Received, Cash Received ও Bank Amount-এ ৳1,000-এর কম amount গ্রহণযোগ্য নয়। Submit বন্ধ।</p>`;
+        diffMsgBox.innerHTML = `<p class="note-warning">❌ B2B Received, Cash Received ও Bank Amount-এ ৳1,000-এর কম amount গ্রহণযোগ্য নয়। Submit বন্ধ।</p>`;
         isDiffValid = false;
       }
 
@@ -2325,22 +2333,7 @@
       });
     }
 
-    let submitInProgress = false;
-
     async function submitData() {
-      if (submitInProgress) {
-        alert("⏳ হিসাব সাবমিট প্রক্রিয়া চলছে। অনুগ্রহ করে অপেক্ষা করুন।");
-        return;
-      }
-
-      const submitBtn = document.getElementById("subBtn");
-      submitInProgress = true;
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.dataset.originalText = submitBtn.dataset.originalText || submitBtn.innerText;
-        submitBtn.innerText = "⏳ Submitting...";
-      }
-
       const dateStr = getLocalDateString();
 
       // Do not depend on globalAllData for duplicate protection. Admin data may be
@@ -2366,7 +2359,7 @@
       }
 
       const minimumBad = validateMainAmountMinimums();
-      if(minimumBad.length){ alert("❌ e-Money Received, Cash Received ও Bank Amount-এ ৩ digit amount গ্রহণযোগ্য নয়। ন্যূনতম ৳1,000 দিন।"); validateFormAndSubmitBtn(); return; }
+      if(minimumBad.length){ alert("❌ B2B Received, Cash Received ও Bank Amount-এ ৩ digit amount গ্রহণযোগ্য নয়। ন্যূনতম ৳1,000 দিন।"); validateFormAndSubmitBtn(); return; }
 
       let bankDepositVal = parseRawNumber(document.getElementById("bankDeposit").value);
       if (bankDepositVal < 0) {
@@ -2486,7 +2479,6 @@
       } catch (err) {
         alert("ডাটা সেভ হয়নি! কারণ: " + err.message);
       } finally {
-        submitInProgress = false;
         subBtn.innerText = "Submit Data";
         // Re-run the full validation instead of blindly enabling Submit.
         // This prevents a successful reset or any validation error from
@@ -2669,6 +2661,29 @@
       } catch(e){}
     }
 
+    let dsoHistoryMonthFilter = "";
+
+    function setDsoHistoryToday() {
+      dsoHistoryMonthFilter = "";
+      const el = document.getElementById("dsoHistoryDateFilter");
+      if (el) el.value = getLocalDateString();
+      renderDsoHistory(globalAllData);
+    }
+
+    function setDsoHistoryThisMonth() {
+      dsoHistoryMonthFilter = getLocalMonthString();
+      const el = document.getElementById("dsoHistoryDateFilter");
+      if (el) el.value = "";
+      renderDsoHistory(globalAllData);
+    }
+
+    function resetDsoHistoryFilter() {
+      dsoHistoryMonthFilter = "";
+      const el = document.getElementById("dsoHistoryDateFilter");
+      if (el) el.value = "";
+      renderDsoHistory(globalAllData);
+    }
+
     function renderDsoHistory(data) {
       const tbody = document.getElementById("dsoHistoryBody");
       if (!tbody) return;
@@ -2686,7 +2701,10 @@
         .filter(item => String(item.userId) === String(currentUser));
 
       if (dateFilter) {
+        dsoHistoryMonthFilter = "";
         userEntries = userEntries.filter(item => item.date === dateFilter);
+      } else if (dsoHistoryMonthFilter) {
+        userEntries = userEntries.filter(item => String(item.date || "").startsWith(dsoHistoryMonthFilter));
       }
 
       userEntries.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
@@ -3227,9 +3245,9 @@
       const box = document.getElementById("editChangePreview");
       if (!original || !box) return;
       const fields = [
-        ["e-Money Received","editEmReceived","emReceived"],
+        ["B2B Received","editEmReceived","emReceived"],
         ["Cash Received","editCashReceived","cashReceived"],
-        ["e-Money Return","editEmReturn","emReturn"],
+        ["B2B Return","editEmReturn","emReturn"],
         ["Bank Deposit","editBankDeposit","bankDeposit"]
       ];
       const changes = fields.map(([label,id,prop]) => {
@@ -3259,7 +3277,7 @@
         bankDeposit: parseRawNumber(document.getElementById("editBankDeposit").value)
       };
 
-      const labels = { emReceived:"e-Money Received", cashReceived:"Cash Received", emReturn:"e-Money Return", bankDeposit:"Bank Deposit" };
+      const labels = { emReceived:"B2B Received", cashReceived:"Cash Received", emReturn:"B2B Return", bankDeposit:"Bank Deposit" };
       const changed = Object.keys(values).filter(k => (Number(original[k]) || 0) !== values[k]);
       if (!changed.length) { alert("কোনো পরিবর্তন করা হয়নি।"); return; }
 
@@ -3611,7 +3629,7 @@
       body.innerHTML = `
         <div class="detail-section">
           <h4>📥 Received Details</h4>
-          <div class="detail-row"><span>e-Money Received:</span><strong>৳ ${formatBD(emRec)}</strong></div>
+          <div class="detail-row"><span>B2B Received:</span><strong>৳ ${formatBD(emRec)}</strong></div>
           <div class="detail-row"><span>Cash Received:</span><strong>৳ ${formatBD(cashRec)}</strong></div>
           ${dsoRecHtml}
           <div class="detail-row" style="border-top:1px solid #ccc; padding-top:4px; margin-top:4px;">
@@ -3622,7 +3640,7 @@
 
         <div class="detail-section">
           <h4>📤 Return Details</h4>
-          <div class="detail-row"><span>e-Money Return:</span><strong>৳ ${formatBD(emRet)}</strong></div>
+          <div class="detail-row"><span>B2B Return:</span><strong>৳ ${formatBD(emRet)}</strong></div>
           <div class="detail-row"><span>Cash Deposit:</span><strong>৳ ${formatBD(cashDep)}</strong></div>
           <div class="detail-row"><span>Bank Deposit Total:</span><strong>৳ ${formatBD(bankDep)}</strong></div>
           ${dsoTransHtml}
@@ -3718,11 +3736,11 @@
           exportRows.push({
             "Date": item.date || "",
             "DSO ID": item.userId || "",
-            "e-Money Received": emRec,
+            "B2B Received": emRec,
             "Cash Received": cashRec,
             "DSO Received Total": dsoRecSum,
             "Total Received": totalRec,
-            "e-Money Return": emRet,
+            "B2B Return": emRet,
             "Cash Deposit": cashDep,
             "Bank Deposit": bankDep,
             "Bank Name": item.bankName || "",
