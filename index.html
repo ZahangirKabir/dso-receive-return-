@@ -367,6 +367,20 @@
     }
 
   
+    /* ===== PERFORMANCE + STICKY PORTAL HEADER ===== */
+    .portal-sticky-top{
+      position:sticky; top:0; z-index:900;
+      background:#fff; padding-top:2px; margin-bottom:10px;
+      box-shadow:0 3px 12px rgba(0,0,0,.08);
+    }
+    .portal-sticky-top .header-bar{margin-bottom:6px;}
+    .portal-sticky-top .tab-nav{margin-bottom:0; background:#fff; padding-bottom:2px;}
+    .admin-filter-admin{display:none;}
+    #adminFilterPanel.master-admin-filter .admin-filter-admin{display:flex;}
+    @media(max-width:760px){
+      .portal-sticky-top{margin-left:-10px;margin-right:-10px;padding-left:10px;padding-right:10px;}
+    }
+
     /* OCR is intentionally silent: processing/result diagnostics are hidden. */
     .ocr-status, .ocr-result-box { display:none !important; }
 </style>
@@ -383,23 +397,25 @@
 
   <!-- APP MAIN CONTAINER -->
   <div id="appContainer" class="container" style="display: none;">
-    <div class="header-bar">
-      <h2 id="portalTitle">Collection Portal</h2>
-      <button class="btn btn-logout" onclick="logout()">Logout</button>
-    </div>
+    <div class="portal-sticky-top">
+      <div class="header-bar">
+        <h2 id="portalTitle">Collection Portal</h2>
+        <button class="btn btn-logout" onclick="logout()">Logout</button>
+      </div>
 
-    <!-- ADMIN PANEL NAVIGATION -->
-    <div id="adminTabNav" class="tab-nav" style="display:none;">
-      <button class="tab-btn active" id="tabAdminReportBtn" onclick="switchAdminTab('report')">📊 Main Report</button>
-      <button class="tab-btn" id="tabAdminBankBtn" onclick="switchAdminTab('bank')">🏦 Bank Details</button>
-      <button class="tab-btn" id="tabAdminNotesBtn" onclick="switchAdminTab('notes')">💵 Note Summary</button>
-      <button class="tab-btn" id="tabAdminSettingsBtn" onclick="switchAdminTab('settings')">⚙️ Settings</button>
-    </div>
+      <!-- ADMIN PANEL NAVIGATION -->
+      <div id="adminTabNav" class="tab-nav" style="display:none;">
+        <button class="tab-btn active" id="tabAdminReportBtn" onclick="switchAdminTab('report')">📊 Main Report</button>
+        <button class="tab-btn" id="tabAdminBankBtn" onclick="switchAdminTab('bank')">🏦 Bank Details</button>
+        <button class="tab-btn" id="tabAdminNotesBtn" onclick="switchAdminTab('notes')">💵 Note Summary</button>
+        <button class="tab-btn" id="tabAdminSettingsBtn" onclick="switchAdminTab('settings')">⚙️ Settings</button>
+      </div>
 
-    <!-- DSO PANEL NAVIGATION -->
-    <div id="dsoTabNav" class="tab-nav" style="display:none;">
-      <button class="tab-btn active" id="tabDsoFormBtn" onclick="switchDsoTab('form')">📝 দিনের রিপোর্ট</button>
-      <button class="tab-btn" id="tabDsoReportBtn" onclick="switchDsoTab('report')">📁 আমার রিপোর্ট ও ইতিহাস (My Reports)</button>
+      <!-- DSO PANEL NAVIGATION -->
+      <div id="dsoTabNav" class="tab-nav" style="display:none;">
+        <button class="tab-btn active" id="tabDsoFormBtn" onclick="switchDsoTab('form')">📝 দিনের রিপোর্ট</button>
+        <button class="tab-btn" id="tabDsoReportBtn" onclick="switchDsoTab('report')">📁 আমার রিপোর্ট ও ইতিহাস (My Reports)</button>
+      </div>
     </div>
 
     <!-- ADMIN VIEW -->
@@ -407,6 +423,12 @@
       
       <!-- GLOBAL FILTER PANEL WITH CHECKBOX MULTI-SELECT DSO -->
       <div class="filter-panel" id="adminFilterPanel">
+        <div class="filter-group admin-filter-admin">
+          <label>Admin নির্বাচন করুন</label>
+          <select id="filterAdmin" onchange="applyAdminFilters()">
+            <option value="">All Admins</option>
+          </select>
+        </div>
         <div class="filter-group date-filter">
           <label>তারিখ নির্বাচন করুন</label>
           <input type="date" id="filterDate" onchange="applyAdminFilters()">
@@ -760,6 +782,10 @@
     let currentUser = null;
     let globalAllData = null;
     let slipCounter = 0;
+    let activeAdminTab = 'report';
+    let adminRenderTimer = null;
+    let realtimeListenerRefs = [];
+    let realtimeListenerUser = null;
 
     function formatBD(num) {
       if (num === null || num === undefined || isNaN(num) || num === "") return "0";
@@ -789,30 +815,25 @@
     }
 
     function switchAdminTab(tab) {
-      document.getElementById("tabAdminReportBtn").classList.remove("active");
-      document.getElementById("tabAdminBankBtn").classList.remove("active");
-      document.getElementById("tabAdminNotesBtn").classList.remove("active");
-      document.getElementById("tabAdminSettingsBtn").classList.remove("active");
-
-      document.getElementById("adminPageReport").style.display = "none";
-      document.getElementById("adminPageBank").style.display = "none";
-      document.getElementById("adminPageNotes").style.display = "none";
-      document.getElementById("adminPageSettings").style.display = "none";
-
-      if (tab === 'report') {
-        document.getElementById("tabAdminReportBtn").classList.add("active");
-        document.getElementById("adminPageReport").style.display = "block";
-      } else if (tab === 'bank') {
-        document.getElementById("tabAdminBankBtn").classList.add("active");
-        document.getElementById("adminPageBank").style.display = "block";
-      } else if (tab === 'notes') {
-        document.getElementById("tabAdminNotesBtn").classList.add("active");
-        document.getElementById("adminPageNotes").style.display = "block";
-      } else {
-        document.getElementById("tabAdminSettingsBtn").classList.add("active");
-        document.getElementById("adminPageSettings").style.display = "block";
-      }
+      activeAdminTab = tab;
+      ["report","bank","notes","settings"].forEach(t => {
+        const btn = document.getElementById("tabAdmin" + t.charAt(0).toUpperCase() + t.slice(1) + "Btn");
+        const page = document.getElementById("adminPage" + t.charAt(0).toUpperCase() + t.slice(1));
+        if (btn) btn.classList.toggle("active", t === tab);
+        if (page) page.style.display = t === tab ? "block" : "none";
+      });
+      if (tab !== 'settings') applyAdminFilters(true);
     }
+
+    function scheduleAdminRender(immediate=false) {
+      if (adminRenderTimer) clearTimeout(adminRenderTimer);
+      const run = () => {
+        adminRenderTimer = null;
+        applyAdminFilters(false, true);
+      };
+      if (immediate) run(); else adminRenderTimer = setTimeout(run, 50);
+    }
+
 
     function switchDsoTab(tab) {
       document.getElementById("tabDsoFormBtn").classList.remove("active");
@@ -904,6 +925,7 @@
           document.getElementById("adminView").style.display = "block";
           document.getElementById("adminTabNav").style.display = "flex";
           document.getElementById("adminFilterPanel").classList.toggle("group-admin-filter", isGroupAdmin(id));
+          document.getElementById("adminFilterPanel").classList.toggle("master-admin-filter", id === "admin");
           document.getElementById("tabAdminSettingsBtn").style.display = id === "admin" ? "inline-block" : "none";
           document.getElementById("tabAdminBankBtn").style.display = isGroupAdmin(id) ? "none" : "inline-block";
           document.getElementById("tabAdminNotesBtn").style.display = isGroupAdmin(id) ? "none" : "inline-block";
@@ -967,7 +989,7 @@
       } catch (err) { alert("পাসওয়ার্ড সেভ করা যায়নি: " + err.message); }
     }
 
-    function logout() { location.reload(); }
+    function logout() { detachRealtimeDataListeners(); location.reload(); }
 
     function addDsoReceivedRow() {
       const container = document.getElementById("dsoReceivedContainer");
@@ -2406,7 +2428,8 @@
           timestamp: Date.now()
         };
 
-        await database.ref('collections').push().set(payload);
+        const newCollectionRef = database.ref('collections').push();
+        await newCollectionRef.set(payload);
         alert("ডাটা সফলভাবে সেভ হয়েছে! (Approval Pending)");
         resetForm();
       } catch (err) {
@@ -2453,20 +2476,75 @@
     }
 
     let realtimeListenerAttached = false;
+    let groupQueryData = {};
+
+    function detachRealtimeDataListeners() {
+      realtimeListenerRefs.forEach(refInfo => {
+        try { refInfo.ref.off('value', refInfo.handler); } catch(e) {}
+      });
+      realtimeListenerRefs = [];
+      realtimeListenerAttached = false;
+      realtimeListenerUser = null;
+      groupQueryData = {};
+    }
+
+    function attachRealtimeValueListener(ref, handler) {
+      ref.on('value', handler);
+      realtimeListenerRefs.push({ref, handler});
+    }
+
+    function scheduleDataUiUpdate() {
+      if (currentUser === "admin" || isGroupAdmin(currentUser)) {
+        populateDsoDropdown(globalAllData);
+        populateAdminFilter();
+        scheduleAdminRender();
+      } else {
+        renderDsoHistory(globalAllData);
+        checkDsoNotifications();
+      }
+    }
+
     function listenRealtimeData() {
-      if (realtimeListenerAttached) return;
+      if (realtimeListenerAttached && realtimeListenerUser === currentUser) return;
+      detachRealtimeDataListeners();
       realtimeListenerAttached = true;
-      database.ref('collections').on('value', (snapshot) => {
-        globalAllData = snapshot.val();
-        if (currentUser === "admin" || isGroupAdmin(currentUser)) {
-          populateDsoDropdown(globalAllData);
-          applyAdminFilters();
-        } else {
-          renderDsoHistory(globalAllData);
-          checkDsoNotifications();
-        }
+      realtimeListenerUser = currentUser;
+
+      // DSO users only download their own records instead of the complete collections tree.
+      if (currentUser && !isGroupAdmin(currentUser) && currentUser !== "admin") {
+        const ref = database.ref('collections').orderByChild('userId').equalTo(String(currentUser));
+        attachRealtimeValueListener(ref, snapshot => {
+          globalAllData = snapshot.val() || {};
+          scheduleDataUiUpdate();
+        });
+        return;
+      }
+
+      // Group admins only download their assigned DSO records.
+      if (isGroupAdmin(currentUser)) {
+        globalAllData = {};
+        const assigned = Array.from(SUB_ADMIN_GROUPS[currentUser] || []).map(String);
+        assigned.forEach(dsoId => {
+          const ref = database.ref('collections').orderByChild('userId').equalTo(dsoId);
+          attachRealtimeValueListener(ref, snapshot => {
+            groupQueryData[dsoId] = snapshot.val() || {};
+            const merged = {};
+            Object.keys(groupQueryData).forEach(id => Object.assign(merged, groupQueryData[id]));
+            globalAllData = merged;
+            scheduleDataUiUpdate();
+          });
+        });
+        return;
+      }
+
+      // Master Admin retains the complete realtime dataset and all existing functionality.
+      const ref = database.ref('collections');
+      attachRealtimeValueListener(ref, snapshot => {
+        globalAllData = snapshot.val() || {};
+        scheduleDataUiUpdate();
       });
     }
+
 
     async function checkDsoNotifications() {
       if (!currentUser || currentUser === "admin" || isGroupAdmin(currentUser)) return;
@@ -2616,6 +2694,28 @@
       updateDsoDropdownText();
     }
 
+    function populateAdminFilter() {
+      const select = document.getElementById("filterAdmin");
+      if (!select) return;
+      const current = select.value;
+      const opts = [
+        ["", "All Admins"],
+        ["admin", "Master Admin"]
+      ];
+      Object.keys(SUB_ADMIN_GROUPS).forEach(id => {
+        const label = id.replace(/^admin/, "Admin ");
+        opts.push([id, label]);
+      });
+      select.innerHTML = opts.map(([v,l]) => `<option value="${escapeHtml(v)}">${escapeHtml(l)}</option>`).join("");
+      if (opts.some(([v]) => v === current)) select.value = current;
+    }
+
+    function getSelectedAdminGroup() {
+      const el = document.getElementById("filterAdmin");
+      if (!el || currentUser !== "admin") return "";
+      return el.value || "";
+    }
+
     function getSelectedDsoValues() {
       return Array.from(document.querySelectorAll(".dso-chk:checked")).map(chk => chk.value);
     }
@@ -2671,10 +2771,13 @@
     });
 
     function getActiveDsoFilterSet() {
+      const adminGroup = getSelectedAdminGroup();
+      if (adminGroup && adminGroup !== "admin" && SUB_ADMIN_GROUPS[adminGroup]) {
+        return new Set(Array.from(SUB_ADMIN_GROUPS[adminGroup]).map(String));
+      }
       if (isGroupAdmin(currentUser)) {
-        const assigned = new Set(SUB_ADMIN_GROUPS[currentUser]);
+        const assigned = new Set(Array.from(SUB_ADMIN_GROUPS[currentUser]).map(String));
         const selected = getSelectedDsoValues().map(String).filter(id => assigned.has(id));
-        // No specific selection = all assigned DSO(s).
         return selected.length ? new Set(selected) : assigned;
       }
       const selectedDsos = getSelectedDsoValues();
@@ -2682,7 +2785,6 @@
 
       let startRange = parseInt(document.getElementById("filterDsoStart").value, 10);
       let endRange = parseInt(document.getElementById("filterDsoEnd").value, 10);
-
       if (isNaN(startRange)) startRange = 801;
       if (isNaN(endRange)) endRange = 845;
       if (startRange > endRange) [startRange, endRange] = [endRange, startRange];
@@ -2692,36 +2794,58 @@
       return ids;
     }
 
-    function applyAdminFilters() {
-      if (!globalAllData) {
-        renderMissingDsoList(new Set(), getActiveDsoFilterSet());
-        renderAdminTable(null);
-        renderBankDetailsTable(null);
-        renderNotesSummaryTable(null);
-        return;
-      }
 
+    function buildFilteredAdminData() {
+      if (!globalAllData) return null;
       const filterDate = document.getElementById("filterDate").value;
       const activeDsos = getActiveDsoFilterSet();
       const filteredData = {};
       const submittedDsoSet = new Set();
 
       Object.keys(globalAllData).forEach(key => {
-        const item = globalAllData[key];
+        const item = globalAllData[key] || {};
         const userId = String(item.userId || "").trim();
         const matchDate = !filterDate || item.date === filterDate;
         const matchDso = activeDsos.has(userId);
-
         if (matchDate && matchDso) {
           submittedDsoSet.add(userId);
           filteredData[key] = item;
         }
       });
+      return {filteredData, submittedDsoSet, activeDsos};
+    }
 
-      renderMissingDsoList(submittedDsoSet, activeDsos);
-      renderAdminTable(filteredData);
-      renderBankDetailsTable(filteredData);
-      renderNotesSummaryTable(filteredData);
+    function applyAdminFilters(immediate=false, fromRealtime=false) {
+      if (!globalAllData) {
+        if (activeAdminTab === 'report') {
+          renderMissingDsoList(new Set(), getActiveDsoFilterSet());
+          renderAdminTable(null);
+        }
+        return;
+      }
+
+      const run = () => {
+        const result = buildFilteredAdminData();
+        if (!result) return;
+        const {filteredData, submittedDsoSet, activeDsos} = result;
+        if (activeAdminTab === 'report') {
+          renderMissingDsoList(submittedDsoSet, activeDsos);
+          renderAdminTable(filteredData);
+        } else if (activeAdminTab === 'bank') {
+          renderBankDetailsTable(filteredData);
+        } else if (activeAdminTab === 'notes') {
+          renderNotesSummaryTable(filteredData);
+        }
+      };
+
+      if (fromRealtime) {
+        if (adminRenderTimer) clearTimeout(adminRenderTimer);
+        adminRenderTimer = setTimeout(() => { adminRenderTimer=null; run(); }, 50);
+      } else if (immediate) {
+        run();
+      } else {
+        run();
+      }
     }
 
     function filterThisMonth() {
@@ -2731,44 +2855,27 @@
       const activeDsos = getActiveDsoFilterSet();
       const filteredData = {};
       const submittedDsoSet = new Set();
-
       Object.keys(globalAllData).forEach(key => {
-        const item = globalAllData[key];
+        const item = globalAllData[key] || {};
         const userId = String(item.userId || "").trim();
-        const isThisMonth = item.date && item.date.startsWith(currentMonth);
-        if (isThisMonth && activeDsos.has(userId)) {
+        if (item.date && item.date.startsWith(currentMonth) && activeDsos.has(userId)) {
           submittedDsoSet.add(userId);
           filteredData[key] = item;
         }
       });
-
-      renderMissingDsoList(submittedDsoSet, activeDsos);
-      renderAdminTable(filteredData);
-      renderBankDetailsTable(filteredData);
-      renderNotesSummaryTable(filteredData);
+      if (activeAdminTab === 'report') {
+        renderMissingDsoList(submittedDsoSet, activeDsos);
+        renderAdminTable(filteredData);
+      } else if (activeAdminTab === 'bank') renderBankDetailsTable(filteredData);
+      else if (activeAdminTab === 'notes') renderNotesSummaryTable(filteredData);
     }
 
     function filterAllData() {
       if (!globalAllData) return;
       document.getElementById("filterDate").value = "";
-      const activeDsos = getActiveDsoFilterSet();
-      const filteredData = {};
-      const submittedDsoSet = new Set();
-
-      Object.keys(globalAllData).forEach(key => {
-        const item = globalAllData[key];
-        const userId = String(item.userId || "").trim();
-        if (activeDsos.has(userId)) {
-          submittedDsoSet.add(userId);
-          filteredData[key] = item;
-        }
-      });
-
-      renderMissingDsoList(submittedDsoSet, activeDsos);
-      renderAdminTable(filteredData);
-      renderBankDetailsTable(filteredData);
-      renderNotesSummaryTable(filteredData);
+      applyAdminFilters(true);
     }
+
 
     function renderMissingDsoList(submittedSet, activeDsoSet = null) {
       const activeDsos = activeDsoSet || getActiveDsoFilterSet();
@@ -2811,6 +2918,8 @@
       document.getElementById("filterDate").value = today;
       document.getElementById("filterDsoStart").value = "801";
       document.getElementById("filterDsoEnd").value = "845";
+      const adminFilter = document.getElementById("filterAdmin");
+      if (adminFilter) adminFilter.value = "";
       document.querySelectorAll(".dso-chk").forEach(chk => chk.checked = false);
       updateDsoDropdownText();
       applyAdminFilters();
