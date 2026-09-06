@@ -1609,7 +1609,7 @@
           if(!m) continue;
           const nums=moneyTokensFromLine(line);
           if(nums.length){
-            nums.forEach(t=>out.push({value:t.value,score:24,line,index:i,source:'bank-label'}));
+            nums.forEach(t=>out.push({value:t.value,score:24,line,lineIndex:i,source:'bank-label'}));
           } else if(m[1]){
             const v=parseMoneyCandidate(m[1]);
             if(v>=50) out.push({value:v,score:24,line,lineIndex:i,source:'bank-label'});
