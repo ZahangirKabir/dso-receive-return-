@@ -1506,47 +1506,58 @@
 
     function isPlausibleName(s) { return looksLikeNameText(s); }
 
+    // Fast, high-quality local image preprocessing. The decoded image is cached
+    // per File so recovery OCR passes do not repeatedly read/decode the same file.
+    const slipOCRImageCache = new WeakMap();
     async function preprocessImage(file, mode=0, rotation=0) {
+      const key = `${mode}:${rotation}`;
+      let cache = slipOCRImageCache.get(file);
+      if (cache && cache[key]) return cache[key];
+      if (!cache) { cache = {}; slipOCRImageCache.set(file, cache); }
+
       return new Promise((resolve,reject)=>{
         const reader = new FileReader();
         reader.onload = e => {
           const img = new Image();
           img.onload = () => {
-            const max = 2000;
+            // 2200px keeps printed digits sharp while avoiding huge canvas/OCR cost.
+            const max = 2200;
             let iw = img.naturalWidth || img.width;
             let ih = img.naturalHeight || img.height;
             const r = Math.min(1, max / Math.max(iw,ih));
-            iw = Math.round(iw*r); ih = Math.round(ih*r);
+            iw = Math.max(1,Math.round(iw*r)); ih = Math.max(1,Math.round(ih*r));
 
             const swap = rotation % 180 !== 0;
-            const c = document.createElement("canvas");
-            c.width = swap ? ih : iw;
-            c.height = swap ? iw : ih;
-            const ctx = c.getContext("2d", {willReadFrequently:true});
+            const c = document.createElement('canvas');
+            c.width = swap ? ih : iw; c.height = swap ? iw : ih;
+            const ctx = c.getContext('2d', {willReadFrequently:true});
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
             ctx.save();
-            ctx.translate(c.width/2, c.height/2);
-            ctx.rotate(rotation * Math.PI / 180);
-            ctx.drawImage(img, -iw/2, -ih/2, iw, ih);
+            ctx.translate(c.width/2,c.height/2);
+            ctx.rotate(rotation*Math.PI/180);
+            ctx.drawImage(img,-iw/2,-ih/2,iw,ih);
             ctx.restore();
 
-            const image = ctx.getImageData(0,0,c.width,c.height);
-            for (let i=0; i<image.data.length; i+=4) {
-              const rr=image.data[i], gg=image.data[i+1], bb=image.data[i+2];
-              let gray = 0.299*rr + 0.587*gg + 0.114*bb;
-              if (mode===1) gray = gray < 155 ? 0 : 255;
-              else if (mode===2) gray = Math.max(0,Math.min(255,(gray-128)*2.15+128));
-              else if (mode===3) gray = Math.max(0,Math.min(255,gray*1.18+10));
-              else if (mode===4) gray = Math.max(0,Math.min(255,(gray-118)*1.65+145));
-              image.data[i]=image.data[i+1]=image.data[i+2]=gray;
+            const image=ctx.getImageData(0,0,c.width,c.height);
+            const d=image.data;
+            for(let i=0;i<d.length;i+=4){
+              const rr=d[i],gg=d[i+1],bb=d[i+2];
+              let gray=0.299*rr+0.587*gg+0.114*bb;
+              if(mode===1) gray=gray<150?0:255;
+              else if(mode===2) gray=Math.max(0,Math.min(255,(gray-128)*2.25+128));
+              else if(mode===3) gray=Math.max(0,Math.min(255,gray*1.22+8));
+              else if(mode===4) gray=Math.max(0,Math.min(255,(gray-118)*1.72+142));
+              d[i]=d[i+1]=d[i+2]=gray;
             }
             ctx.putImageData(image,0,0);
-            resolve(c.toDataURL("image/jpeg",0.88));
+            const out=c.toDataURL('image/jpeg',0.92);
+            cache[key]=out;
+            resolve(out);
           };
-          img.onerror=reject;
-          img.src=e.target.result;
+          img.onerror=reject; img.src=e.target.result;
         };
-        reader.onerror=reject;
-        reader.readAsDataURL(file);
+        reader.onerror=reject; reader.readAsDataURL(file);
       });
     }
 
@@ -1701,60 +1712,57 @@
 
     async function runSlipOCR(file, statusEl, id) {
       await ensureTesseractLoaded();
-      if(!window.Tesseract) throw new Error("OCR library load হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।");
-      statusEl.innerHTML = `<span class="ocr-warn">⏳ স্লিপ #${id}: দ্রুত OCR শুরু…</span>`;
-      const worker = await getSlipOCRWorker(statusEl,id);
+      if(!window.Tesseract) throw new Error('OCR library load হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।');
+      const worker=await getSlipOCRWorker(statusEl,id);
       const results=[];
 
-      // FAST PATH: one high-quality Bengali+English full-slip scan.
-      // A second targeted scan is used only when an important field is missing.
-      const quick={mode:3,rotation:0,psm:"11"};
+      // PASS 1: fast full-slip scan. Most clean slips finish here.
+      const quick={mode:3,rotation:0,psm:'11'};
       await worker.setParameters({
-        tessedit_pageseg_mode: quick.psm,
-        preserve_interword_spaces:"1",
-        user_defined_dpi:"300"
+        tessedit_pageseg_mode:quick.psm,
+        preserve_interword_spaces:'1',
+        user_defined_dpi:'300'
       });
       const quickImg=await preprocessImage(file,quick.mode,quick.rotation);
       const quickResult=await worker.recognize(quickImg);
-      if(quickResult?.data?.text) {
-        results.push({text:quickResult.data.text,confidence:Number(quickResult.data.confidence||0),mode:quick.mode,rotation:0,psm:quick.psm,data:quickResult.data});
-      }
+      const quickText=quickResult?.data?.text||'';
+      if(quickText) results.push({text:quickText,confidence:Number(quickResult?.data?.confidence||0),mode:3,rotation:0,psm:'11',data:quickResult.data});
 
-      const quickText=quickResult?.data?.text||"";
-      const quickKnownAccount=findKnownSlipAccount(quickText);
-      const quickBank=quickKnownAccount?.bank || "";
-      const quickAmount=quickBank ? targetedAmountCandidates(quickText,quickBank) : extractAmountCandidates(quickText);
+      // PASS 2: only when a key field is missing. Use a stronger contrast/segmentation
+      // profile instead of blindly running many full-image OCR passes.
+      const quickKnown=findKnownSlipAccount(quickText);
+      const quickBank=quickKnown?.bank||detectBankFromOCR(quickText)||'';
+      const quickAmount=quickBank?targetedAmountCandidates(quickText,quickBank):extractAmountCandidates(quickText);
       const quickDate=extractDepositDate({text:quickText,data:quickResult?.data});
+      const quickName=quickKnown || (quickBank?targetedAccountName(quickText,quickBank):extractAccountName(quickText));
+      const needRecovery=!(quickKnown && quickAmount.some(x=>x.value>0) && quickDate && quickName);
 
-      // The portal is STRICT: only the five supplied account numbers are valid.
-      // If the known account is not found, perform one recovery OCR pass.
-      const needSecond=!(quickKnownAccount && quickAmount?.some(x=>x.value>0) && quickDate);
-      if(needSecond){
-        const profile=getBankOCRProfile(quickBank || '');
-        const pass=profile.modes?.[0] || {mode:2,rotation:0,psm:"6"};
-        try{await worker.setParameters({tessedit_pageseg_mode:pass.psm,preserve_interword_spaces:"1",user_defined_dpi:"300"});}catch(e){}
+      if(needRecovery){
+        const profile=getBankOCRProfile(quickBank||'');
+        const pass=profile.modes?.[0]||{mode:2,rotation:0,psm:'6'};
+        await worker.setParameters({tessedit_pageseg_mode:pass.psm,preserve_interword_spaces:'1',user_defined_dpi:'300'});
         const img=await preprocessImage(file,pass.mode,pass.rotation);
         const result=await worker.recognize(img);
         if(result?.data?.text) results.push({text:result.data.text,confidence:Number(result.data.confidence||0),mode:pass.mode,rotation:pass.rotation,psm:pass.psm,data:result.data});
       }
 
-      // Account-number recovery pass: only used when none of the allowed
-      // account numbers was found. This is the most important strict-match scan.
+      // Account recovery is strict: only a configured account number can select
+      // Bank + Credit/Account Name. No arbitrary OCR name is allowed to become valid.
       if(!chooseKnownSlipAccount(results)){
-        const accountPass={mode:0,rotation:0,psm:"6"};
-        try{await worker.setParameters({tessedit_pageseg_mode:accountPass.psm,preserve_interword_spaces:"1",user_defined_dpi:"300"});}catch(e){}
-        const accountImg=await preprocessImage(file,accountPass.mode,accountPass.rotation);
-        const accountResult=await worker.recognize(accountImg);
-        if(accountResult?.data?.text) results.push({text:accountResult.data.text,confidence:Number(accountResult.data.confidence||0),mode:accountPass.mode,rotation:0,psm:accountPass.psm,data:accountResult.data,accountPass:true});
+        const pass={mode:0,rotation:0,psm:'6'};
+        await worker.setParameters({tessedit_pageseg_mode:pass.psm,preserve_interword_spaces:'1',user_defined_dpi:'300'});
+        const img=await preprocessImage(file,pass.mode,pass.rotation);
+        const result=await worker.recognize(img);
+        if(result?.data?.text) results.push({text:result.data.text,confidence:Number(result.data.confidence||0),mode:pass.mode,rotation:0,psm:pass.psm,data:result.data,accountPass:true});
       }
 
-      // If the date is the only missing field, use one focused date scan as a last resort.
+      // Date recovery only when no unambiguous date was detected.
       if(!results.some(r=>extractDepositDate(r))){
-        const datePass={mode:2,rotation:0,psm:"11"};
-        try{await worker.setParameters({tessedit_pageseg_mode:datePass.psm,preserve_interword_spaces:"1",user_defined_dpi:"300"});}catch(e){}
-        const dateImg=await preprocessImage(file,datePass.mode,datePass.rotation);
-        const dateResult=await worker.recognize(dateImg);
-        if(dateResult?.data?.text) results.push({text:dateResult.data.text,confidence:Number(dateResult.data.confidence||0),mode:datePass.mode,rotation:0,psm:datePass.psm,data:dateResult.data,datePass:true});
+        const pass={mode:2,rotation:0,psm:'11'};
+        await worker.setParameters({tessedit_pageseg_mode:pass.psm,preserve_interword_spaces:'1',user_defined_dpi:'300'});
+        const img=await preprocessImage(file,pass.mode,pass.rotation);
+        const result=await worker.recognize(img);
+        if(result?.data?.text) results.push({text:result.data.text,confidence:Number(result.data.confidence||0),mode:pass.mode,rotation:0,psm:pass.psm,data:result.data,datePass:true});
       }
       return results;
     }
@@ -1829,9 +1837,9 @@
         groups[key].count++;
       });
       const ranked=Object.values(groups).sort((a,b)=>b.count-a.count);
-      // One clean labelled extraction is enough; two or more matching passes
-      // make it stronger.
-      return ranked[0]?.name || "";
+      // Prefer repeated agreement; never fabricate a name when OCR is uncertain.
+      if(ranked[0]?.count>=2) return ranked[0].name;
+      return looksLikeNameText(ranked[0]?.name||"") ? ranked[0].name : "";
     }
 
     function enableManualSlipEdit(id) {
@@ -2024,8 +2032,8 @@
       const ranked=Object.entries(votes).sort((a,b)=>b[1]-a[1]);
       if(!ranked.length) return "";
       if(ranked[1] && ranked[0][1]===ranked[1][1]) return "";
-      // Date must be independently detected by at least two OCR passes.
-      return ranked[0][1]>=1 ? ranked[0][0] : "";
+      // A valid date with no competing date is safe; competing dates require consensus.
+      return ranked[0][0] || "";
     }
 
     function zoomSlipInputImage(id) {
