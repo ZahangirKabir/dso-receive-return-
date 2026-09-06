@@ -3705,66 +3705,206 @@
     }
 
     async function exportToExcel() {
-      await ensureXlsxLoaded();
-      if (!globalAllData) { alert("এক্সপোর্ট করার মতো কোনো ডাটা পাওয়া যায়নি!"); return; }
-      const activeDsos = getActiveDsoFilterSet();
-      const filterDate = document.getElementById("filterDate").value;
+      try {
+        await ensureXlsxLoaded();
+        if (!window.XLSX) {
+          alert("Excel library load হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।");
+          return;
+        }
+        if (!globalAllData) {
+          alert("এক্সপোর্ট করার মতো কোনো ডাটা পাওয়া যায়নি!");
+          return;
+        }
 
-      let exportRows = [];
+        // Export ONLY the currently visible admin page's filtered data.
+        const result = buildFilteredAdminData();
+        if (!result) {
+          alert("ফিল্টার অনুযায়ী কোনো ডাটা পাওয়া যায়নি!");
+          return;
+        }
 
-      Object.keys(globalAllData).forEach(key => {
-        let item = globalAllData[key];
-        let userId = String(item.userId || "").trim();
-        let matchDate = !filterDate || item.date === filterDate;
-        let matchDso = activeDsos.has(userId);
+        const { filteredData } = result;
+        const tabName = activeAdminTab || "report";
+        const rows = [];
 
-        if (matchDate && matchDso) {
-          let emRec = item.emReceived || 0;
-          let cashRec = item.cashReceived || 0;
-          let dsoRecSum = Array.isArray(item.dsoReceivedList) ? item.dsoReceivedList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoReceived || 0);
-          let totalRec = emRec + cashRec + dsoRecSum;
+        if (tabName === "report") {
+          Object.keys(filteredData).forEach(key => {
+            const item = filteredData[key] || {};
+            const emRec = Number(item.emReceived || 0);
+            const cashRec = Number(item.cashReceived || 0);
+            const dsoRecSum = Array.isArray(item.dsoReceivedList)
+              ? item.dsoReceivedList.reduce((a,b) => a + Number(b?.amount || 0), 0)
+              : Number(item.dsoReceived || 0);
+            const totalRec = emRec + cashRec + dsoRecSum;
 
-          let emRet = item.emReturn || 0;
-          let bankDep = item.bankDeposit || 0;
-          let cashDep = item.cashDeposit || 0;
-          let dsoTransSum = Array.isArray(item.dsoTransferList) ? item.dsoTransferList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoTransfer || 0);
-          let totalRet = emRet + bankDep + cashDep + dsoTransSum;
+            const emRet = Number(item.emReturn || 0);
+            const bankDep = Number(item.bankDeposit || 0);
+            const cashDep = Number(item.cashDeposit || 0);
+            const dsoTransSum = Array.isArray(item.dsoTransferList)
+              ? item.dsoTransferList.reduce((a,b) => a + Number(b?.amount || 0), 0)
+              : Number(item.dsoTransfer || 0);
+            const totalRet = emRet + bankDep + cashDep + dsoTransSum;
 
-          let diff = totalRec - totalRet;
-          let n = item.notes || {};
+            const n = item.notes || {};
+            const slipsSum = Array.isArray(item.slips)
+              ? item.slips.reduce((a,s) => a + Number(s?.amt || 0), 0)
+              : 0;
 
-          exportRows.push({
-            "Date": item.date || "",
-            "DSO ID": item.userId || "",
-            "B2B Received": emRec,
-            "Cash Received": cashRec,
-            "DSO Received Total": dsoRecSum,
-            "Total Received": totalRec,
-            "B2B Return": emRet,
-            "Cash Deposit": cashDep,
-            "Bank Deposit": bankDep,
-            "Bank Name": item.bankName || "",
-            "Slip Details": Array.isArray(item.slips) ? item.slips.map(s => `${s.bankName || ''} | ${s.accountName || ''} | ৳${s.amt || 0}`).join(' ; ') : '',
-            "DSO Transfer Total": dsoTransSum,
-            "Total Return": totalRet,
-            "Difference": diff,
-            "Note 1000": n.n1000 || 0,
-            "Note 500": n.n500 || 0,
-            "Note 200": n.n200 || 0,
-            "Note 100": n.n100 || 0,
-            "Note 50": n.n50 || 0,
-            "Total Calculated Cash": item.totalCash || 0,
-            "Approval Status": item.approvalStatus || "pending"
+            rows.push({
+              "Date": item.date || "",
+              "DSO ID": item.userId || "",
+              "Cash Rec": cashRec,
+              "DSO Rec Breakdown": Array.isArray(item.dsoReceivedList)
+                ? item.dsoReceivedList.map(d => `DSO ${d.dsoId}: ${Number(d.amount || 0)}`).join(" | ")
+                : "",
+              "B2B Receive": emRec,
+              "B2B Ret": emRet,
+              "Cash Dep": cashDep,
+              "Bank Dep": bankDep,
+              "DSO Trans Breakdown": Array.isArray(item.dsoTransferList)
+                ? item.dsoTransferList.map(d => `DSO ${d.dsoId}: ${Number(d.amount || 0)}`).join(" | ")
+                : "",
+              "DSO Rec Amt": dsoRecSum,
+              "DSO Trans Amt": dsoTransSum,
+              "DSO Diff": dsoRecSum - dsoTransSum,
+              "Total Received": totalRec,
+              "Total Return": totalRet,
+              "Difference": totalRec - totalRet,
+              "Slips Sum": slipsSum,
+              "Bank Name": item.bankName || "",
+              "Note 1000": Number(n.n1000 || 0),
+              "Note 500": Number(n.n500 || 0),
+              "Note 200": Number(n.n200 || 0),
+              "Note 100": Number(n.n100 || 0),
+              "Note 50": Number(n.n50 || 0),
+              "Total Calculated Cash": Number(item.totalCash || 0),
+              "Approval Status": item.approvalStatus || "pending"
+            });
+          });
+        } else if (tabName === "bank") {
+          const bankTotals = {};
+          const entries = [];
+
+          Object.keys(filteredData).forEach(key => {
+            const item = filteredData[key] || {};
+            const slips = Array.isArray(item.slips) ? item.slips : [];
+
+            if (slips.length) {
+              slips.forEach(s => {
+                const bankName = String(s?.bankName || item.bankName || "Unknown Bank").trim();
+                const amount = Number(s?.amt || 0);
+                bankTotals[bankName] = (bankTotals[bankName] || 0) + amount;
+                entries.push({
+                  date: item.date || "-",
+                  dsoId: item.userId || "-",
+                  accountName: s?.accountName || "",
+                  bankName,
+                  amount
+                });
+              });
+            } else if (Number(item.bankDeposit || 0) > 0) {
+              const bankName = String(item.bankName || "Unknown Bank").trim();
+              const amount = Number(item.bankDeposit || 0);
+              bankTotals[bankName] = (bankTotals[bankName] || 0) + amount;
+              entries.push({
+                date: item.date || "-",
+                dsoId: item.userId || "-",
+                accountName: "",
+                bankName,
+                amount
+              });
+            }
+          });
+
+          entries.sort((a,b) =>
+            String(a.dsoId).localeCompare(String(b.dsoId), undefined, {numeric:true, sensitivity:"base"})
+          );
+
+          entries.forEach(e => rows.push({
+            "Date": e.date,
+            "DSO ID": e.dsoId,
+            "Credit / Account Name": e.accountName,
+            "Bank Name": e.bankName,
+            "Amount": e.amount,
+            "Total Deposit": e.amount
+          }));
+
+          Object.keys(bankTotals).forEach(bank => rows.push({
+            "Date": "",
+            "DSO ID": "",
+            "Credit / Account Name": `TOTAL - ${bank}`,
+            "Bank Name": bank,
+            "Amount": bankTotals[bank],
+            "Total Deposit": bankTotals[bank]
+          }));
+        } else if (tabName === "notes") {
+          let t1000 = 0, t500 = 0, t200 = 0, t100 = 0, t50 = 0, tCash = 0;
+
+          Object.keys(filteredData)
+            .sort((a,b) => String(filteredData[a]?.userId || "")
+              .localeCompare(String(filteredData[b]?.userId || ""), undefined, {numeric:true, sensitivity:"base"}))
+            .forEach(key => {
+              const item = filteredData[key] || {};
+              const n = item.notes || {};
+              const n1000 = Number(n.n1000 || 0);
+              const n500 = Number(n.n500 || 0);
+              const n200 = Number(n.n200 || 0);
+              const n100 = Number(n.n100 || 0);
+              const n50 = Number(n.n50 || 0);
+              const calculated = n1000*1000 + n500*500 + n200*200 + n100*100 + n50*50;
+              const totalCash = Number(item.totalCash || calculated);
+
+              if (totalCash > 0 || n1000 > 0 || n500 > 0 || n200 > 0 || n100 > 0 || n50 > 0) {
+                t1000 += n1000; t500 += n500; t200 += n200; t100 += n100; t50 += n50; tCash += totalCash;
+                rows.push({
+                  "Date": item.date || "-",
+                  "DSO ID": item.userId || "-",
+                  "৳ 1000": n1000,
+                  "৳ 500": n500,
+                  "৳ 200": n200,
+                  "৳ 100": n100,
+                  "৳ 50": n50,
+                  "Total Calculated Cash": totalCash
+                });
+              }
+            });
+
+          if (rows.length) rows.push({
+            "Date": "",
+            "DSO ID": "TOTAL NOTES SUMMARY",
+            "৳ 1000": t1000,
+            "৳ 500": t500,
+            "৳ 200": t200,
+            "৳ 100": t100,
+            "৳ 50": t50,
+            "Total Calculated Cash": tCash
           });
         }
-      });
 
-      if (exportRows.length === 0) { alert("ফিল্টার অনুযায়ী কোনো ডাটা পাওয়া যায়নি!"); return; }
+        if (!rows.length) {
+          alert("এই পেজের বর্তমান ফিল্টার অনুযায়ী কোনো ডাটা পাওয়া যায়নি!");
+          return;
+        }
 
-      let ws = XLSX.utils.json_to_sheet(exportRows);
-      let wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Collections");
-      XLSX.writeFile(wb, `Collection_Report_${filterDate || 'All'}.xlsx`);
+        const ws = XLSX.utils.json_to_sheet(rows);
+        ws["!cols"] = Object.keys(rows[0]).map(k => ({
+          wch: Math.min(Math.max(String(k).length + 4, 12), 34)
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const sheetName =
+          tabName === "bank" ? "Bank Details" :
+          tabName === "notes" ? "Note Summary" : "Main Report";
+
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+        const filterDate = document.getElementById("filterDate")?.value || "";
+        const suffix = filterDate || masterAdminDataMode || "Filtered";
+        XLSX.writeFile(wb, `Collection_${sheetName.replace(/\s+/g,"_")}_${suffix}.xlsx`);
+      } catch (err) {
+        console.error("Excel export failed:", err);
+        alert("Excel ডাউনলোড করতে সমস্যা হয়েছে: " + (err?.message || err));
+      }
     }
     document.getElementById('loginPass')?.addEventListener('keydown',e=>{if(e.key==='Enter')handleLogin();});
     document.getElementById('loginId')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass')?.focus();});
