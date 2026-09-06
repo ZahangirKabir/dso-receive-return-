@@ -802,6 +802,7 @@
     let dsoEditModeKey = null;
     let pendingOptimisticDeletes = new Set();
     let masterAdminRealtimeRef = null;
+    let isSubmittingData = false;
 
     function getLocalDateString(d = new Date()) {
       const y = d.getFullYear();
@@ -2712,8 +2713,21 @@
     }
 
     async function submitData() {
+      // Lock immediately: prevents double-clicks and concurrent async submissions.
+      if (isSubmittingData) return;
+      isSubmittingData = true;
+      const subBtn = document.getElementById("subBtn");
+      if (subBtn) {
+        subBtn.disabled = true;
+        subBtn.innerText = "Processing...";
+      }
+
       if (dsoEditModeKey) {
-        await submitDsoEdit();
+        try {
+          await submitDsoEdit();
+        } finally {
+          isSubmittingData = false;
+        }
         return;
       }
       const dateStr = getLocalDateString();
@@ -2741,12 +2755,13 @@
       }
 
       const minimumBad = validateMainAmountMinimums();
-      if(minimumBad.length){ alert("❌ B2B Received, Cash Received ও Bank Amount-এ ৩ digit amount গ্রহণযোগ্য নয়। ন্যূনতম ৳1,000 দিন।"); validateFormAndSubmitBtn(); return; }
+      if(minimumBad.length){ alert("❌ B2B Received, Cash Received ও Bank Amount-এ ৩ digit amount গ্রহণযোগ্য নয়। ন্যূনতম ৳1,000 দিন।"); validateFormAndSubmitBtn(); isSubmittingData = false; return; }
 
       let bankDepositVal = parseRawNumber(document.getElementById("bankDeposit").value);
       if (bankDepositVal < 0) {
         alert("❌ Bank Deposit amount সঠিক নয়।");
         validateFormAndSubmitBtn();
+        isSubmittingData = false;
         return;
       }
       const slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
@@ -2754,6 +2769,7 @@
       if (bankDepositVal > 0) {
         if (slipRows.length === 0) {
           alert("⚠️ Bank Deposit এর জন্য অন্তত একটি Bank Slip বাধ্যতামূলক!");
+          isSubmittingData = false;
           return;
         }
         for (let i=0;i<slipRows.length;i++) {
@@ -2773,6 +2789,7 @@
           if(!bank || !file || !account || amt<=0 || (!ocrReadyValid && !manualValid)) {
             alert(`⚠️ স্লিপ #${i+1} OCR তথ্য অসম্পূর্ণ বা পরিবর্তন করা হয়েছে। প্রয়োজন হলে Manual Correction করে checkbox টিক দিন।`);
             validateFormAndSubmitBtn();
+            isSubmittingData = false;
             return;
           }
         }
@@ -2788,12 +2805,11 @@
 
       if (cashDepositAmt > 0 && totalCashVal !== cashDepositAmt) {
         alert("⚠️ Cash Deposit থাকার পরও ক্যাশ নোটের বিবরণ সঠিকভাবে দেওয়া হয়নি অথবা পরিমাণ মিলে নি!");
+        isSubmittingData = false;
         return;
       }
 
-      const subBtn = document.getElementById("subBtn");
-      subBtn.disabled = true;
-      subBtn.innerText = "Processing Slips...";
+      if (subBtn) subBtn.innerText = "Processing Slips...";
 
       try {
         let slipsData = [];
@@ -2861,6 +2877,7 @@
       } catch (err) {
         alert("ডাটা সেভ হয়নি! কারণ: " + err.message);
       } finally {
+        isSubmittingData = false;
         subBtn.innerText = "Submit Data";
         // Re-run the full validation instead of blindly enabling Submit.
         // This prevents a successful reset or any validation error from
