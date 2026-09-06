@@ -796,6 +796,13 @@
     let masterAdminDataToken = 0;
     let masterAdminDataLoading = false;
 
+    // DSO edit workflow:
+    // A DSO can request permission for a specific daily record. Master Admin
+    // must approve that request before the DSO can edit and resubmit it.
+    let dsoEditModeKey = null;
+    let pendingOptimisticDeletes = new Set();
+    let masterAdminRealtimeRef = null;
+
     function getLocalDateString(d = new Date()) {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -2333,7 +2340,382 @@
       });
     }
 
+    async function requestDsoEdit(key) {
+      if (!currentUser || currentUser === "admin" || isGroupAdmin(currentUser)) {
+        alert("❌ Edit request শুধুমাত্র DSO User-এর জন্য।");
+        return;
+      }
+      const item = globalAllData?.[key];
+      if (!item || String(item.userId) !== String(currentUser)) {
+        alert("❌ এই রিপোর্টটি আপনার নয়।");
+        return;
+      }
+      if (item.editPermission?.status === "approved") {
+        openDsoEditForm(key);
+        return;
+      }
+      if (item.editPermission?.status === "pending") {
+        alert("⏳ এই রিপোর্টের Edit Permission ইতিমধ্যে Admin-এর কাছে পাঠানো হয়েছে।");
+        return;
+      }
+      if (!confirm(`DSO ${currentUser} এর ${item.date || ''} তারিখের হিসাব Edit করার অনুমতি Admin-এর কাছে চাইবেন?`)) return;
+
+      try {
+        const request = {
+          status: "pending",
+          requestedBy: String(currentUser),
+          requestedAt: Date.now()
+        };
+        await database.ref('collections/' + key + '/editPermission').set(request);
+        await database.ref('notifications/admin/editRequests/' + key).set({
+          unread: true,
+          type: "dso_edit_request",
+          recordKey: key,
+          dsoId: String(currentUser),
+          date: item.date || "",
+          timestamp: Date.now(),
+          message: `DSO ${currentUser} ${item.date || ''} তারিখের হিসাব Edit করার অনুমতি চেয়েছেন।`
+        });
+        alert("✅ Edit Permission request Admin-এর কাছে পাঠানো হয়েছে। Admin অনুমতি দিলে আপনি হিসাবটি Edit করতে পারবেন।");
+      } catch (err) {
+        alert("❌ Edit request পাঠানো যায়নি: " + err.message);
+      }
+    }
+
+    async function approveDsoEdit(key) {
+      if (currentUser !== "admin") {
+        alert("❌ DSO Edit Permission শুধুমাত্র Master Admin দিতে পারবেন।");
+        return;
+      }
+      const item = globalAllData?.[key];
+      if (!item) return;
+      const dsoId = String(item.userId || "");
+      if (!dsoId || !/^\d+$/.test(dsoId)) return;
+
+      if (!confirm(`DSO ${dsoId} এর ${item.date || ''} তারিখের হিসাব Edit করার অনুমতি দেবেন?`)) return;
+
+      try {
+        const approval = {
+          status: "approved",
+          requestedBy: item.editPermission?.requestedBy || dsoId,
+          requestedAt: item.editPermission?.requestedAt || null,
+          approvedBy: "admin",
+          approvedAt: Date.now()
+        };
+        await database.ref('collections/' + key + '/editPermission').set(approval);
+        await database.ref('notifications/' + dsoId).set({
+          unread: true,
+          message: `✅ Admin অনুমতি দিয়েছেন। DSO ${dsoId} আপনার ${item.date || ''} তারিখের হিসাব Edit করে Update করতে পারবেন।`,
+          timestamp: Date.now(),
+          type: "dso_edit_permission",
+          recordKey: key
+        });
+        alert(`✅ DSO ${dsoId} এর Edit Permission দেওয়া হয়েছে।`);
+      } catch (err) {
+        alert("❌ Edit Permission দিতে সমস্যা হয়েছে: " + err.message);
+      }
+    }
+
+    async function denyDsoEdit(key) {
+      if (currentUser !== "admin") return;
+      const item = globalAllData?.[key];
+      if (!item) return;
+      if (!confirm(`DSO ${item.userId || ''} এর Edit Request বাতিল করবেন?`)) return;
+      try {
+        await database.ref('collections/' + key + '/editPermission').set({
+          status: "denied",
+          deniedBy: "admin",
+          deniedAt: Date.now()
+        });
+        const dsoId = String(item.userId || "");
+        if (dsoId) {
+          await database.ref('notifications/' + dsoId).set({
+            unread: true,
+            message: `❌ Admin আপনার ${item.date || ''} তারিখের হিসাব Edit Request অনুমোদন করেননি।`,
+            timestamp: Date.now(),
+            type: "dso_edit_permission_denied",
+            recordKey: key
+          });
+        }
+      } catch (err) {
+        alert("❌ Request বাতিল করতে সমস্যা হয়েছে: " + err.message);
+      }
+    }
+
+    function setSelectValueSafe(select, value) {
+      if (!select) return;
+      const str = String(value ?? "");
+      const exists = Array.from(select.options).some(o => String(o.value) === str);
+      if (!exists && str) {
+        const opt = document.createElement("option");
+        opt.value = str; opt.textContent = "DSO " + str;
+        select.appendChild(opt);
+      }
+      select.value = str;
+    }
+
+    async function openDsoEditForm(key) {
+      if (!currentUser || currentUser === "admin" || isGroupAdmin(currentUser)) {
+        alert("❌ Edit Daily Report শুধুমাত্র DSO User-এর জন্য।");
+        return;
+      }
+      const item = globalAllData?.[key];
+      if (!item || String(item.userId) !== String(currentUser)) {
+        alert("❌ এই রিপোর্টটি আপনার নয়।");
+        return;
+      }
+
+      let permission = item.editPermission?.status;
+      if (permission !== "approved") {
+        alert("🔒 Admin Permission ছাড়া এই রিপোর্ট Edit করা যাবে না।");
+        return;
+      }
+
+      dsoEditModeKey = key;
+      switchDsoTab('form');
+      resetForm();
+      dsoEditModeKey = key;
+
+      document.getElementById("emReceived").value = formatBD(item.emReceived || 0);
+      document.getElementById("cashReceived").value = formatBD(item.cashReceived || 0);
+      document.getElementById("emReturn").value = formatBD(item.emReturn || 0);
+      document.getElementById("bankDeposit").value = formatBD(item.bankDeposit || 0);
+      document.getElementById("cashDeposit").value = formatBD(item.cashDeposit || 0);
+
+      const notes = item.notes || {};
+      document.getElementById("note1000").value = notes.n1000 || 0;
+      document.getElementById("note500").value = notes.n500 || 0;
+      document.getElementById("note200").value = notes.n200 || 0;
+      document.getElementById("note100").value = notes.n100 || 0;
+      document.getElementById("note50").value = notes.n50 || 0;
+
+      const recList = Array.isArray(item.dsoReceivedList) ? item.dsoReceivedList : [];
+      const transList = Array.isArray(item.dsoTransferList) ? item.dsoTransferList : [];
+
+      const recBox = document.getElementById("dsoReceivedContainer");
+      const transBox = document.getElementById("dsoTransferContainer");
+      recBox.innerHTML = "";
+      transBox.innerHTML = "";
+
+      const addRec = d => {
+        const div = document.createElement("div");
+        div.className = "dynamic-row";
+        div.innerHTML = `
+          <select class="dso-rec-id">${getDsoOptionsHTML()}</select>
+          <input type="text" placeholder="Amount" class="amt-field dso-rec-amt" oninput="handleAmountInput(this); calcFormTotals();">
+          <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>`;
+        recBox.appendChild(div);
+        setSelectValueSafe(div.querySelector(".dso-rec-id"), d?.dsoId || "");
+        div.querySelector(".dso-rec-amt").value = formatBD(d?.amount || 0);
+      };
+      const addTrans = d => {
+        const div = document.createElement("div");
+        div.className = "dynamic-row";
+        div.innerHTML = `
+          <select class="dso-trans-id">${getDsoOptionsHTML()}</select>
+          <input type="text" placeholder="Amount" class="amt-field dso-trans-amt" oninput="handleAmountInput(this); calcFormTotals();">
+          <button type="button" class="btn-remove-row" onclick="removeDsoRow(this)">✖</button>`;
+        transBox.appendChild(div);
+        setSelectValueSafe(div.querySelector(".dso-trans-id"), d?.dsoId || "");
+        div.querySelector(".dso-trans-amt").value = formatBD(d?.amount || 0);
+      };
+      (recList.length ? recList : [{dsoId:"", amount:0}]).forEach(addRec);
+      (transList.length ? transList : [{dsoId:"", amount:0}]).forEach(addTrans);
+
+      const slips = Array.isArray(item.slips) ? item.slips : [];
+      const slipsBox = document.getElementById("slipsContainer");
+      slipsBox.innerHTML = "";
+      slipCounter = 0;
+
+      if (slips.length) {
+        slips.forEach(s => {
+          addSlipRow();
+          const row = document.getElementById("slipRow_" + slipCounter);
+          if (!row) return;
+          row.dataset.existingImg = s.img || "";
+          setSelectValueSafe(row.querySelector(".slip-bank-name"), s.bankName || "");
+          const account = row.querySelector(".slip-account-name");
+          const date = row.querySelector(".slip-date-input");
+          const amt = row.querySelector(".slip-amt-val");
+          if (account) { account.readOnly = false; account.value = s.accountName || ""; }
+          if (date) { date.readOnly = false; date.value = s.depositDate || ""; }
+          if (amt) { amt.readOnly = false; amt.value = formatBD(s.amt || 0); }
+          const ocrAmt = row.querySelector(".slip-ocr-val"); if (ocrAmt) ocrAmt.value = s.ocrAmt || s.amt || 0;
+          const ocrBank = row.querySelector('[id^="slipOcrBank_"]'); if (ocrBank) ocrBank.value = s.ocrBankName || s.bankName || "";
+          const ocrDate = row.querySelector('[id^="slipOcrDate_"]'); if (ocrDate) ocrDate.value = s.ocrDate || s.depositDate || "";
+          const status = row.querySelector('[id^="slipOcrStatus_"]'); if (status) status.value = s.ocrStatus || "verified_manual";
+          const manual = row.querySelector('[id^="slipManualConfirm_"]');
+          if (manual) { manual.checked = true; }
+          const preview = row.querySelector(".slip-clear-preview");
+          if (preview && s.img) { preview.src = s.img; preview.classList.add("visible"); }
+          const name = row.querySelector(".slip-file-name");
+          if (name) name.textContent = s.img ? "Existing slip — নতুন ছবি দিলে replace হবে" : "ছবি নির্বাচন করুন";
+        });
+      } else {
+        addSlipRow();
+      }
+
+      // In edit mode, existing OCR fields may be changed manually. Admin has already
+      // granted permission, so the user can correct the daily report and resubmit.
+      document.querySelectorAll("#slipsContainer .slip-box-item .slip-file-input").forEach(input => {
+        input.dataset.editMode = "1";
+      });
+
+      const subBtn = document.getElementById("subBtn");
+      subBtn.innerText = "🔄 Update Daily Report";
+      document.getElementById("portalTitle").innerText = `DSO Edit Mode — ID: ${currentUser} — ${item.date || ''}`;
+      calcCash();
+      calcFormTotals();
+      alert("✏️ Edit Mode চালু হয়েছে। এই রিপোর্ট Update করলে Edit Permission শেষ হবে এবং পরবর্তী Edit-এর জন্য আবার Admin অনুমতি লাগবে।");
+    }
+
+    async function submitDsoEdit() {
+      if (!dsoEditModeKey || !currentUser || currentUser === "admin" || isGroupAdmin(currentUser)) {
+        alert("❌ DSO Edit Mode সক্রিয় নেই।");
+        return;
+      }
+      const key = dsoEditModeKey;
+      const original = globalAllData?.[key];
+      if (!original || String(original.userId) !== String(currentUser)) {
+        alert("❌ Edit করা রিপোর্ট পাওয়া যায়নি।");
+        return;
+      }
+      if (original.editPermission?.status !== "approved") {
+        alert("🔒 Admin Permission আর সক্রিয় নেই।");
+        return;
+      }
+
+      const minimumBad = validateMainAmountMinimums();
+      if (minimumBad.length) {
+        alert("❌ B2B Received, Cash Received ও Bank Amount-এ ৳1,000-এর কম amount গ্রহণযোগ্য নয়।");
+        validateFormAndSubmitBtn();
+        return;
+      }
+
+      const bankDepositVal = parseRawNumber(document.getElementById("bankDeposit").value);
+      const cashDepositAmt = parseRawNumber(document.getElementById("cashDeposit").value);
+      const n1000 = parseInt(document.getElementById("note1000").value,10)||0;
+      const n500 = parseInt(document.getElementById("note500").value,10)||0;
+      const n200 = parseInt(document.getElementById("note200").value,10)||0;
+      const n100 = parseInt(document.getElementById("note100").value,10)||0;
+      const n50 = parseInt(document.getElementById("note50").value,10)||0;
+      const totalCashVal = n1000*1000+n500*500+n200*200+n100*100+n50*50;
+
+      if (cashDepositAmt > 0 && totalCashVal !== cashDepositAmt) {
+        alert("⚠️ Cash Deposit এবং Cash Note total সমান নয়।");
+        return;
+      }
+
+      const totalRec = parseRawNumber(document.getElementById("emReceived").value)
+        + parseRawNumber(document.getElementById("cashReceived").value)
+        + getDsoReceivedList().reduce((s,x)=>s+(Number(x.amount)||0),0);
+      const totalRet = parseRawNumber(document.getElementById("emReturn").value)
+        + bankDepositVal + cashDepositAmt
+        + getDsoTransferList().reduce((s,x)=>s+(Number(x.amount)||0),0);
+      if (totalRec !== totalRet) {
+        alert(`❌ Receive ৳${formatBD(totalRec)} এবং Return/Deposit ৳${formatBD(totalRet)} সমান নয়।`);
+        return;
+      }
+
+      const subBtn = document.getElementById("subBtn");
+      subBtn.disabled = true;
+      subBtn.innerText = "Processing Update...";
+
+      try {
+        const slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
+        const slipsData = [];
+        const bankNamesCollected = [];
+
+        for (let i=0;i<slipRows.length;i++) {
+          const row = slipRows[i];
+          const file = row.querySelector(".slip-file-input")?.files?.[0] || null;
+          const existingImg = row.dataset.existingImg || "";
+          const imgBase64 = file ? await getBase64(file) : existingImg;
+          const amt = parseRawNumber(row.querySelector(".slip-amt-val")?.value);
+          const bankName = row.querySelector(".slip-bank-name")?.value || "";
+          const accountName = row.querySelector(".slip-account-name")?.value || "";
+          const depositDate = row.querySelector(".slip-date-input")?.value || "";
+          const ocrAmt = parseRawNumber(row.querySelector(".slip-ocr-val")?.value);
+          const ocrBankName = row.querySelector('[id^="slipOcrBank_"]')?.value || "";
+          const ocrDate = row.querySelector('[id^="slipOcrDate_"]')?.value || "";
+          const status = row.querySelector('[id^="slipOcrStatus_"]')?.value || "verified_manual";
+          const manual = row.querySelector('[id^="slipManualConfirm_"]')?.checked;
+          if (bankDepositVal > 0 && (!bankName || !imgBase64 || !accountName || !depositDate || amt <= 0 || (!(status === "ocr_ready" && (!ocrAmt || ocrAmt===amt) && (!ocrBankName || ocrBankName===bankName) && (!ocrDate || ocrDate===depositDate) ) && !(status === "verified_manual" && manual)))) {
+            alert(`⚠️ স্লিপ #${i+1} এর তথ্য সম্পূর্ণ নয়।`);
+            subBtn.disabled = false;
+            subBtn.innerText = "🔄 Update Daily Report";
+            return;
+          }
+          if (bankName && !bankNamesCollected.includes(bankName)) bankNamesCollected.push(bankName);
+          if (imgBase64 || amt > 0 || bankName) {
+            slipsData.push({img:imgBase64,amt,bankName,accountName,depositDate,ocrBankName,ocrAmt,ocrDate,ocrStatus:status});
+          }
+        }
+
+        const now = Date.now();
+        const editHistory = Array.isArray(original.dsoEditHistory) ? original.dsoEditHistory.slice(-19) : [];
+        editHistory.push({
+          by: String(currentUser),
+          at: now,
+          previousUpdatedAt: original.updatedAt || original.timestamp || null
+        });
+
+        const update = {
+          date: original.date,
+          userId: original.userId,
+          emReceived: parseRawNumber(document.getElementById("emReceived").value),
+          cashReceived: parseRawNumber(document.getElementById("cashReceived").value),
+          dsoReceivedList: getDsoReceivedList(),
+          emReturn: parseRawNumber(document.getElementById("emReturn").value),
+          bankDeposit: bankDepositVal,
+          bankName: bankNamesCollected.join(", "),
+          dsoTransferList: getDsoTransferList(),
+          cashDeposit: cashDepositAmt,
+          notes: {n1000,n500,n200,n100,n50},
+          totalCash: totalCashVal,
+          slips: slipsData,
+          approvalStatus: "pending",
+          editPermission: {
+            status: "none",
+            lastEditedBy: String(currentUser),
+            lastEditedAt: now,
+            previousApprovedAt: original.editPermission?.approvedAt || null
+          },
+          dsoEditHistory: editHistory,
+          updatedAt: now,
+          updatedBy: String(currentUser),
+          timestamp: original.timestamp || now
+        };
+
+        await database.ref("collections/" + key).update(update);
+        await database.ref("notifications/admin/editRequests/" + key).remove().catch(()=>{});
+        await database.ref("notifications/" + currentUser).set({
+          unread: true,
+          message: `✅ আপনার ${original.date || ''} তারিখের হিসাব সফলভাবে Update হয়েছে। এখন আবার Admin Approval প্রয়োজন হলে Request Edit ব্যবহার করুন।`,
+          timestamp: now,
+          type: "dso_edit_completed",
+          recordKey: key
+        });
+
+        dsoEditModeKey = null;
+        alert("✅ Daily হিসাব সফলভাবে Update হয়েছে। Admin নতুন হিসাবটি দেখতে পাবেন।");
+        resetForm();
+        switchDsoTab('report');
+      } catch (err) {
+        alert("❌ Daily হিসাব Update করা যায়নি: " + err.message);
+      } finally {
+        subBtn.disabled = false;
+        if (dsoEditModeKey) subBtn.innerText = "🔄 Update Daily Report";
+        else subBtn.innerText = "Submit Data";
+        validateFormAndSubmitBtn();
+      }
+    }
+
     async function submitData() {
+      if (dsoEditModeKey) {
+        await submitDsoEdit();
+        return;
+      }
       const dateStr = getLocalDateString();
 
       // Do not depend on globalAllData for duplicate protection. Admin data may be
@@ -2488,6 +2870,9 @@
     }
 
     function resetForm() {
+      dsoEditModeKey = null;
+      const subBtn = document.getElementById("subBtn");
+      if (subBtn) subBtn.innerText = "Submit Data";
       document.querySelectorAll(".amt-field").forEach(input => input.value = "");
       document.querySelectorAll(".denom").forEach(input => input.value = "");
       document.getElementById("cashDeposit").value = "";
@@ -2527,6 +2912,11 @@
         try { refInfo.ref.off('value', refInfo.handler); } catch(e) {}
       });
       realtimeListenerRefs = [];
+      if (masterAdminRealtimeRef) {
+        try { masterAdminRealtimeRef.ref.off('value', masterAdminRealtimeRef.handler); } catch(e) {}
+        masterAdminRealtimeRef = null;
+      }
+      pendingOptimisticDeletes.clear();
       realtimeListenerAttached = false;
       realtimeListenerUser = null;
       groupQueryData = {};
@@ -2594,6 +2984,11 @@
       masterAdminDataMode = mode;
       masterAdminDataLoading = true;
 
+      if (masterAdminRealtimeRef) {
+        try { masterAdminRealtimeRef.ref.off('value', masterAdminRealtimeRef.handler); } catch(e) {}
+        masterAdminRealtimeRef = null;
+      }
+
       let queryRef = database.ref('collections');
 
       if (mode === 'date') {
@@ -2611,22 +3006,28 @@
         if (tbody) tbody.innerHTML = `<tr><td colspan="18" style="text-align:center;padding:18px;font-weight:bold;color:#00695c;">⏳ ডাটা লোড হচ্ছে...</td></tr>`;
       }
 
-      queryRef.once('value').then(snapshot => {
+      // Keep one live listener for the selected scope. This makes delete/edit/approval
+      // changes appear immediately without a manual refresh.
+      const handler = snapshot => {
         if (token !== masterAdminDataToken || currentUser !== 'admin') return;
-        globalAllData = snapshot.val() || {};
+        const incoming = snapshot.val() || {};
+        pendingOptimisticDeletes.forEach(key => { delete incoming[key]; });
+        globalAllData = incoming;
         masterAdminDataLoading = false;
         scheduleDataUiUpdate();
-      }).catch(err => {
+      };
+      const errorHandler = err => {
         if (token !== masterAdminDataToken || currentUser !== 'admin') return;
         masterAdminDataLoading = false;
-        globalAllData = {};
+        if (!globalAllData) globalAllData = {};
         if (activeAdminTab === 'report') {
           const tbody = document.getElementById('adminTableBody');
           if (tbody) tbody.innerHTML = `<tr><td colspan="18" style="text-align:center;padding:18px;font-weight:bold;color:#c62828;">❌ ডাটা লোড করতে সমস্যা হয়েছে। ${escapeHtml(err.message || 'Unknown error')}</td></tr>`;
-          updateSummaryCards(0,0,0,0,0,0,0,0,0);
         }
         console.error('Master Admin data load failed:', err);
-      });
+      };
+      queryRef.on('value', handler, errorHandler);
+      masterAdminRealtimeRef = { ref: queryRef, handler };
     }
 
     function onAdminDateFilterChange() {
@@ -2743,6 +3144,16 @@
           ? `<span class="status-approved">✅ Approved</span>` 
           : `<span class="status-pending">⏳ Pending</span>`;
 
+        const editPerm = item.editPermission?.status || "";
+        let editAction = "";
+        if (editPerm === "approved") {
+          editAction = `<button class="btn-edit" onclick="openDsoEditForm('${item.key}')">✏️ Edit Daily Report</button>`;
+        } else if (editPerm === "pending") {
+          editAction = `<span class="status-pending" style="margin-right:4px;">⏳ Edit Approval Pending</span>`;
+        } else {
+          editAction = `<button class="btn-approve" onclick="requestDsoEdit('${item.key}')">🔐 Request Edit</button>`;
+        }
+
         let tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${item.date || '-'}</td>
@@ -2754,6 +3165,7 @@
           <td>${slipPreviewHtml}</td>
           <td>${statusBadge}</td>
           <td>
+            ${editAction}
             <button class="btn-details" onclick="showDetailsModal('${item.key}')">ℹ️ Details</button>
           </td>
         `;
@@ -3143,13 +3555,20 @@
           : `<span class="status-pending">⏳ Approval Pending</span>`;
 
         let actionButtons = "";
+        const editPerm = item.editPermission?.status || "";
         if (isGroupAdmin(currentUser)) {
           // Group Admins can filter/view reports and open details only.
           actionButtons = `<button class="btn-details" onclick="showDetailsModal('${key}')">ℹ️ Details</button>`;
         } else {
+          const editRequestBtn = editPerm === "pending"
+            ? `<button class="btn-approve" onclick="approveDsoEdit('${key}')">✏️ Approve DSO Edit</button><button class="btn-delete" onclick="denyDsoEdit('${key}')">✖ Deny</button>`
+            : (editPerm === "approved"
+              ? `<span class="status-approved" style="margin-right:4px;">✏️ DSO Edit Allowed</span>`
+              : '');
           actionButtons = `
             ${!isApproved ? `<button class="btn-approve" onclick="approveEntry('${key}')">✔ Approve</button>` : ''}
-            <button class="btn-edit" onclick="openEditModal('${key}')">✏️ Edit</button>
+            ${editRequestBtn}
+            <button class="btn-edit" onclick="openEditModal('${key}')">✏️ Admin Edit</button>
             <button class="btn-details" onclick="showDetailsModal('${key}')">ℹ️ Details</button>
             <button class="btn-delete" onclick="deleteEntry('${key}')">🗑️ Delete</button>
           `;
@@ -3214,13 +3633,17 @@
     async function approveEntry(key) {
       if (currentUser !== "admin") { alert("❌ এই কাজটি শুধুমাত্র Master Admin করতে পারবেন।"); return; }
       if (!globalAllData?.[key]) return;
-      if (confirm("আপনি কি নিশ্চিত যে এই রিপোর্টটি Approve করতে চান?")) {
-        try {
-          await database.ref('collections/' + key).update({ approvalStatus: "approved" });
-          alert("রিপোর্টটি সফলভাবে Approved করা হয়েছে!");
-        } catch (err) {
-          alert("Approve করতে সমস্যা হয়েছে: " + err.message);
-        }
+      if (!confirm("আপনি কি নিশ্চিত যে এই রিপোর্টটি Approve করতে চান?")) return;
+      const previous = { ...globalAllData[key] };
+      globalAllData[key] = { ...globalAllData[key], approvalStatus: "approved" };
+      scheduleDataUiUpdate();
+      try {
+        await database.ref('collections/' + key).update({ approvalStatus: "approved" });
+        alert("রিপোর্টটি সফলভাবে Approved করা হয়েছে!");
+      } catch (err) {
+        globalAllData[key] = previous;
+        scheduleDataUiUpdate();
+        alert("Approve করতে সমস্যা হয়েছে: " + err.message);
       }
     }
 
@@ -3322,24 +3745,32 @@
     async function deleteEntry(key) {
       if (currentUser !== "admin") { alert("❌ Delete শুধুমাত্র Master Admin করতে পারবেন।"); return; }
       if (!globalAllData || !globalAllData[key]) return;
-      let item = globalAllData[key];
-      let dsoId = item.userId;
+      const item = globalAllData[key];
+      const dsoId = item.userId;
+      const previousRecord = { ...item };
 
-      let confirmPass = prompt(`ডিলেট নিশ্চিত করতে Admin Password প্রদান করুন (DSO ID: ${dsoId}):`);
+      const confirmPass = prompt(`ডিলেট নিশ্চিত করতে Admin Password প্রদান করুন (DSO ID: ${dsoId}):`);
       if (confirmPass === null) return;
 
       try {
-        let passSnapshot = await database.ref('users/admin/password').once('value');
-        let adminPass = passSnapshot.val() || "123456";
-
+        const passSnapshot = await database.ref('users/admin/password').once('value');
+        const adminPass = passSnapshot.val() || "123456";
         if (confirmPass.trim() !== String(adminPass).trim()) {
           alert("ভুল এডমিন পাসওয়ার্ড! মুছে ফেলা সম্ভব হয়নি।");
           return;
         }
 
+        pendingOptimisticDeletes.add(key);
+        delete globalAllData[key];
+        scheduleDataUiUpdate();
+
         await database.ref('collections/' + key).remove();
+        pendingOptimisticDeletes.delete(key);
         alert(`DSO ID: ${dsoId} এর রেকর্ড সফলভাবে ডিলেট করা হয়েছে।`);
       } catch (err) {
+        pendingOptimisticDeletes.delete(key);
+        globalAllData[key] = previousRecord;
+        scheduleDataUiUpdate();
         alert("ডিলেট করতে সমস্যা হয়েছে: " + err.message);
       }
     }
