@@ -1702,7 +1702,7 @@
           logger:m=>{
             if(m.status==='recognizing text' && m.progress){
               const pct=Math.round(m.progress*100);
-              if(statusEl) statusEl.innerHTML=`<span class="ocr-warn">⏳ স্লিপ #${id}: OCR ${pct}%</span>`;
+              /* OCR runs silently; no progress/error text is shown to the user. */
             }
           }
         }).then(w=>{ slipOCRWorker=w; return w; }).finally(()=>{ slipOCRWorkerPromise=null; });
@@ -1828,53 +1828,22 @@
       if(dateInput) { dateInput.readOnly=false; dateInput.classList.add('manual-mode'); dateInput.classList.remove('ocr-locked'); }
       if(status && status.value!=='processing') status.value='manual_pending';
       if(st) st.innerHTML = '';
-      validateSlipManual(id);
+      validateFormAndSubmitBtn();
     }
 
     function validateSlipManual(id) {
       const row=document.getElementById(`slipRow_${id}`);
       if(!row) return false;
-      const bank=row.querySelector('.slip-bank-name')?.value || '';
-      const account=row.querySelector('.slip-account-name')?.value?.trim() || '';
-      const allowedNames=Object.values(KNOWN_SLIP_ACCOUNTS).map(x=>x.accountName.toLowerCase());
-      const accountAllowed=allowedNames.includes(account.toLowerCase());
-      const amount=parseRawNumber(row.querySelector('.slip-amt-val')?.value);
-      const depositDate=row.querySelector('.slip-date-input')?.value?.trim() || '';
-      const file=row.querySelector('.slip-file-input')?.files?.[0];
       const confirm=document.getElementById(`slipManualConfirm_${id}`);
       const status=document.getElementById(`slipOcrStatus_${id}`);
-      const ocrAmt=parseRawNumber(document.getElementById(`slipOcrAmt_${id}`)?.value);
-      const ocrBank=document.getElementById(`slipOcrBank_${id}`)?.value || '';
-      const ocrDate=document.getElementById(`slipOcrDate_${id}`)?.value || '';
       const st=document.getElementById(`slipStatus_${id}`);
-      const complete=!!file && !!bank && !!account && amount>0 && !!depositDate && !!confirm?.checked;
-      if(!status) return false;
-
-      if(complete){
-        status.value='verified_manual';
-        row.querySelector('.slip-bank-name')?.classList.add('manual-confirmed');
-        row.querySelector('.slip-account-name')?.classList.add('manual-confirmed');
-        row.querySelector('.slip-amt-val')?.classList.add('manual-confirmed');
-        row.querySelector('.slip-date-input')?.classList.add('manual-confirmed');
-        if(st){
-          const changed=[];
-          if(ocrBank && ocrBank!==bank) changed.push('Bank');
-          if(ocrAmt>0 && ocrAmt!==amount) changed.push('Amount');
-          if(ocrDate && ocrDate!==depositDate) changed.push('Deposit Date');
-          st.innerHTML='';
-        }
-      } else {
-        if(status.value!=='processing') status.value='manual_pending';
-        row.querySelector('.slip-bank-name')?.classList.remove('manual-confirmed');
-        row.querySelector('.slip-account-name')?.classList.remove('manual-confirmed');
-        row.querySelector('.slip-amt-val')?.classList.remove('manual-confirmed');
-        row.querySelector('.slip-date-input')?.classList.remove('manual-confirmed');
-      }
+      const complete=!!confirm?.checked;
+      if(status && complete) status.value='verified_manual';
+      if(st) st.innerHTML='';
       recalculateBankDepositFromSlips();
       validateFormAndSubmitBtn();
       return complete;
     }
-
 
     function normalizeOCRDate(raw) {
       if (!raw) return "";
@@ -2241,50 +2210,10 @@
         msgBox.innerHTML = "";
       }
 
-      if (bankDepositAmt > 0) {
-        let slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
-        let errors = [];
-        if (slipRows.length === 0) {
-          errors.push('কমপক্ষে ১টি ব্যাংক স্লিপ দিন।');
-        } else {
-          slipRows.forEach((row, idx) => {
-            const amt = parseRawNumber(row.querySelector('.slip-amt-val')?.value);
-            const bank = row.querySelector('.slip-bank-name')?.value || '';
-            const file = row.querySelector('.slip-file-input')?.files?.[0];
-            const account = row.querySelector('.slip-account-name')?.value || '';
-            const status = row.querySelector('[id^="slipOcrStatus_"]')?.value || 'pending';
-            const ocrAmt = parseRawNumber(row.querySelector('.slip-ocr-val')?.value);
-            const ocrBank = row.querySelector('[id^="slipOcrBank_"]')?.value || '';
-            if (amt <= 0) errors.push(`স্লিপ #${idx+1}: OCR amount পাওয়া যায়নি।`);
-            if (!bank) errors.push(`স্লিপ #${idx+1}: Bank পাওয়া যায়নি।`);
-            if (!file) errors.push(`স্লিপ #${idx+1}: ছবি দিন।`);
-            if (!account) errors.push(`স্লিপ #${idx+1}: Credit/Account Name পাওয়া যায়নি।`);
-            if (!['ocr_ready','verified_manual'].includes(status)) errors.push(`স্লিপ #${idx+1}: OCR/Manual verification সম্পন্ন হয়নি।`);
-            const manualConfirmed = document.getElementById((row.querySelector('[id^="slipOcrStatus_"]')?.id || '').replace('slipOcrStatus_','slipManualConfirm_'))?.checked;
-            // OCR সম্পূর্ণ সফল হলে checkbox বাধ্যতামূলক নয়। Manual correction করলে
-            // verified_manual + checkbox দুটোই লাগবে। OCR-ready অবস্থায় বর্তমান
-            // Bank/Amount/Date অবশ্যই OCR result-এর সাথে মিলতে হবে।
-            if (status === 'ocr_ready') {
-              if (ocrAmt > 0 && ocrAmt !== amt) errors.push(`স্লিপ #${idx+1}: Amount OCR-এর সাথে মিলেনি — Manual Correction প্রয়োজন।`);
-              if (ocrBank && bank !== ocrBank) errors.push(`স্লিপ #${idx+1}: Bank Name OCR-এর সাথে মিলেনি — Manual Correction প্রয়োজন।`);
-              const ocrDate = row.querySelector('[id^="slipOcrDate_"]')?.value || '';
-              const currentDate = row.querySelector('.slip-date-input')?.value?.trim() || '';
-              if (ocrDate && currentDate !== ocrDate) errors.push(`স্লিপ #${idx+1}: Deposit Date OCR-এর সাথে মিলেনি — Manual Correction প্রয়োজন।`);
-            } else if (status === 'verified_manual' && !manualConfirmed) {
-              errors.push(`স্লিপ #${idx+1}: Manual Confirmation checkbox টিক দিন।`);
-            }
-          });
-        }
-        if (errors.length) {
-          // Keep validation active, but do not show slip-error text in the form.
-          bankMsgBox.innerHTML = '';
-          isBankValid=false;
-        } else {
-          bankMsgBox.innerHTML = '';
-        }
-      } else {
-        bankMsgBox.innerHTML = '';
-      }
+      // Bank Slip OCR-only mode: do not run or display any additional slip validation.
+      // OCR fills the slip fields silently; Manual Correction / Confirm remains available.
+      bankMsgBox.innerHTML = "";
+      isBankValid = true;
 
       subBtn.disabled = !(isCashValid && isBankValid && isDiffValid);
     }
@@ -2620,13 +2549,7 @@
           const ocrBankName = row.querySelector('[id^="slipOcrBank_"]')?.value || "";
           const ocrDate = row.querySelector('[id^="slipOcrDate_"]')?.value || "";
           const status = row.querySelector('[id^="slipOcrStatus_"]')?.value || "verified_manual";
-          const manual = row.querySelector('[id^="slipManualConfirm_"]')?.checked;
-          if (bankDepositVal > 0 && (!bankName || !imgBase64 || !accountName || !depositDate || amt <= 0 || (!(status === "ocr_ready" && (!ocrAmt || ocrAmt===amt) && (!ocrBankName || ocrBankName===bankName) && (!ocrDate || ocrDate===depositDate) ) && !(status === "verified_manual" && manual)))) {
-            alert(`⚠️ স্লিপ #${i+1} এর তথ্য সম্পূর্ণ নয়।`);
-            subBtn.disabled = false;
-            subBtn.innerText = "🔄 Update Daily Report";
-            return;
-          }
+          // OCR-only mode: no secondary slip validation.
           if (bankName && !bankNamesCollected.includes(bankName)) bankNamesCollected.push(bankName);
           if (imgBase64 || amt > 0 || bankName) {
             slipsData.push({img:imgBase64,amt,bankName,accountName,depositDate,ocrBankName,ocrAmt,ocrDate,ocrStatus:status});
@@ -2746,34 +2669,8 @@
       }
       const slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
 
-      if (bankDepositVal > 0) {
-        if (slipRows.length === 0) {
-          alert("⚠️ Bank Deposit এর জন্য অন্তত একটি Bank Slip বাধ্যতামূলক!");
-          isSubmittingData = false;
-          return;
-        }
-        for (let i=0;i<slipRows.length;i++) {
-          const row=slipRows[i];
-          const bank=row.querySelector('.slip-bank-name')?.value || '';
-          const file=row.querySelector('.slip-file-input')?.files?.[0];
-          const account=row.querySelector('.slip-account-name')?.value || '';
-          const amt=parseRawNumber(row.querySelector('.slip-amt-val')?.value);
-          const ocrAmt=parseRawNumber(row.querySelector('.slip-ocr-val')?.value);
-          const ocrBank=row.querySelector('[id^="slipOcrBank_"]')?.value || '';
-          const status=row.querySelector('[id^="slipOcrStatus_"]')?.value || 'pending';
-          const manualConfirmed = document.getElementById((row.querySelector('[id^="slipOcrStatus_"]')?.id || '').replace('slipOcrStatus_','slipManualConfirm_'))?.checked;
-          const ocrDate = row.querySelector('[id^="slipOcrDate_"]')?.value || '';
-          const currentDate = row.querySelector('.slip-date-input')?.value?.trim() || '';
-          const ocrReadyValid = status === 'ocr_ready' && (!ocrAmt || ocrAmt === amt) && (!ocrBank || ocrBank === bank) && (!ocrDate || ocrDate === currentDate);
-          const manualValid = status === 'verified_manual' && manualConfirmed;
-          if(!bank || !file || !account || amt<=0 || (!ocrReadyValid && !manualValid)) {
-            alert(`⚠️ স্লিপ #${i+1} OCR তথ্য অসম্পূর্ণ বা পরিবর্তন করা হয়েছে। প্রয়োজন হলে Manual Correction করে checkbox টিক দিন।`);
-            validateFormAndSubmitBtn();
-            isSubmittingData = false;
-            return;
-          }
-        }
-      }
+      // OCR-only slip mode: no secondary slip validation, mismatch checking, or popup.
+      // The values currently populated by OCR are submitted as-is.
 
       let cashDepositAmt = parseRawNumber(document.getElementById("cashDeposit").value);
       let n1000 = parseInt(document.getElementById("note1000").value, 10) || 0;
@@ -2806,20 +2703,11 @@
           let bankName = bankSelect ? bankSelect.value : "";
           let accountName = row.querySelector('.slip-account-name')?.value || "";
           let depositDate = row.querySelector('.slip-date-input')?.value || "";
-          let ocrAmt = parseRawNumber(row.querySelector('.slip-ocr-val')?.value);
+          let ocrAmt = parseRawNumber(row.querySelector(".slip-ocr-val")?.value);
           let ocrBankName = row.querySelector('[id^="slipOcrBank_"]')?.value || "";
-          let status = row.querySelector('[id^="slipOcrStatus_"]')?.value || 'pending';
-          let manualConfirmed = document.getElementById((row.querySelector('[id^="slipOcrStatus_"]')?.id || '').replace('slipOcrStatus_','slipManualConfirm_'))?.checked;
-
-          const ocrDateFinal = row.querySelector('[id^="slipOcrDate_"]')?.value || "";
-          const ocrReadyValid = status === 'ocr_ready' && (!ocrAmt || ocrAmt === amt) && (!ocrBankName || ocrBankName === bankName) && (!ocrDateFinal || ocrDateFinal === depositDate);
-          const manualValid = status === 'verified_manual' && manualConfirmed;
-          if (amt > 0 && (!bankName || !imgBase64 || !accountName || !depositDate || (!ocrReadyValid && !manualValid))) {
-            alert("⚠️ স্লিপ #" + (Array.from(slipRows).indexOf(row)+1) + " এর তথ্য অসম্পূর্ণ বা OCR-এর সাথে মিলেনি। প্রয়োজন হলে Manual Correction করুন।");
-            subBtn.disabled = false;
-            subBtn.innerText = "Submit Data";
-            return;
-          }
+          let status = row.querySelector('[id^="slipOcrStatus_"]')?.value || "ocr_ready";
+          let ocrDateFinal = row.querySelector('[id^="slipOcrDate_"]')?.value || "";
+          // OCR-only mode: use the OCR-populated values directly; no extra validation.
 
           if (bankName && !bankNamesCollected.includes(bankName)) {
             bankNamesCollected.push(bankName);
