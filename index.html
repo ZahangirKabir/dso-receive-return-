@@ -383,7 +383,7 @@
     }
 
     /* OCR is intentionally silent: processing/result diagnostics are hidden. */
-    .ocr-status, .ocr-result-box { display:none !important; }
+    .ocr-status, .ocr-result-box, #bankValidationMsg { display:none !important; }
 </style>
 </head>
 <body>
@@ -1711,60 +1711,31 @@
     }
 
     async function runSlipOCR(file, statusEl, id) {
+      // FAST SINGLE-PASS OCR: one clean, high-quality scan only.
+      // No recovery/retry passes are used here, so the slip remains fast and predictable.
       await ensureTesseractLoaded();
-      if(!window.Tesseract) throw new Error('OCR library load হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।');
-      const worker=await getSlipOCRWorker(statusEl,id);
-      const results=[];
+      if(!window.Tesseract) throw new Error('OCR library load হয়নি।');
 
-      // PASS 1: fast full-slip scan. Most clean slips finish here.
-      const quick={mode:3,rotation:0,psm:'11'};
+      const worker=await getSlipOCRWorker(null,id);
       await worker.setParameters({
-        tessedit_pageseg_mode:quick.psm,
+        tessedit_pageseg_mode:'11',
         preserve_interword_spaces:'1',
         user_defined_dpi:'300'
       });
-      const quickImg=await preprocessImage(file,quick.mode,quick.rotation);
-      const quickResult=await worker.recognize(quickImg);
-      const quickText=quickResult?.data?.text||'';
-      if(quickText) results.push({text:quickText,confidence:Number(quickResult?.data?.confidence||0),mode:3,rotation:0,psm:'11',data:quickResult.data});
 
-      // PASS 2: only when a key field is missing. Use a stronger contrast/segmentation
-      // profile instead of blindly running many full-image OCR passes.
-      const quickKnown=findKnownSlipAccount(quickText);
-      const quickBank=quickKnown?.bank||detectBankFromOCR(quickText)||'';
-      const quickAmount=quickBank?targetedAmountCandidates(quickText,quickBank):extractAmountCandidates(quickText);
-      const quickDate=extractDepositDate({text:quickText,data:quickResult?.data});
-      const quickName=quickKnown || (quickBank?targetedAccountName(quickText,quickBank):extractAccountName(quickText));
-      const needRecovery=!(quickKnown && quickAmount.some(x=>x.value>0) && quickDate && quickName);
+      const img=await preprocessImage(file,3,0);
+      const result=await worker.recognize(img);
+      const text=result?.data?.text||'';
+      if(!text) return [];
 
-      if(needRecovery){
-        const profile=getBankOCRProfile(quickBank||'');
-        const pass=profile.modes?.[0]||{mode:2,rotation:0,psm:'6'};
-        await worker.setParameters({tessedit_pageseg_mode:pass.psm,preserve_interword_spaces:'1',user_defined_dpi:'300'});
-        const img=await preprocessImage(file,pass.mode,pass.rotation);
-        const result=await worker.recognize(img);
-        if(result?.data?.text) results.push({text:result.data.text,confidence:Number(result.data.confidence||0),mode:pass.mode,rotation:pass.rotation,psm:pass.psm,data:result.data});
-      }
-
-      // Account recovery is strict: only a configured account number can select
-      // Bank + Credit/Account Name. No arbitrary OCR name is allowed to become valid.
-      if(!chooseKnownSlipAccount(results)){
-        const pass={mode:0,rotation:0,psm:'6'};
-        await worker.setParameters({tessedit_pageseg_mode:pass.psm,preserve_interword_spaces:'1',user_defined_dpi:'300'});
-        const img=await preprocessImage(file,pass.mode,pass.rotation);
-        const result=await worker.recognize(img);
-        if(result?.data?.text) results.push({text:result.data.text,confidence:Number(result.data.confidence||0),mode:pass.mode,rotation:0,psm:pass.psm,data:result.data,accountPass:true});
-      }
-
-      // Date recovery only when no unambiguous date was detected.
-      if(!results.some(r=>extractDepositDate(r))){
-        const pass={mode:2,rotation:0,psm:'11'};
-        await worker.setParameters({tessedit_pageseg_mode:pass.psm,preserve_interword_spaces:'1',user_defined_dpi:'300'});
-        const img=await preprocessImage(file,pass.mode,pass.rotation);
-        const result=await worker.recognize(img);
-        if(result?.data?.text) results.push({text:result.data.text,confidence:Number(result.data.confidence||0),mode:pass.mode,rotation:0,psm:pass.psm,data:result.data,datePass:true});
-      }
-      return results;
+      return [{
+        text,
+        confidence:Number(result?.data?.confidence||0),
+        mode:3,
+        rotation:0,
+        psm:'11',
+        data:result.data
+      }];
     }
 
     function chooseConsensusBank(ocrResults) {
@@ -1856,7 +1827,7 @@
       if(amount) { amount.readOnly=false; amount.classList.add('manual-mode'); amount.classList.remove('ocr-locked'); }
       if(dateInput) { dateInput.readOnly=false; dateInput.classList.add('manual-mode'); dateInput.classList.remove('ocr-locked'); }
       if(status && status.value!=='processing') status.value='manual_pending';
-      if(st) st.innerHTML += `<br><span class="ocr-warn">✎ Manual correction mode: ছবির সাথে মিলিয়ে সঠিক Bank, Account Name ও Amount দিন। তারপর checkbox টিক দিন।</span>`;
+      if(st) st.innerHTML = '';
       validateSlipManual(id);
     }
 
@@ -1890,7 +1861,7 @@
           if(ocrBank && ocrBank!==bank) changed.push('Bank');
           if(ocrAmt>0 && ocrAmt!==amount) changed.push('Amount');
           if(ocrDate && ocrDate!==depositDate) changed.push('Deposit Date');
-          st.innerHTML=`<span class="ocr-ok">✅ Manual confirmation সম্পন্ন — ${changed.length ? changed.join(' + ')+' OCR থেকে সংশোধন করা হয়েছে।' : 'Bank Slip-এর ছবি দেখে Bank + Account Name + Amount + Deposit Date নিশ্চিত করা হয়েছে।'}</span>`;
+          st.innerHTML='';
         }
       } else {
         if(status.value!=='processing') status.value='manual_pending';
@@ -2092,7 +2063,7 @@
       bankSelect.value=""; bankSelect.disabled=false; bankSelect.classList.remove("ocr-locked","manual-mode","manual-confirmed");
       recalculateBankDepositFromSlips();
       document.getElementById("subBtn").disabled=true;
-      mainStatus.innerHTML=`<span class="ocr-warn">⏳ স্লিপ #${id} বিশ্লেষণ করা হচ্ছে… Bank + Credit Name + Deposit Amount + Date দ্রুত যাচাই হচ্ছে</span>`;
+      mainStatus.innerHTML='';
 
       try{
         const ocrResults=await runSlipOCR(file,statusElement,id);
@@ -2142,7 +2113,7 @@
       const st=document.getElementById(`slipStatus_${id}`);
       if(ocrBank.value && select.value && select.value!==ocrBank.value && !manualConfirm?.checked){
         status.value='manual_pending';
-        if(st) st.innerHTML=`<span class="ocr-fail">❌ Bank OCR-এর সাথে মিলেনি। স্লিপ দেখে Manual Correction / Confirm করে checkbox টিক দিন।</span>`;
+        if(st) st.innerHTML='';
       } else if(status.value==='verified_manual'){
         validateSlipManual(id);
       }
@@ -2305,13 +2276,14 @@
           });
         }
         if (errors.length) {
-          bankMsgBox.innerHTML = `<p class="note-warning">❌ Submit বন্ধ: ${errors.slice(0,5).map(escapeHtml).join('<br>')}${errors.length>5?'<br>…আরও ভুল আছে।':''}</p>`;
+          // Keep validation active, but do not show slip-error text in the form.
+          bankMsgBox.innerHTML = '';
           isBankValid=false;
         } else {
-          bankMsgBox.innerHTML = `<p class="note-success">✅ সব Bank Slip-এর Bank Name, Account Name এবং OCR Amount যাচাই হয়েছে।</p>`;
+          bankMsgBox.innerHTML = '';
         }
       } else {
-        bankMsgBox.innerHTML = "";
+        bankMsgBox.innerHTML = '';
       }
 
       subBtn.disabled = !(isCashValid && isBankValid && isDiffValid);
