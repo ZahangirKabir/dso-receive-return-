@@ -59,8 +59,8 @@
     .tab-btn { background: #e0f2f1; border: none; padding: 10px 18px; font-weight: bold; cursor: pointer; border-radius: 6px 6px 0 0; color: #004d40; font-size: 14px; }
     .tab-btn.active { background: #00695c; color: white; }
 
-    .header-bar { overflow: hidden; margin-bottom: 15px; }
-    .header-bar h2 { float: left; font-size: 18px; margin: 0; }
+    .header-bar { overflow: hidden; margin-bottom: 15px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .header-bar h2 { font-size: 18px; margin: 0; }
 
     .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 15px; }
     .card { background: #e0f2f1; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #b2dfdb; }
@@ -384,6 +384,15 @@
 
     /* OCR is intentionally silent: processing/result diagnostics are hidden. */
     .ocr-status, .ocr-result-box, #bankValidationMsg { display:none !important; }
+
+    .bank-slip-image-cell{min-width:62px;width:70px;text-align:center;vertical-align:middle;}
+    .bank-slip-image-cell .slip-img-preview{width:52px!important;height:52px!important;object-fit:cover!important;}
+    .slip-card-modal img{display:block!important;min-height:120px;}
+
+    #refreshDataBtn{width:auto!important;white-space:nowrap;transition:.15s ease;}
+    #refreshDataBtn:active{transform:scale(.98);}
+    .slip-field input,.slip-field select,.slip-file-label{height:43px!important;min-height:43px!important;}
+    @media(max-width:760px){.slip-field input,.slip-field select,.slip-file-label{height:45px!important;min-height:45px!important;}}
 </style>
 </head>
 <body>
@@ -401,7 +410,10 @@
     <div class="portal-sticky-top">
       <div class="header-bar">
         <h2 id="portalTitle">Collection Portal</h2>
-        <button class="btn btn-logout" onclick="logout()">Logout</button>
+        <div style="float:right;display:flex;gap:6px;align-items:center;">
+          <button class="btn-reset" id="refreshDataBtn" type="button" onclick="refreshCurrentData()" style="padding:8px 11px;font-weight:800;">🔄 Refresh</button>
+          <button class="btn btn-logout" onclick="logout()">Logout</button>
+        </div>
       </div>
 
       <!-- ADMIN PANEL NAVIGATION -->
@@ -1031,6 +1043,27 @@
       } catch (err) { alert("পাসওয়ার্ড সেভ করা যায়নি: " + err.message); }
     }
 
+    async function refreshCurrentData() {
+      const btn=document.getElementById('refreshDataBtn');
+      if(btn){btn.disabled=true;btn.textContent='⟳ Loading...';}
+      try{
+        if(currentUser==='admin'){
+          const date=document.getElementById('filterDate')?.value || getLocalDateString();
+          let mode=masterAdminDataMode || 'date';
+          if(mode==='date') loadMasterAdminData('date',date);
+          else loadMasterAdminData(mode);
+        }else{
+          // Re-attach the same scoped realtime query instead of reloading the page.
+          realtimeListenerAttached=false;
+          listenRealtimeData();
+        }
+        await new Promise(r=>setTimeout(r,250));
+      }catch(e){ console.error('Refresh failed:',e); }
+      finally{
+        if(btn){btn.disabled=false;btn.textContent='🔄 Refresh';}
+      }
+    }
+
     function logout() { detachRealtimeDataListeners(); location.reload(); }
 
     function addDsoReceivedRow() {
@@ -1096,12 +1129,12 @@
 
           <div class="slip-field">
             <label class="slip-field-label">👤 Account / Credit Name</label>
-            <input type="text" placeholder="OCR result এখানে আসবে" class="slip-account-name" id="slipAccount_${slipCounter}" readonly autocomplete="off">
+            <input type="text" placeholder="Account / Credit Name" class="slip-account-name" id="slipAccount_${slipCounter}" readonly autocomplete="off">
           </div>
 
           <div class="slip-field">
             <label class="slip-field-label">📅 Deposit Date</label>
-            <input type="text" placeholder="তারিখ OCR থেকে আসবে" class="slip-date-input" id="slipDate_${slipCounter}" readonly autocomplete="off">
+            <input type="text" placeholder="Deposit Date" class="slip-date-input" id="slipDate_${slipCounter}" readonly autocomplete="off">
           </div>
 
           <div class="slip-field">
@@ -1661,25 +1694,31 @@
       return extractAccountName(text);
     }
 
-    // ---------- FAST OCR ENGINE ----------
-    // Reuse one Tesseract worker between slips. Creating/loading a worker for
-    // every image is the biggest avoidable delay in the original version.
+    // ---------- FAST + ACCURATE OCR ENGINE ----------
+    // One reusable worker + smart recovery. The first pass is fast; only the
+    // fields that are likely missing trigger a second/third targeted pass.
     let slipOCRWorker = null;
     let slipOCRWorkerPromise = null;
-
     let tesseractLoadPromise = null;
     let xlsxLoadPromise = null;
+
     function loadScriptOnce(src, globalName) {
       return new Promise((resolve,reject)=>{
         if(window[globalName]) return resolve(window[globalName]);
-        const sc=document.createElement('script'); sc.src=src; sc.async=true;
-        sc.onload=()=>resolve(window[globalName]); sc.onerror=()=>reject(new Error('Library load failed'));
+        const sc=document.createElement('script');
+        sc.src=src; sc.async=true;
+        sc.onload=()=>window[globalName] ? resolve(window[globalName]) : reject(new Error(globalName+' unavailable'));
+        sc.onerror=()=>reject(new Error('Library load failed: '+src));
         document.head.appendChild(sc);
       });
     }
+
     function ensureTesseractLoaded(){
       if(window.Tesseract) return Promise.resolve(window.Tesseract);
-      if(!tesseractLoadPromise) tesseractLoadPromise=loadScriptOnce('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js','Tesseract');
+      if(!tesseractLoadPromise){
+        tesseractLoadPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js','Tesseract')
+          .catch(async()=>loadScriptOnce('https://unpkg.com/tesseract.js@5/dist/tesseract.min.js','Tesseract'));
+      }
       return tesseractLoadPromise;
     }
     function ensureXlsxLoaded(){
@@ -1688,54 +1727,79 @@
       return xlsxLoadPromise;
     }
     function scheduleHeavyLibrariesPreload(){
-      // Keep the login/data path responsive. OCR is loaded only after the
-      // browser has had time to finish the first screen and Firebase sync.
       const run=()=>{ ensureTesseractLoaded().catch(()=>{}); };
-      if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:6000});
-      else setTimeout(run,2500);
+      if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:3500});
+      else setTimeout(run,1200);
     }
 
-    async function getSlipOCRWorker(statusEl, id) {
-      if (slipOCRWorker) return slipOCRWorker;
-      if (!slipOCRWorkerPromise) {
-        slipOCRWorkerPromise = Tesseract.createWorker("eng+ben", 1, {
-          logger:m=>{
-            if(m.status==='recognizing text' && m.progress){
-              const pct=Math.round(m.progress*100);
-              /* OCR runs silently; no progress/error text is shown to the user. */
-            }
-          }
-        }).then(w=>{ slipOCRWorker=w; return w; }).finally(()=>{ slipOCRWorkerPromise=null; });
+    async function getSlipOCRWorker() {
+      if(slipOCRWorker) return slipOCRWorker;
+      if(!slipOCRWorkerPromise){
+        slipOCRWorkerPromise = (async()=>{
+          await ensureTesseractLoaded();
+          const w = await Tesseract.createWorker('eng+ben', 1, { logger:()=>{} });
+          slipOCRWorker = w;
+          return w;
+        })().catch(err=>{ slipOCRWorker=null; throw err; })
+          .finally(()=>{ slipOCRWorkerPromise=null; });
       }
       return slipOCRWorkerPromise;
     }
 
-    async function runSlipOCR(file, statusEl, id) {
-      // FAST SINGLE-PASS OCR: one clean, high-quality scan only.
-      // No recovery/retry passes are used here, so the slip remains fast and predictable.
-      await ensureTesseractLoaded();
-      if(!window.Tesseract) throw new Error('OCR library load হয়নি।');
-
-      const worker=await getSlipOCRWorker(null,id);
+    async function recognizeSlipPass(worker, image, psm, extra={}){
       await worker.setParameters({
-        tessedit_pageseg_mode:'11',
+        tessedit_pageseg_mode:String(psm),
         preserve_interword_spaces:'1',
-        user_defined_dpi:'300'
+        user_defined_dpi:'300',
+        ...extra
       });
-
-      const img=await preprocessImage(file,3,0);
-      const result=await worker.recognize(img);
-      const text=result?.data?.text||'';
-      if(!text) return [];
-
-      return [{
-        text,
+      const result=await worker.recognize(image);
+      return {
+        text:result?.data?.text||'',
         confidence:Number(result?.data?.confidence||0),
-        mode:3,
-        rotation:0,
-        psm:'11',
-        data:result.data
-      }];
+        mode:0, rotation:0, psm:String(psm), data:result?.data||{}
+      };
+    }
+
+    function ocrNeedsRecovery(r){
+      const text=String(r?.text||'');
+      const compact=compactOCRText(text);
+      const hasBank=!!detectBankFromOCR(text) && detectBankFromOCR(text)!=='AMBIGUOUS';
+      const hasMoney=extractAmountCandidates(text).length>0;
+      const hasDate=extractDateCandidatesFromText(text).length>0;
+      const hasAccount=!!extractAccountName(text);
+      const digits=(text.match(/[0-9০-৯]/g)||[]).length;
+      return !text || r.confidence<42 || !hasBank || !hasMoney || !hasDate || !hasAccount || digits<5 || compact.length<45;
+    }
+
+    async function runSlipOCR(file, statusEl, id) {
+      const worker=await getSlipOCRWorker();
+      const results=[];
+
+      // Pass 1: structured receipt/slip layout. This is the fastest useful scan.
+      const base=await preprocessImage(file,3,0);
+      const first=await recognizeSlipPass(worker,base,'6');
+      results.push(first);
+
+      // Pass 2 only when the first pass is incomplete. PSM 11 is stronger for
+      // scattered/thermal bank-slip text and broken line layouts.
+      if(ocrNeedsRecovery(first)){
+        const enhanced=await preprocessImage(file,4,0);
+        results.push(await recognizeSlipPass(worker,enhanced,'11'));
+      }
+
+      // Numeric recovery only when amount/date evidence is still weak. It uses
+      // a character whitelist, making amount/date extraction both faster and cleaner.
+      const mergedText=results.map(r=>r.text||'').join('\n');
+      const hasMoney=extractAmountCandidates(mergedText).length>0;
+      const hasDate=extractDateCandidatesFromText(mergedText).length>0;
+      if(!hasMoney || !hasDate){
+        const numeric=await preprocessImage(file,2,0);
+        results.push(await recognizeSlipPass(worker,numeric,'11',{
+          tessedit_char_whitelist:'0123456789.,/-৳TKBDT:'
+        }));
+      }
+      return results.filter(r=>r.text);
     }
 
     function chooseConsensusBank(ocrResults) {
@@ -1986,88 +2050,94 @@
     }
 
     async function processSlipOCR(event, id) {
-      const file=event.target.files[0];
+      const file=event.target.files?.[0];
       const row=document.getElementById(`slipRow_${id}`);
-      const statusElement=document.getElementById(`slipStatus_${id}`);
-      const mainStatus=document.getElementById("ocrStatus");
-      const bankSelect=row?.querySelector(".slip-bank-name");
-      const amtInput=row?.querySelector(".slip-amt-val");
-      const accountInput=row?.querySelector(".slip-account-name");
+      if(!row) return;
+      const bankSelect=row.querySelector('.slip-bank-name');
+      const amtInput=row.querySelector('.slip-amt-val');
+      const accountInput=row.querySelector('.slip-account-name');
+      const dateInput=document.getElementById(`slipDate_${id}`);
       const ocrAmt=document.getElementById(`slipOcrAmt_${id}`);
       const ocrBank=document.getElementById(`slipOcrBank_${id}`);
       const ocrDate=document.getElementById(`slipOcrDate_${id}`);
-      const dateInput=document.getElementById(`slipDate_${id}`);
-      const preview=document.getElementById(`slipPreview_${id}`);
       const ocrStatus=document.getElementById(`slipOcrStatus_${id}`);
+      const preview=document.getElementById(`slipPreview_${id}`);
 
       if(!file){
-        if(statusElement) statusElement.innerHTML="";
-        if(ocrStatus) ocrStatus.value="pending";
-        if(ocrAmt) ocrAmt.value="0";
-        if(ocrBank) ocrBank.value="";
-        if(ocrDate) ocrDate.value="";
-        if(dateInput){dateInput.value="";dateInput.readOnly=true;dateInput.classList.remove("manual-mode","manual-confirmed");}
-        if(preview){preview.src="";preview.classList.remove("visible");}
+        if(ocrStatus) ocrStatus.value='pending';
+        if(ocrAmt) ocrAmt.value='0';
+        if(ocrBank) ocrBank.value='';
+        if(ocrDate) ocrDate.value='';
+        if(dateInput){dateInput.value='';dateInput.readOnly=true;dateInput.classList.remove('manual-mode','manual-confirmed');}
+        if(preview){preview.src='';preview.classList.remove('visible');}
         const manualConfirm=document.getElementById(`slipManualConfirm_${id}`);
         if(manualConfirm) manualConfirm.checked=false;
-        if(amtInput){amtInput.value="";amtInput.readOnly=true;amtInput.classList.remove("ocr-locked","manual-mode","manual-confirmed");}
-        if(accountInput){accountInput.value="";accountInput.readOnly=true;accountInput.classList.remove("manual-mode","manual-confirmed");}
-        if(bankSelect){bankSelect.value="";bankSelect.disabled=false;bankSelect.classList.remove("ocr-locked","manual-mode","manual-confirmed");}
+        if(amtInput){amtInput.value='';amtInput.readOnly=true;amtInput.classList.remove('ocr-locked','manual-mode','manual-confirmed');}
+        if(accountInput){accountInput.value='';accountInput.readOnly=true;accountInput.classList.remove('manual-mode','manual-confirmed');}
+        if(bankSelect){bankSelect.value='';bankSelect.disabled=false;bankSelect.classList.remove('ocr-locked','manual-mode','manual-confirmed');}
         recalculateBankDepositFromSlips(); validateFormAndSubmitBtn(); return;
       }
-      if(!/^image\//i.test(file.type)){alert("শুধুমাত্র image file দিন।");event.target.value="";return;}
-      if(file.size>12*1024*1024){alert("স্লিপ ইমেজ 12MB-এর মধ্যে রাখুন।");event.target.value="";return;}
+      if(!/^image\//i.test(file.type)){alert('শুধুমাত্র image file দিন।');event.target.value='';return;}
+      if(file.size>15*1024*1024){alert('স্লিপ ইমেজ 15MB-এর মধ্যে রাখুন।');event.target.value='';return;}
 
-      ocrStatus.value="processing"; ocrAmt.value="0"; ocrBank.value=""; if(ocrDate) ocrDate.value="";
+      if(ocrStatus) ocrStatus.value='processing';
+      if(ocrAmt) ocrAmt.value='0';
+      if(ocrBank) ocrBank.value='';
+      if(ocrDate) ocrDate.value='';
       if(preview){
-        const reader=new FileReader();
-        reader.onload=e=>{ preview.src=e.target.result; preview.classList.add("visible"); };
-        reader.readAsDataURL(file);
+        // Reliable preview: keep the image as a data URL so it remains visible
+        // while OCR and Firebase submission continue.
+        try{
+          const previewReader=new FileReader();
+          previewReader.onload=e=>{
+            const src=e.target.result||'';
+            preview.src=src;
+            preview.classList.toggle('visible',!!src);
+          };
+          previewReader.onerror=()=>{ preview.removeAttribute('src'); preview.classList.remove('visible'); };
+          previewReader.readAsDataURL(file);
+        }catch(err){
+          console.warn('Slip preview failed:',err);
+          preview.removeAttribute('src');
+          preview.classList.remove('visible');
+        }
       }
       const manualConfirm=document.getElementById(`slipManualConfirm_${id}`);
       if(manualConfirm) manualConfirm.checked=false;
-      amtInput.value=""; amtInput.readOnly=true; amtInput.classList.remove("ocr-locked","manual-mode","manual-confirmed");
-      accountInput.value=""; accountInput.readOnly=true; accountInput.classList.remove("manual-mode","manual-confirmed");
-      if(dateInput){dateInput.value="";dateInput.readOnly=true;dateInput.classList.remove("manual-mode","manual-confirmed");}
-      bankSelect.value=""; bankSelect.disabled=false; bankSelect.classList.remove("ocr-locked","manual-mode","manual-confirmed");
+      amtInput.value=''; amtInput.readOnly=true; amtInput.classList.remove('ocr-locked','manual-mode','manual-confirmed');
+      accountInput.value=''; accountInput.readOnly=true; accountInput.classList.remove('manual-mode','manual-confirmed');
+      if(dateInput){dateInput.value='';dateInput.readOnly=true;dateInput.classList.remove('manual-mode','manual-confirmed');}
+      bankSelect.value=''; bankSelect.disabled=false; bankSelect.classList.remove('ocr-locked','manual-mode','manual-confirmed');
       recalculateBankDepositFromSlips();
-      document.getElementById("subBtn").disabled=true;
-      mainStatus.innerHTML='';
 
+      const submitBtn=document.getElementById('subBtn');
+      if(submitBtn) submitBtn.disabled=true;
       try{
-        const ocrResults=await runSlipOCR(file,statusElement,id);
-        if(!ocrResults.length) throw new Error("OCR থেকে কোনো লেখা পাওয়া যায়নি।");
+        const ocrResults=await runSlipOCR(file,null,id);
+        if(!ocrResults.length) throw new Error('OCR থেকে কোনো লেখা পাওয়া যায়নি।');
 
         const knownAccount=chooseKnownSlipAccount(ocrResults);
-        // STRICT ACCOUNT ALLOWLIST: no bank/name may come from any other account.
-        const bank=knownAccount?.bank || "";
+        const detectedBank=chooseConsensusBank(ocrResults);
+        const bank=knownAccount?.bank || (detectedBank && detectedBank!=='AMBIGUOUS' ? detectedBank : '');
         const amountInfo=chooseConsensusAmount(ocrResults);
-        const account=knownAccount?.accountName || "";
-        const depositDate=chooseConsensusDate(ocrResults);
-        const bankOK=!!bank && bank!=="AMBIGUOUS";
-        const amountOK=!!amountInfo && amountInfo.value>0;
-        const accountOK=!!account;
-        const dateOK=!!depositDate;
+        const account=knownAccount?.accountName || chooseConsensusAccount(ocrResults) || '';
+        const depositDate=chooseConsensusDate(ocrResults) || '';
 
-        if(bankOK){bankSelect.value=bank;bankSelect.classList.add("ocr-locked");ocrBank.value=bank;}
-        if(amountOK){amtInput.value=formatBD(amountInfo.value);amtInput.classList.add("ocr-locked");ocrAmt.value=String(amountInfo.value);}
-        if(accountOK) accountInput.value=account;
-        if(dateOK){dateInput.value=depositDate; ocrDate.value=depositDate; dateInput.classList.add("ocr-locked");}
-        // OCR may be correct, but final submission still requires a human visual confirmation.
-        ocrStatus.value=(bankOK&&amountOK&&accountOK&&dateOK)?"ocr_ready":"failed";
+        if(bank){bankSelect.value=bank;bankSelect.classList.add('ocr-locked');if(ocrBank)ocrBank.value=bank;}
+        if(amountInfo?.value>0){amtInput.value=formatBD(amountInfo.value);amtInput.classList.add('ocr-locked');if(ocrAmt)ocrAmt.value=String(amountInfo.value);}
+        if(account) accountInput.value=account;
+        if(depositDate){dateInput.value=depositDate;if(ocrDate)ocrDate.value=depositDate;dateInput.classList.add('ocr-locked');}
 
-        // Keep OCR processing completely silent. Only the four final fields are shown.
-        if(statusElement) statusElement.innerHTML="";
-        if(mainStatus) mainStatus.innerHTML="";
-
-        const status=(bankOK&&amountOK&&accountOK&&dateOK)?"ocr_ready":"failed";
-        ocrStatus.value=status;
-
+        const ready=!!bank && !!amountInfo?.value && !!account && !!depositDate;
+        if(ocrStatus) ocrStatus.value=ready?'ocr_ready':'failed';
         recalculateBankDepositFromSlips(); validateFormAndSubmitBtn();
       }catch(err){
-        console.error(err); ocrStatus.value="failed";
-        if(statusElement) statusElement.innerHTML="";
-        if(mainStatus) mainStatus.innerHTML="";
+        console.error('Bank Slip OCR failed:',err);
+        if(ocrStatus) ocrStatus.value='failed';
+        validateFormAndSubmitBtn();
+      }finally{
+        // OCR must never leave the main submit button permanently disabled.
+        if(submitBtn) submitBtn.disabled=false;
         validateFormAndSubmitBtn();
       }
     }
@@ -2442,7 +2512,7 @@
           addSlipRow();
           const row = document.getElementById("slipRow_" + slipCounter);
           if (!row) return;
-          row.dataset.existingImg = s.img || "";
+          row.dataset.existingImg = s.img || s.image || s.imageUrl || s.imgUrl || "";
           setSelectValueSafe(row.querySelector(".slip-bank-name"), s.bankName || "");
           const account = row.querySelector(".slip-account-name");
           const date = row.querySelector(".slip-date-input");
@@ -2457,9 +2527,10 @@
           const manual = row.querySelector('[id^="slipManualConfirm_"]');
           if (manual) { manual.checked = true; }
           const preview = row.querySelector(".slip-clear-preview");
-          if (preview && s.img) { preview.src = s.img; preview.classList.add("visible"); }
+          const existingSlipImage = s.img || s.image || s.imageUrl || s.imgUrl || "";
+           if (preview && existingSlipImage) { preview.src = existingSlipImage; preview.classList.add("visible"); }
           const name = row.querySelector(".slip-file-name");
-          if (name) name.textContent = s.img ? "Existing slip — নতুন ছবি দিলে replace হবে" : "ছবি নির্বাচন করুন";
+          if (name) name.textContent = existingSlipImage ? "Existing slip — নতুন ছবি দিলে replace হবে" : "ছবি নির্বাচন করুন";
         });
       } else {
         addSlipRow();
@@ -2692,31 +2763,25 @@
         let slipsData = [];
         let bankNamesCollected = [];
 
-        for (let row of slipRows) {
-          let fileInput = row.querySelector(".slip-file-input");
-          let amtInput = row.querySelector(".slip-amt-val");
-          let bankSelect = row.querySelector(".slip-bank-name");
-
-          let file = fileInput ? fileInput.files[0] : null;
-          let imgBase64 = await getBase64(file);
-          let amt = parseRawNumber(amtInput.value);
-          let bankName = bankSelect ? bankSelect.value : "";
-          let accountName = row.querySelector('.slip-account-name')?.value || "";
-          let depositDate = row.querySelector('.slip-date-input')?.value || "";
-          let ocrAmt = parseRawNumber(row.querySelector(".slip-ocr-val")?.value);
-          let ocrBankName = row.querySelector('[id^="slipOcrBank_"]')?.value || "";
-          let status = row.querySelector('[id^="slipOcrStatus_"]')?.value || "ocr_ready";
-          let ocrDateFinal = row.querySelector('[id^="slipOcrDate_"]')?.value || "";
-          // OCR-only mode: use the OCR-populated values directly; no extra validation.
-
-          if (bankName && !bankNamesCollected.includes(bankName)) {
-            bankNamesCollected.push(bankName);
-          }
-
-          if (imgBase64 || amt > 0 || bankName) {
-            slipsData.push({ img: imgBase64, amt: amt, bankName: bankName, accountName: accountName, depositDate: depositDate, ocrBankName: ocrBankName, ocrAmt: ocrAmt, ocrDate: row.querySelector('[id^="slipOcrDate_"]')?.value || "", ocrStatus: status });
-          }
-        }
+        const slipWork = Array.from(slipRows).map(async row => {
+          const fileInput = row.querySelector('.slip-file-input');
+          const amtInput = row.querySelector('.slip-amt-val');
+          const bankSelect = row.querySelector('.slip-bank-name');
+          const file = fileInput ? fileInput.files[0] : null;
+          const imgBase64 = await getBase64(file);
+          const amt = parseRawNumber(amtInput?.value);
+          const bankName = bankSelect?.value || '';
+          const accountName = row.querySelector('.slip-account-name')?.value || '';
+          const depositDate = row.querySelector('.slip-date-input')?.value || '';
+          const ocrAmt = parseRawNumber(row.querySelector('.slip-ocr-val')?.value);
+          const ocrBankName = row.querySelector('[id^="slipOcrBank_"]')?.value || '';
+          const status = row.querySelector('[id^="slipOcrStatus_"]')?.value || 'ocr_ready';
+          const ocrDateFinal = row.querySelector('[id^="slipOcrDate_"]')?.value || '';
+          if (!imgBase64 && amt<=0 && !bankName) return null;
+          return {img:imgBase64,amt,bankName,accountName,depositDate,ocrBankName,ocrAmt,ocrDate:ocrDateFinal,ocrStatus:status};
+        });
+        slipsData = (await Promise.all(slipWork)).filter(Boolean);
+        slipsData.forEach(slip=>{ if(slip.bankName && !bankNamesCollected.includes(slip.bankName)) bankNamesCollected.push(slip.bankName); });
 
         subBtn.innerText = "Saving Data...";
 
@@ -3697,7 +3762,8 @@
               bankName: bName,
               accountName: s.accountName || '',
               amt: amt,
-              img: s.img || ''
+              img: s.img || s.image || s.imageUrl || s.imgUrl || '',
+              depositDate: s.depositDate || s.date || item.date || ''
             });
           });
         } else if (item.bankDeposit > 0) {
@@ -3785,18 +3851,33 @@
         });
 
         grandTotalRowSum += entry.amt;
-
-        let imgPreviewHtml = entry.img 
-          ? `<img src="${entry.img}" class="slip-img-preview" onclick="zoomImage('${entry.img}', '${entry.dsoId}', '${entry.bankName}', ${entry.amt})">`
-          : '<span style="color:#aaa;">No Image</span>';
-
+        // Render the thumbnail as a DOM node instead of putting a large Base64
+        // string inside an inline onclick attribute. This fixes missing images
+        // on the Bank Details page for large slip images.
         rowHtml += `
           <td style="font-weight:bold; color:#2e7d32; background:#e8f5e9;">৳ ${formatBD(entry.amt)}</td>
-          <td>${imgPreviewHtml}</td>
+          <td class="bank-slip-image-cell"></td>
         `;
 
         tr.innerHTML = rowHtml;
         tbody.appendChild(tr);
+
+        const imageCell=tr.querySelector('.bank-slip-image-cell');
+        if(imageCell){
+          if(entry.img){
+            const img=document.createElement('img');
+            img.className='slip-img-preview';
+            img.alt='Bank Slip';
+            img.loading='lazy';
+            img.decoding='async';
+            img.src=entry.img;
+            img.addEventListener('click',()=>zoomImage(entry.img,entry.dsoId,entry.bankName,entry.amt,entry.depositDate||''));
+            img.addEventListener('error',()=>{imageCell.innerHTML='<span style="color:#c62828;font-size:10px;">Image unavailable</span>';},{once:true});
+            imageCell.appendChild(img);
+          }else{
+            imageCell.innerHTML='<span style="color:#aaa;">No Image</span>';
+          }
+        }
       });
 
       let footTr = document.createElement("tr");
@@ -3924,8 +4005,9 @@
         slipsGridHtml = `<div class="slip-grid-modal">`;
         slipsList.forEach((s, idx) => {
           let bName = s.bankName || item.bankName || 'Bank Slip';
-          let imgHtml = s.img 
-            ? `<img src="${s.img}" onclick="zoomImage('${s.img}', '${item.userId}', '${bName}', ${s.amt || 0})">` 
+          const slipImage = s.img || s.image || s.imageUrl || s.imgUrl || '';
+          let imgHtml = slipImage
+            ? `<img src="${slipImage}" data-slip-image="1" alt="Bank Slip">`
             : `<div style="height:100px; display:flex; align-items:center; justify-content:center; background:#eee; font-size:11px;">No Image</div>`;
 
           slipsGridHtml += `
@@ -3998,6 +4080,19 @@
       `;
 
       document.getElementById("detailsModal").style.display = "flex";
+      body.querySelectorAll('img[data-slip-image="1"]').forEach((img,idx)=>{
+        const slip=slipsList[idx];
+        const src=slip ? (slip.img || slip.image || slip.imageUrl || slip.imgUrl || '') : '';
+        if(!src) return;
+        img.addEventListener('click',()=>zoomImage(src,item.userId,slip.bankName || item.bankName || 'Bank Slip',slip.amt || 0,slip.depositDate || item.date || ''));
+        img.addEventListener('error',()=>{
+          img.style.display='none';
+          const msg=document.createElement('div');
+          msg.style.cssText='height:100px;display:flex;align-items:center;justify-content:center;background:#eee;font-size:11px;color:#c62828;';
+          msg.textContent='Image unavailable';
+          img.parentElement.appendChild(msg);
+        },{once:true});
+      });
     }
 
     function closeDetailsModal() {
