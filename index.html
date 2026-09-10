@@ -688,7 +688,7 @@
 
         <!-- DYNAMIC DEPOSIT SLIP CONTAINER -->
         <div class="section-box" style="margin-bottom: 15px;">
-          <div class="section-title" style="color: #00695c;">🧾 ব্যাংক ডিপোজিট স্লিপ আপলোড, ব্যাংকের নাম ও পরিমাণ <span style="color:red; font-size:11px;">(Bank Deposit থাকলে আপলোড বাধ্যতামূলক)</span></div>
+          <div class="section-title" style="color: #00695c;">🧾 ব্যাংক ডিপোজিট স্লিপ আপলোড, ব্যাংকের নাম ও পরিমাণ <span style="color:red; font-size:11px;">(Bank Deposit থাকলে সম্পূর্ণ Slip Upload/OCR বাধ্যতামূলক)</span></div>
           <div id="slipsContainer"></div>
           <button type="button" class="btn-add" onclick="addSlipRow()" style="padding: 8px 12px; font-size: 13px;">+ Add Deposit Slip</button>
           <div id="ocrStatus" class="ocr-status"></div>
@@ -2218,6 +2218,45 @@
       return bad;
     }
 
+    // Bank Deposit > 0 হলে অন্তত একটি সম্পূর্ণ Bank Slip বাধ্যতামূলক।
+    // OCR চলমান/ব্যর্থ/অসম্পূর্ণ থাকলে Submit disabled থাকবে।
+    function validateBankSlipRequirement() {
+      const bankDepositAmt = parseRawNumber(document.getElementById("bankDeposit")?.value || 0);
+      if (bankDepositAmt <= 0) return true;
+
+      const rows = Array.from(document.querySelectorAll("#slipsContainer .slip-box-item"));
+      if (!rows.length) return false;
+
+      const activeRows = rows.filter(row => {
+        const file = row.querySelector(".slip-file-input")?.files?.[0] || null;
+        const existingImg = row.dataset.existingImg || "";
+        const amt = parseRawNumber(row.querySelector(".slip-amt-val")?.value || 0);
+        const bank = row.querySelector(".slip-bank-name")?.value || "";
+        const account = (row.querySelector(".slip-account-name")?.value || "").trim();
+        const date = (row.querySelector(".slip-date-input")?.value || "").trim();
+        return !!file || !!existingImg || amt > 0 || !!bank || !!account || !!date;
+      });
+
+      if (!activeRows.length) return false;
+
+      return activeRows.every(row => {
+        const file = row.querySelector(".slip-file-input")?.files?.[0] || null;
+        const existingImg = row.dataset.existingImg || "";
+        const amt = parseRawNumber(row.querySelector(".slip-amt-val")?.value || 0);
+        const bank = row.querySelector(".slip-bank-name")?.value || "";
+        const account = (row.querySelector(".slip-account-name")?.value || "").trim();
+        const date = (row.querySelector(".slip-date-input")?.value || "").trim();
+        const status = row.querySelector('[id^="slipOcrStatus_"]')?.value || "";
+        const manualConfirmed = !!row.querySelector('[id^="slipManualConfirm_"]')?.checked;
+
+        // A real uploaded file or an existing saved image is required.
+        const hasImage = !!file || !!existingImg;
+        // OCR must be complete, or the user must have explicitly confirmed manual correction.
+        const ocrComplete = status === "ocr_ready" || status === "verified_manual" || manualConfirmed;
+        return hasImage && !!bank && !!account && !!date && amt > 0 && ocrComplete;
+      });
+    }
+
     function validateFormAndSubmitBtn() {
       let emRec = parseRawNumber(document.getElementById("emReceived").value);
       let cashRec = parseRawNumber(document.getElementById("cashReceived").value);
@@ -2238,12 +2277,10 @@
         let noteValue = parseInt(input.getAttribute("data-value"), 10) || 0;
         totalCashCalculated += count * noteValue;
       });
-      
+
       document.getElementById("totalCashDisplay").innerText = formatBD(totalCashCalculated);
 
       let cashDepositAmt = parseRawNumber(document.getElementById("cashDeposit").value);
-      let bankDepositAmt = parseRawNumber(document.getElementById("bankDeposit").value);
-
       let subBtn = document.getElementById("subBtn");
       let msgBox = document.getElementById("cashNoteValidationMsg");
       let bankMsgBox = document.getElementById("bankValidationMsg");
@@ -2257,7 +2294,7 @@
         diffMsgBox.innerHTML = `<p class="note-warning">❌ Receive ও Return এর মধ্যে ব্যবধান (৳${formatBD(diff)}) রয়েছে! ব্যবধান থাকলে Submit অফ থাকবে।</p>`;
         isDiffValid = false;
       } else {
-        diffMsgBox.innerHTML = `<p class="note-success">✅ Receive ও Return হুবহু মিলেছে (ব্যবধন ৳0)</p>`;
+        diffMsgBox.innerHTML = `<p class="note-success">✅ Receive ও Return হুবহু মিলেছে (ব্যবধান ৳0)</p>`;
       }
 
       const minimumBad = validateMainAmountMinimums();
@@ -2280,10 +2317,10 @@
         msgBox.innerHTML = "";
       }
 
-      // Bank Slip OCR-only mode: do not run or display any additional slip validation.
-      // OCR fills the slip fields silently; Manual Correction / Confirm remains available.
+      // নতুন নিয়ম:
+      // Bank Deposit থাকলে Bank Slip upload + OCR/manual completion ছাড়া Submit হবে না।
+      isBankValid = validateBankSlipRequirement();
       bankMsgBox.innerHTML = "";
-      isBankValid = true;
 
       subBtn.disabled = !(isCashValid && isBankValid && isDiffValid);
     }
@@ -2604,6 +2641,17 @@
 
       try {
         const slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
+
+      // Final safety check: Bank Deposit থাকলে সম্পূর্ণ Bank Slip ছাড়া
+      // কোনোভাবেই submit হতে দেবে না—even if submitData() is triggered programmatically.
+      if (!validateBankSlipRequirement()) {
+        if (subBtn) {
+          subBtn.disabled = true;
+          subBtn.innerText = "Submit Data";
+        }
+        isSubmittingData = false;
+        return;
+      }
         const slipsData = [];
         const bankNamesCollected = [];
 
