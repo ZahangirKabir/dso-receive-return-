@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DSO & Admin Collection Portal — Admin Report & Amount Edit</title>
+  <title>DSO & Admin Collection Portal — OCR & Mobile Stability Update</title>
   
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -13,7 +13,8 @@
 
   <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
-    body { background-color: #f4f7f6; padding: 10px; color: #333; }
+    html, body { overscroll-behavior-y: contain; }
+    body { background-color: #f4f7f6; padding: 10px; color: #333; touch-action: pan-x pan-y; }
     .container { max-width: 1500px; margin: 0 auto; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     h2 { color: #00695c; margin-bottom: 15px; font-size: 20px; }
 
@@ -58,6 +59,8 @@
     .tab-nav { display: flex; gap: 10px; border-bottom: 2px solid #00695c; margin-bottom: 15px; flex-wrap: wrap; }
     .tab-btn { background: #e0f2f1; border: none; padding: 10px 18px; font-weight: bold; cursor: pointer; border-radius: 6px 6px 0 0; color: #004d40; font-size: 14px; }
     .tab-btn.active { background: #00695c; color: white; }
+    .tab-btn.settings-icon { flex:0 0 auto; min-width:44px; font-size:18px; padding:8px 12px; }
+    @media(max-width:768px){ .tab-btn.settings-icon { min-width:46px; flex:0 0 46px; } }
 
     .header-bar { overflow: hidden; margin-bottom: 15px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .header-bar h2 { font-size: 18px; margin: 0; }
@@ -428,6 +431,7 @@
       <div id="dsoTabNav" class="tab-nav" style="display:none;">
         <button class="tab-btn active" id="tabDsoFormBtn" onclick="switchDsoTab('form')">📝 দিনের রিপোর্ট</button>
         <button class="tab-btn" id="tabDsoReportBtn" onclick="switchDsoTab('report')">📁 আমার রিপোর্ট ও ইতিহাস (My Reports)</button>
+        <button class="tab-btn settings-icon" id="tabDsoSettingsBtn" type="button" onclick="switchDsoTab('settings')" title="Password Settings" aria-label="Password Settings">⚙️</button>
       </div>
     </div>
 
@@ -612,14 +616,6 @@
 
       <!-- DSO TAB 1: ENTRY FORM PAGE -->
       <div id="dsoPageForm">
-        <div class="section-box" style="margin-bottom: 15px; background: #e0f2f1; border-color: #00695c;">
-          <div class="section-title" style="color: #004d40; margin-bottom: 8px;">🔑 পাসওয়ার্ড পরিবর্তন করুন</div>
-          <div style="display: flex; gap: 8px; max-width: 400px;">
-            <input type="password" id="newPassword" placeholder="নতুন পাসওয়ার্ড দিন" style="padding: 6px; border: 1px solid #ccc; border-radius: 4px; flex: 1; font-size: 12px;">
-            <button class="btn" style="width: auto; padding: 6px 12px; font-size: 12px;" onclick="changePassword()">Save</button>
-          </div>
-        </div>
-
         <div class="form-grid">
           <!-- RECEIVED SECTION -->
           <div class="section-box section-received">
@@ -731,6 +727,18 @@
             </thead>
             <tbody id="dsoHistoryBody"></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- DSO SETTINGS PAGE -->
+      <div id="dsoPageSettings" style="display:none;">
+        <div class="section-box" style="margin-bottom:15px;background:#e0f2f1;border-color:#00695c;max-width:560px;">
+          <div class="section-title" style="color:#004d40;border-color:#00695c;">⚙️ Password Settings</div>
+          <div class="form-group" style="margin-bottom:8px;">
+            <label>নতুন পাসওয়ার্ড</label>
+            <input type="password" id="newPassword" placeholder="নতুন পাসওয়ার্ড দিন" autocomplete="new-password">
+          </div>
+          <button class="btn" type="button" style="max-width:180px;" onclick="changePassword()">🔑 Save Password</button>
         </div>
       </div>
 
@@ -884,18 +892,22 @@
 
 
     function switchDsoTab(tab) {
-      document.getElementById("tabDsoFormBtn").classList.remove("active");
-      document.getElementById("tabDsoReportBtn").classList.remove("active");
-      document.getElementById("dsoPageForm").style.display = "none";
-      document.getElementById("dsoPageReport").style.display = "none";
+      ["Form","Report","Settings"].forEach(name => {
+        document.getElementById("tabDso" + name + "Btn")?.classList.remove("active");
+        const page = document.getElementById("dsoPage" + name);
+        if (page) page.style.display = "none";
+      });
 
-      if (tab === 'form') {
-        document.getElementById("tabDsoFormBtn").classList.add("active");
-        document.getElementById("dsoPageForm").style.display = "block";
-      } else {
-        document.getElementById("tabDsoReportBtn").classList.add("active");
+      if (tab === 'report') {
+        document.getElementById("tabDsoReportBtn")?.classList.add("active");
         document.getElementById("dsoPageReport").style.display = "block";
         renderDsoHistory(globalAllData);
+      } else if (tab === 'settings') {
+        document.getElementById("tabDsoSettingsBtn")?.classList.add("active");
+        document.getElementById("dsoPageSettings").style.display = "block";
+      } else {
+        document.getElementById("tabDsoFormBtn")?.classList.add("active");
+        document.getElementById("dsoPageForm").style.display = "block";
       }
     }
 
@@ -940,6 +952,47 @@
       return false;
     }
 
+    const PORTAL_SESSION_KEY = 'collectionPortalUser';
+
+    function openPortalForUser(id, {freshLogin=false} = {}) {
+      currentUser = String(id || '').trim();
+      if (!currentUser) return;
+      try { sessionStorage.setItem(PORTAL_SESSION_KEY, currentUser); } catch (_) {}
+
+      document.getElementById("loginSection").style.display = "none";
+      document.getElementById("appContainer").style.display = "block";
+
+      if (currentUser === "admin" || isGroupAdmin(currentUser)) {
+        const groupLabel = isGroupAdmin(currentUser) ? `Group Admin — Report Only — ${currentUser}` : "Admin Control Dashboard";
+        document.getElementById("portalTitle").innerText = groupLabel;
+        document.getElementById("adminView").style.display = "block";
+        document.getElementById("adminTabNav").style.display = "flex";
+        document.getElementById("adminFilterPanel").classList.toggle("group-admin-filter", isGroupAdmin(currentUser));
+        document.getElementById("adminFilterPanel").classList.toggle("master-admin-filter", currentUser === "admin");
+        document.getElementById("tabAdminSettingsBtn").style.display = currentUser === "admin" ? "inline-block" : "none";
+        document.getElementById("tabAdminBankBtn").style.display = isGroupAdmin(currentUser) ? "none" : "inline-block";
+        document.getElementById("tabAdminNotesBtn").style.display = isGroupAdmin(currentUser) ? "none" : "inline-block";
+        document.getElementById("dsoView").style.display = "none";
+        document.getElementById("dsoTabNav").style.display = "none";
+        switchAdminTab('report');
+        document.getElementById("filterDate").value = getLocalDateString();
+        document.getElementById("adminFilterPanel").style.display = "flex";
+      } else {
+        document.getElementById("portalTitle").innerText = "DSO Entry Portal (ID: " + currentUser + ")";
+        const dsoHistoryTitle = document.getElementById("dsoHistoryTitle");
+        if (dsoHistoryTitle) dsoHistoryTitle.innerText = "আমার পূর্বের জমা হিসাব (My History & Report) — DSO " + currentUser;
+        document.getElementById("dsoView").style.display = "block";
+        document.getElementById("dsoTabNav").style.display = "flex";
+        document.getElementById("adminView").style.display = "none";
+        document.getElementById("adminTabNav").style.display = "none";
+        switchDsoTab('form');
+        resetForm();
+        checkDsoNotifications();
+      }
+      listenRealtimeData();
+      scheduleHeavyLibrariesPreload();
+    }
+
     let loginInProgress = false;
     async function handleLogin() {
       if (loginInProgress) return;
@@ -956,54 +1009,14 @@
       if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Checking…';}
       try {
         let dbPass;
-        if (isGroupAdmin(id)) {
-          // Group Admin login is fixed to the requested password.
-          dbPass = SUB_ADMIN_PASSWORD;
-        } else {
-          const path = 'users/' + id + '/password';
-          const snap = await database.ref(path).once('value');
+        if (isGroupAdmin(id)) dbPass = SUB_ADMIN_PASSWORD;
+        else {
+          const snap = await database.ref('users/' + id + '/password').once('value');
           dbPass = snap.val();
-          if (dbPass === null || dbPass === undefined) dbPass = id === 'admin' ? '123456' : '123456';
+          if (dbPass === null || dbPass === undefined) dbPass = '123456';
         }
         if (pass !== String(dbPass).trim()) { alert("ভুল পাসওয়ার্ড! দয়া করে সঠিক পাসওয়ার্ড দিন।"); return; }
-
-        currentUser = id;
-        document.getElementById("loginSection").style.display = "none";
-        document.getElementById("appContainer").style.display = "block";
-
-        if (id === "admin" || isGroupAdmin(id)) {
-          const groupLabel = isGroupAdmin(id) ? `Group Admin — Report Only — ${id}` : "Admin Control Dashboard";
-          document.getElementById("portalTitle").innerText = groupLabel;
-          document.getElementById("adminView").style.display = "block";
-          document.getElementById("adminTabNav").style.display = "flex";
-          document.getElementById("adminFilterPanel").classList.toggle("group-admin-filter", isGroupAdmin(id));
-          document.getElementById("adminFilterPanel").classList.toggle("master-admin-filter", id === "admin");
-          document.getElementById("tabAdminSettingsBtn").style.display = id === "admin" ? "inline-block" : "none";
-          document.getElementById("tabAdminBankBtn").style.display = isGroupAdmin(id) ? "none" : "inline-block";
-          document.getElementById("tabAdminNotesBtn").style.display = isGroupAdmin(id) ? "none" : "inline-block";
-          document.getElementById("dsoView").style.display = "none";
-          document.getElementById("dsoTabNav").style.display = "none";
-          switchAdminTab('report');
-          // All admins see the same compact filter bar. Group admins are restricted
-          // to their assigned DSO IDs by getActiveDsoFilterSet()/populateDsoDropdown().
-          document.getElementById("filterDate").value = getLocalDateString();
-          document.getElementById("adminFilterPanel").style.display = "flex";
-        } else {
-          document.getElementById("portalTitle").innerText = "DSO Entry Portal (ID: " + id + ")";
-          const dsoHistoryTitle = document.getElementById("dsoHistoryTitle");
-          if (dsoHistoryTitle) dsoHistoryTitle.innerText = "আমার পূর্বের জমা হিসাব (My History & Report) — DSO " + id;
-          document.getElementById("dsoView").style.display = "block";
-          document.getElementById("dsoTabNav").style.display = "flex";
-          document.getElementById("adminView").style.display = "none";
-          document.getElementById("adminTabNav").style.display = "none";
-          switchDsoTab('form');
-          resetForm();
-          checkDsoNotifications();
-        }
-        // Do not wait for realtime data before opening the portal.
-        listenRealtimeData();
-        // Preload OCR in the background after login, without blocking the UI.
-        scheduleHeavyLibrariesPreload();
+        openPortalForUser(id, {freshLogin:true});
       } catch (e) {
         alert("লগইন চেক করতে সমস্যা হয়েছে: " + e.message);
       } finally {
@@ -1064,7 +1077,19 @@
       }
     }
 
-    function logout() { detachRealtimeDataListeners(); location.reload(); }
+    function logout() {
+      detachRealtimeDataListeners();
+      try { sessionStorage.removeItem(PORTAL_SESSION_KEY); } catch (_) {}
+      currentUser = null;
+      globalAllData = null;
+      dsoEditModeKey = null;
+      document.getElementById("appContainer").style.display = "none";
+      document.getElementById("adminView").style.display = "none";
+      document.getElementById("dsoView").style.display = "none";
+      document.getElementById("loginSection").style.display = "block";
+      document.getElementById("loginPass").value = "";
+      document.getElementById("loginId").focus();
+    }
 
     function addDsoReceivedRow() {
       const container = document.getElementById("dsoReceivedContainer");
@@ -1732,7 +1757,7 @@
       return xlsxLoadPromise;
     }
     function scheduleHeavyLibrariesPreload(){
-      const run=()=>{ ensureTesseractLoaded().catch(()=>{}); };
+      const run=()=>{ getSlipOCRWorker().catch(()=>ensureTesseractLoaded().catch(()=>{})); };
       if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:3500});
       else setTimeout(run,1200);
     }
@@ -1801,7 +1826,7 @@
       if(!hasMoney || !hasDate){
         const numeric=await preprocessImage(file,2,0);
         results.push(await recognizeSlipPass(worker,numeric,'11',{
-          tessedit_char_whitelist:'0123456789.,/-৳TKBDT:'
+          tessedit_char_whitelist:'0123456789০১২৩৪৫৬৭৮৯.,/-৳TKBDT:'
         }));
       }
       return results.filter(r=>r.text);
@@ -1857,6 +1882,9 @@
       }
       if(top.labelPasses>=2) return top;
       if(top.bestScore>=16 && top.passes>=1) return top;
+      // A single strong bank-label/currency hit is safer than leaving a valid
+      // deposit amount blank merely because a recovery pass missed the same line.
+      if(top.bestScore>=24 && (!second || top.score >= second.score + 6)) return top;
       return null;
     }
 
@@ -1972,7 +2000,7 @@
         .replace(/[Oo]/g,"0")
         .replace(/[Il]/g,"1")
         .replace(/\s+/g," ");
-      const re=/(?:20\d{2}\s*[-\/.\s]\s*\d{1,2}\s*[-\/.\s]\s*\d{1,2}|\d{1,2}\s*[-\/.\s]\s*\d{1,2}\s*[-\/.\s]\s*(?:20\d{2}|\d{2})|\b20\d{6}\b|\b\d{6}(?:20\d{2})\b|\d{1,2}\s*[-/.]?\s*(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s*[-/.]?\s*(?:20\d{2}|\d{2})|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s*[-/.]?\s*\d{1,2}\s*[, -/.]?\s*(?:20\d{2}|\d{2})|(?:জানুয়ারি|জানুয়ারি|ফেব্রুয়ারি|ফেব্রুয়ারি|মার্চ|এপ্রিল|মে|জুন|জুলাই|আগস্ট|সেপ্টেম্বর|অক্টোবর|নভেম্বর|ডিসেম্বর)\s*[-/.]?\s*\d{1,2}\s*[, -/.]?\s*(?:20\d{2}|\d{2}))/gi;
+      const re=/(?:20\d{2}\s*[-\/.\s]\s*\d{1,2}\s*[-\/.\s]\s*\d{1,2}|\d{1,2}\s*[-\/.\s]\s*\d{1,2}\s*[-\/.\s]\s*(?:20\d{2}|\d{2})|\b20\d{6}\b|\b\d{4}(?:20\d{2})\b|\d{1,2}\s*[-/.]?\s*(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s*[-/.]?\s*(?:20\d{2}|\d{2})|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s*[-/.]?\s*\d{1,2}\s*[, -/.]?\s*(?:20\d{2}|\d{2})|(?:জানুয়ারি|জানুয়ারি|ফেব্রুয়ারি|ফেব্রুয়ারি|মার্চ|এপ্রিল|মে|জুন|জুলাই|আগস্ট|সেপ্টেম্বর|অক্টোবর|নভেম্বর|ডিসেম্বর)\s*[-/.]?\s*\d{1,2}\s*[, -/.]?\s*(?:20\d{2}|\d{2}))/gi;
       const out=[]; let m;
       while((m=re.exec(s))){ const d=normalizeOCRDate(m[0]); if(d&&!out.includes(d)) out.push(d); }
       return out;
@@ -2033,16 +2061,36 @@
     }
 
     function chooseConsensusDate(ocrResults) {
-      const votes={};
+      const scores={};
+      const today = new Date();
+      const todayMs = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+      const add=(d,score)=>{
+        if(!d) return;
+        const ms = new Date(d+'T00:00:00').getTime();
+        // Reject clearly implausible operational dates, but allow historical slips.
+        if(!Number.isFinite(ms) || ms > todayMs + 366*86400000) return;
+        scores[d]=(scores[d]||0)+score;
+      };
       (ocrResults||[]).forEach(r=>{
-        const d=extractDepositDate(r);
-        if(d) votes[d]=(votes[d]||0)+1;
+        const labelled=extractDepositDate(r);
+        if(labelled) add(labelled, 8 + Math.max(0, Math.round((r.confidence||0)/25)));
+        extractDateCandidatesFromText(r?.text||'').forEach(d=>{
+          const lineMatch = String(r?.text||'').split(/\r?\n/).some(line =>
+            line.includes(d) && /(date|deposit|transaction|trans|value|posting|জমা|তারিখ)/i.test(line)
+          );
+          add(d, lineMatch ? 5 : 2);
+        });
       });
-      const ranked=Object.entries(votes).sort((a,b)=>b[1]-a[1]);
+      const ranked=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
       if(!ranked.length) return "";
-      if(ranked[1] && ranked[0][1]===ranked[1][1]) return "";
-      // A valid date with no competing date is safe; competing dates require consensus.
-      return ranked[0][0] || "";
+      if(!ranked[1]) return ranked[0][0];
+      if(ranked[0][1] >= ranked[1][1] + 3) return ranked[0][0];
+      // If scores are close, prefer the date nearest to today; slips commonly contain
+      // other dates (print/value dates) that otherwise create a tie.
+      const top=ranked.slice(0,3).sort((a,b)=>
+        Math.abs(new Date(a[0]+'T00:00:00').getTime()-todayMs) - Math.abs(new Date(b[0]+'T00:00:00').getTime()-todayMs)
+      );
+      return top[0]?.[0] || "";
     }
 
     function zoomSlipInputImage(id) {
@@ -2366,7 +2414,7 @@
         if (!originalDataUrl) return "";
         const img = await decodeImage(originalDataUrl);
 
-        const maxSize = 1400;
+        const maxSize = 1280;
         const srcW = img.naturalWidth || img.width;
         const srcH = img.naturalHeight || img.height;
         const scale = Math.min(1, maxSize / Math.max(srcW, srcH));
@@ -2385,7 +2433,7 @@
         ctx.drawImage(img, 0, 0, width, height);
 
         let output = "";
-        try { output = canvas.toDataURL("image/jpeg", 0.78); } catch (_) {}
+        try { output = canvas.toDataURL("image/jpeg", 0.74); } catch (_) {}
         // Never silently save an empty image if canvas conversion fails.
         if (!output || output === "data:,") output = originalDataUrl;
         slipImageDataCache.set(file, output);
@@ -2741,6 +2789,7 @@
           const file = row.querySelector(".slip-file-input")?.files?.[0] || null;
           const existingImg = row.dataset.existingImg || "";
           const imgBase64 = file ? await getBase64(file) : existingImg;
+          if (file && !imgBase64) throw new Error('Bank slip image read/convert করা যায়নি। ছবিটি আবার নির্বাচন করুন।');
           const amt = parseRawNumber(row.querySelector(".slip-amt-val")?.value);
           const bankName = row.querySelector(".slip-bank-name")?.value || "";
           const accountName = row.querySelector(".slip-account-name")?.value || "";
@@ -2892,12 +2941,15 @@
         let slipsData = [];
         let bankNamesCollected = [];
 
-        const slipWork = Array.from(slipRows).map(async row => {
+        // Convert slips sequentially on mobile. Promise.all can spike memory and
+        // occasionally produce an empty/blank image on low-memory browsers.
+        for (const row of Array.from(slipRows)) {
           const fileInput = row.querySelector('.slip-file-input');
           const amtInput = row.querySelector('.slip-amt-val');
           const bankSelect = row.querySelector('.slip-bank-name');
           const file = fileInput ? fileInput.files[0] : null;
-          const imgBase64 = await getBase64(file);
+          const existingImg = row.dataset.existingImg || '';
+          const imgBase64 = file ? await getBase64(file) : existingImg;
           const amt = parseRawNumber(amtInput?.value);
           const bankName = bankSelect?.value || '';
           const accountName = row.querySelector('.slip-account-name')?.value || '';
@@ -2906,10 +2958,11 @@
           const ocrBankName = row.querySelector('[id^="slipOcrBank_"]')?.value || '';
           const status = row.querySelector('[id^="slipOcrStatus_"]')?.value || 'ocr_ready';
           const ocrDateFinal = row.querySelector('[id^="slipOcrDate_"]')?.value || '';
-          if (!imgBase64 && amt<=0 && !bankName) return null;
-          return {img:imgBase64,amt,bankName,accountName,depositDate,ocrBankName,ocrAmt,ocrDate:ocrDateFinal,ocrStatus:status};
-        });
-        slipsData = (await Promise.all(slipWork)).filter(Boolean);
+          const hasSlipData = !!file || !!existingImg || amt>0 || !!bankName || !!accountName || !!depositDate;
+          if (!hasSlipData) continue;
+          if (!imgBase64) throw new Error('Bank slip image read/convert করা যায়নি। ছবিটি আবার নির্বাচন করুন।');
+          slipsData.push({img:imgBase64,amt,bankName,accountName,depositDate,ocrBankName,ocrAmt,ocrDate:ocrDateFinal,ocrStatus:status});
+        }
         slipsData.forEach(slip=>{ if(slip.bankName && !bankNamesCollected.includes(slip.bankName)) bankNamesCollected.push(slip.bankName); });
 
         subBtn.innerText = "Saving Data...";
@@ -4447,6 +4500,13 @@
         alert("Excel ডাউনলোড করতে সমস্যা হয়েছে: " + (err?.message || err));
       }
     }
+    // Keep the authenticated portal open across accidental mobile pull-to-refresh /
+    // viewport reloads. Only the explicit Logout button clears this session.
+    try {
+      const savedPortalUser = sessionStorage.getItem(PORTAL_SESSION_KEY);
+      if (savedPortalUser) setTimeout(() => openPortalForUser(savedPortalUser), 0);
+    } catch (_) {}
+
     document.getElementById('loginPass')?.addEventListener('keydown',e=>{if(e.key==='Enter')handleLogin();});
     document.getElementById('loginId')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass')?.focus();});
   </script>
