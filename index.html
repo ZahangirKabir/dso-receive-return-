@@ -1164,7 +1164,11 @@
 
     function removeSlipRow(id) {
       const row = document.getElementById(`slipRow_${id}`);
-      if (row) { row.remove(); recalculateBankDepositFromSlips(); }
+      if (row) {
+        cleanupSlipPreview(row);
+        row.remove();
+        recalculateBankDepositFromSlips();
+      }
     }
 
     function recalculateBankDepositFromSlips() {
@@ -2085,24 +2089,10 @@
       if(ocrAmt) ocrAmt.value='0';
       if(ocrBank) ocrBank.value='';
       if(ocrDate) ocrDate.value='';
-      if(preview){
-        // Reliable preview: keep the image as a data URL so it remains visible
-        // while OCR and Firebase submission continue.
-        try{
-          const previewReader=new FileReader();
-          previewReader.onload=e=>{
-            const src=e.target.result||'';
-            preview.src=src;
-            preview.classList.toggle('visible',!!src);
-          };
-          previewReader.onerror=()=>{ preview.removeAttribute('src'); preview.classList.remove('visible'); };
-          previewReader.readAsDataURL(file);
-        }catch(err){
-          console.warn('Slip preview failed:',err);
-          preview.removeAttribute('src');
-          preview.classList.remove('visible');
-        }
-      }
+      // Show the selected image immediately from the File itself. This is
+      // independent of OCR and Base64 conversion, so the preview cannot go blank
+      // just because OCR/conversion is slow or fails.
+      setSlipPreviewFromFile(row, preview, file);
       const manualConfirm=document.getElementById(`slipManualConfirm_${id}`);
       if(manualConfirm) manualConfirm.checked=false;
       amtInput.value=''; amtInput.readOnly=true; amtInput.classList.remove('ocr-locked','manual-mode','manual-confirmed');
@@ -2334,28 +2324,114 @@
       if (confirm("আপনি কি নিশ্চিত যে এই ফর্ম বাতিল করতে চান?")) resetForm();
     }
 
-    function getBase64(file) {
-      return new Promise((resolve) => {
+    // ===== ROBUST BANK-SLIP IMAGE HANDLING =====
+    // Preview is rendered directly from the selected File (Blob URL), while the
+    // database receives a resized JPEG. This prevents intermittent blank images
+    // caused by waiting for Base64/canvas conversion before showing the preview.
+    const slipImageDataCache = new WeakMap();
+
+    function fileToDataURL(file) {
+      return new Promise((resolve, reject) => {
         if (!file) { resolve(""); return; }
         const reader = new FileReader();
+        reader.onload = e => resolve(e.target?.result || "");
+        reader.onerror = () => reject(reader.error || new Error("Image read failed"));
         reader.readAsDataURL(file);
-        reader.onload = (event) => {
-          const img = new Image();
-          img.src = event.target.result;
-          img.onload = () => {
-            const canvas = document.createElement("canvas");
-            let width = img.width, height = img.height, max_size = 1200;
-            if (width > height) { if (width > max_size) { height *= max_size / width; width = max_size; } }
-            else { if (height > max_size) { width *= max_size / height; height = max_size; } }
-            canvas.width = width; canvas.height = height;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL("image/jpeg", 0.75));
-          };
-          img.onerror = () => resolve("");
-        };
-        reader.onerror = () => resolve("");
       });
+    }
+
+    function decodeImage(dataUrl) {
+      return new Promise((resolve, reject) => {
+        if (!dataUrl) { reject(new Error("Empty image data")); return; }
+        const img = new Image();
+        img.onload = () => {
+          const w = img.naturalWidth || img.width || 0;
+          const h = img.naturalHeight || img.height || 0;
+          if (!w || !h) { reject(new Error("Image has no readable dimensions")); return; }
+          resolve(img);
+        };
+        img.onerror = () => reject(new Error("Browser cannot decode this image format"));
+        img.src = dataUrl;
+      });
+    }
+
+    async function getBase64(file) {
+      if (!file) return "";
+      const cached = slipImageDataCache.get(file);
+      if (cached) return cached;
+
+      let originalDataUrl = "";
+      try {
+        originalDataUrl = await fileToDataURL(file);
+        if (!originalDataUrl) return "";
+        const img = await decodeImage(originalDataUrl);
+
+        const maxSize = 1400;
+        const srcW = img.naturalWidth || img.width;
+        const srcH = img.naturalHeight || img.height;
+        const scale = Math.min(1, maxSize / Math.max(srcW, srcH));
+        const width = Math.max(1, Math.round(srcW * scale));
+        const height = Math.max(1, Math.round(srcH * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d", { alpha: false });
+        if (!ctx) throw new Error("Canvas is not available");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, width, height);
+
+        let output = "";
+        try { output = canvas.toDataURL("image/jpeg", 0.78); } catch (_) {}
+        // Never silently save an empty image if canvas conversion fails.
+        if (!output || output === "data:,") output = originalDataUrl;
+        slipImageDataCache.set(file, output);
+        return output;
+      } catch (err) {
+        console.warn("Bank slip conversion failed; keeping original image:", err);
+        try {
+          const original = originalDataUrl || await fileToDataURL(file);
+          slipImageDataCache.set(file, original || "");
+          return original || "";
+        } catch (_) {
+          return "";
+        }
+      }
+    }
+
+    function setSlipPreviewFromFile(row, preview, file) {
+      if (!row || !preview) return;
+      cleanupSlipPreview(row);
+      if (!file) {
+        preview.removeAttribute("src");
+        preview.classList.remove("visible");
+        return;
+      }
+      try {
+        const url = URL.createObjectURL(file);
+        row.dataset.previewObjectUrl = url;
+        preview.onload = () => preview.classList.add("visible");
+        preview.onerror = () => {
+          preview.classList.remove("visible");
+          preview.removeAttribute("src");
+        };
+        preview.src = url;
+        preview.classList.add("visible");
+      } catch (err) {
+        console.warn("Slip preview object URL failed:", err);
+        preview.classList.remove("visible");
+      }
+    }
+
+    function cleanupSlipPreview(row) {
+      const url = row?.dataset?.previewObjectUrl || "";
+      if (url) {
+        try { URL.revokeObjectURL(url); } catch (_) {}
+        delete row.dataset.previewObjectUrl;
+      }
     }
 
     async function requestDsoEdit(key) {
@@ -2566,7 +2642,11 @@
           if (manual) { manual.checked = true; }
           const preview = row.querySelector(".slip-clear-preview");
           const existingSlipImage = s.img || s.image || s.imageUrl || s.imgUrl || "";
-           if (preview && existingSlipImage) { preview.src = existingSlipImage; preview.classList.add("visible"); }
+          if (preview && existingSlipImage) {
+            cleanupSlipPreview(row);
+            preview.src = existingSlipImage;
+            preview.classList.add("visible");
+          }
           const name = row.querySelector(".slip-file-name");
           if (name) name.textContent = existingSlipImage ? "Existing slip — নতুন ছবি দিলে replace হবে" : "ছবি নির্বাচন করুন";
         });
@@ -2895,6 +2975,7 @@
         </div>
       `;
 
+      document.querySelectorAll("#slipsContainer .slip-box-item").forEach(cleanupSlipPreview);
       document.getElementById("slipsContainer").innerHTML = "";
       slipCounter = 0;
       addSlipRow();
