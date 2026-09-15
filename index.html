@@ -2258,7 +2258,7 @@
     }
 
     // Bank Deposit > 0 হলে অন্তত একটি সম্পূর্ণ Bank Slip বাধ্যতামূলক।
-    // OCR চলমান/ব্যর্থ/অসম্পূর্ণ থাকলে Submit disabled থাকবে।
+    // OCR account/date miss হলেও image + bank + amount ঠিক থাকলে Submit চালু থাকবে।
     function validateBankSlipRequirement() {
       const bankDepositAmt = parseRawNumber(document.getElementById("bankDeposit")?.value || 0);
       if (bankDepositAmt <= 0) return true;
@@ -2288,11 +2288,10 @@
         const status = row.querySelector('[id^="slipOcrStatus_"]')?.value || "";
         const manualConfirmed = !!row.querySelector('[id^="slipManualConfirm_"]')?.checked;
 
-        // A real uploaded file or an existing saved image is required.
+        // Submission safety: the actual slip image, bank and positive amount are required.
+        // OCR account/date/status remain audit metadata; an OCR miss must never lock Submit.
         const hasImage = !!file || !!existingImg;
-        // OCR must be complete, or the user must have explicitly confirmed manual correction.
-        const ocrComplete = status === "ocr_ready" || status === "verified_manual" || manualConfirmed;
-        return hasImage && !!bank && !!account && !!date && amt > 0 && ocrComplete;
+        return hasImage && !!bank && amt > 0;
       });
     }
 
@@ -2357,7 +2356,7 @@
       }
 
       // নতুন নিয়ম:
-      // Bank Deposit থাকলে Bank Slip upload + OCR/manual completion ছাড়া Submit হবে না।
+      // Bank Deposit থাকলে Slip image + bank + amount বাধ্যতামূলক; OCR miss Submit lock করবে না।
       isBankValid = validateBankSlipRequirement();
       bankMsgBox.innerHTML = "";
 
@@ -2899,6 +2898,9 @@
         });
         if (alreadySubmitted) {
           alert("⚠️ আপনি আজকের (" + dateStr + ") হিসাব ইতিমধ্যে সাবমিট করেছেন। একই দিনে একাধিকবার হিসাব সাবমিট করা যাবে না।");
+          isSubmittingData = false;
+          if (subBtn) subBtn.innerText = "Submit Data";
+          validateFormAndSubmitBtn();
           return;
         }
       } catch (duplicateErr) {
@@ -2906,8 +2908,32 @@
         console.warn("Duplicate check could not be completed:", duplicateErr);
       }
 
+      // Final programmatic safety checks. These also protect against submitData() being called
+      // directly while the visible button is disabled.
+      const totalRecSafety = parseRawNumber(document.getElementById("emReceived").value)
+        + parseRawNumber(document.getElementById("cashReceived").value)
+        + getDsoReceivedList().reduce((s,x)=>s+(Number(x.amount)||0),0);
+      const totalRetSafety = parseRawNumber(document.getElementById("emReturn").value)
+        + parseRawNumber(document.getElementById("bankDeposit").value)
+        + parseRawNumber(document.getElementById("cashDeposit").value)
+        + getDsoTransferList().reduce((s,x)=>s+(Number(x.amount)||0),0);
+      if (totalRecSafety !== totalRetSafety) {
+        alert(`❌ Receive ৳${formatBD(totalRecSafety)} এবং Return/Deposit ৳${formatBD(totalRetSafety)} সমান নয়।`);
+        isSubmittingData = false;
+        if (subBtn) subBtn.innerText = "Submit Data";
+        validateFormAndSubmitBtn();
+        return;
+      }
+      if (!validateBankSlipRequirement()) {
+        alert("❌ Bank Deposit থাকলে প্রতিটি ব্যবহৃত Slip-এর Image, Bank Name এবং Amount দিতে হবে।");
+        isSubmittingData = false;
+        if (subBtn) subBtn.innerText = "Submit Data";
+        validateFormAndSubmitBtn();
+        return;
+      }
+
       const minimumBad = validateMainAmountMinimums();
-      if(minimumBad.length){ alert("❌ B2B Received, Cash Received ও Bank Amount-এ ৩ digit amount গ্রহণযোগ্য নয়। ন্যূনতম ৳1,000 দিন।"); validateFormAndSubmitBtn(); isSubmittingData = false; return; }
+      if(minimumBad.length){ alert("❌ B2B Received, Cash Received ও Bank Amount-এ ৩ digit amount গ্রহণযোগ্য নয়। ন্যূনতম ৳1,000 দিন।"); validateFormAndSubmitBtn(); isSubmittingData = false; if(subBtn) subBtn.innerText="Submit Data"; return; }
 
       let bankDepositVal = parseRawNumber(document.getElementById("bankDeposit").value);
       if (bankDepositVal < 0) {
@@ -2932,6 +2958,8 @@
       if (cashDepositAmt > 0 && totalCashVal !== cashDepositAmt) {
         alert("⚠️ Cash Deposit থাকার পরও ক্যাশ নোটের বিবরণ সঠিকভাবে দেওয়া হয়নি অথবা পরিমাণ মিলে নি!");
         isSubmittingData = false;
+        if (subBtn) subBtn.innerText = "Submit Data";
+        validateFormAndSubmitBtn();
         return;
       }
 
