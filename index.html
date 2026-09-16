@@ -2449,6 +2449,26 @@
       }
     }
 
+    async function prepareSlipImageForSave(row, file) {
+      if (!file) return "";
+      // Start conversion once, immediately after selection. Reuse the same Promise on Submit.
+      const cached = slipImageDataCache.get(file);
+      if (cached) return await Promise.resolve(cached);
+      const pending = getBase64(file);
+      slipImageDataCache.set(file, pending);
+      try {
+        const data = await pending;
+        if (data) slipImageDataCache.set(file, data);
+        else slipImageDataCache.delete(file);
+        if (row) row.dataset.slipImageReady = data ? "1" : "0";
+        return data || "";
+      } catch (err) {
+        slipImageDataCache.delete(file);
+        if (row) row.dataset.slipImageReady = "0";
+        return "";
+      }
+    }
+
     function setSlipPreviewFromFile(row, preview, file) {
       if (!row || !preview) return;
       cleanupSlipPreview(row);
@@ -2467,6 +2487,8 @@
         };
         preview.src = url;
         preview.classList.add("visible");
+        // Prepare the exact image payload now; Submit will reuse this cache instead of converting again.
+        prepareSlipImageForSave(row, file).catch(() => {});
       } catch (err) {
         console.warn("Slip preview object URL failed:", err);
         preview.classList.remove("visible");
@@ -2787,7 +2809,8 @@
           const row = slipRows[i];
           const file = row.querySelector(".slip-file-input")?.files?.[0] || null;
           const existingImg = row.dataset.existingImg || "";
-          const imgBase64 = file ? await getBase64(file) : existingImg;
+          let imgBase64 = file ? await prepareSlipImageForSave(row, file) : existingImg;
+          if (file && !imgBase64) { try { imgBase64 = await fileToDataURL(file); } catch (_) {} }
           if (file && !imgBase64) throw new Error('Bank slip image read/convert করা যায়নি। ছবিটি আবার নির্বাচন করুন।');
           const amt = parseRawNumber(row.querySelector(".slip-amt-val")?.value);
           const bankName = row.querySelector(".slip-bank-name")?.value || "";
@@ -2977,7 +3000,7 @@
           const bankSelect = row.querySelector('.slip-bank-name');
           const file = fileInput ? fileInput.files[0] : null;
           const existingImg = row.dataset.existingImg || '';
-          const imgBase64 = file ? await getBase64(file) : existingImg;
+          const imgBase64 = file ? await prepareSlipImageForSave(row, file) : existingImg;
           const amt = parseRawNumber(amtInput?.value);
           const bankName = bankSelect?.value || '';
           const accountName = row.querySelector('.slip-account-name')?.value || '';
