@@ -3125,11 +3125,31 @@
       // DSO users only download their own records.
       if (currentUser && !isGroupAdmin(currentUser) && currentUser !== "admin") {
         const ref = database.ref('collections').orderByChild('userId').equalTo(String(currentUser)).limitToLast(60);
-        attachRealtimeValueListener(ref, snapshot => {
+        const handler = snapshot => {
           globalAllData = snapshot.val() || {};
           realtimeInitialDataReady = true;
           scheduleDataUiUpdate();
-        });
+        };
+        const errorHandler = err => {
+          console.warn('Fast DSO report query failed; using compatible fallback:', err);
+          try { ref.off('value', handler); } catch (_) {}
+          realtimeListenerRefs = realtimeListenerRefs.filter(x => x.ref !== ref);
+          const fallbackRef = database.ref('collections').orderByChild('userId').equalTo(String(currentUser));
+          const fallbackHandler = snapshot => {
+            globalAllData = snapshot.val() || {};
+            realtimeInitialDataReady = true;
+            scheduleDataUiUpdate();
+          };
+          fallbackRef.on('value', fallbackHandler, fallbackErr => {
+            realtimeInitialDataReady = true;
+            globalAllData = {};
+            scheduleDataUiUpdate();
+            console.error('DSO report fallback failed:', fallbackErr);
+          });
+          realtimeListenerRefs.push({ref:fallbackRef, handler:fallbackHandler});
+        };
+        ref.on('value', handler, errorHandler);
+        realtimeListenerRefs.push({ref, handler});
         return;
       }
 
@@ -3276,7 +3296,10 @@
       tbody.innerHTML = "";
 
       if (!data) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:15px; color:#c62828;">কোনো রিপোর্ট জমা দেওয়া হয়নি।</td></tr>`;
+        const loading = !realtimeInitialDataReady;
+        tbody.innerHTML = loading
+          ? `<tr><td colspan="9" style="text-align:center; padding:15px; color:#00695c; font-weight:bold;">⏳ আপনার রিপোর্ট লোড হচ্ছে...</td></tr>`
+          : `<tr><td colspan="9" style="text-align:center; padding:15px; color:#c62828;">কোনো রিপোর্ট জমা দেওয়া হয়নি।</td></tr>`;
         return;
       }
 
