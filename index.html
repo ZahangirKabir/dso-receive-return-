@@ -2413,7 +2413,8 @@
         if (!originalDataUrl) return "";
         const img = await decodeImage(originalDataUrl);
 
-        const maxSize = 1280;
+        // Readable for verification, but much faster to upload/download on mobile data.
+        const maxSize = 960;
         const srcW = img.naturalWidth || img.width;
         const srcH = img.naturalHeight || img.height;
         const scale = Math.min(1, maxSize / Math.max(srcW, srcH));
@@ -2432,7 +2433,7 @@
         ctx.drawImage(img, 0, 0, width, height);
 
         let output = "";
-        try { output = canvas.toDataURL("image/jpeg", 0.74); } catch (_) {}
+        try { output = canvas.toDataURL("image/jpeg", 0.62); } catch (_) {}
         // Never silently save an empty image if canvas conversion fails.
         if (!output || output === "data:,") output = originalDataUrl;
         slipImageDataCache.set(file, output);
@@ -2906,29 +2907,17 @@
       }
       const dateStr = getLocalDateString();
 
-      // Do not depend on globalAllData for duplicate protection. Admin data may be
-      // date-scoped, and DSO data may be a limited query. Check today's records
-      // directly, then let the actual write be the final source of truth.
-      try {
-        const todaySnap = await database.ref('collections')
-          .orderByChild('date')
-          .equalTo(dateStr)
-          .once('value');
-        const todayData = todaySnap.val() || {};
-        const alreadySubmitted = Object.keys(todayData).some(key => {
-          const item = todayData[key] || {};
-          return String(item.userId) === String(currentUser);
-        });
-        if (alreadySubmitted) {
-          alert("⚠️ আপনি আজকের (" + dateStr + ") হিসাব ইতিমধ্যে সাবমিট করেছেন। একই দিনে একাধিকবার হিসাব সাবমিট করা যাবে না।");
-          isSubmittingData = false;
-          if (subBtn) subBtn.innerText = "Submit Data";
-          validateFormAndSubmitBtn();
-          return;
-        }
-      } catch (duplicateErr) {
-        // A temporary read/index problem must not incorrectly block a valid DSO.
-        console.warn("Duplicate check could not be completed:", duplicateErr);
+      // The scoped listener already contains today's DSO entry. Avoid downloading
+      // every DSO's records for the date again on each Submit.
+      const alreadySubmitted = Object.values(globalAllData || {}).some(item =>
+        String(item?.userId || '') === String(currentUser) && item?.date === dateStr
+      );
+      if (alreadySubmitted) {
+        alert("⚠️ আপনি আজকের (" + dateStr + ") হিসাব ইতিমধ্যে সাবমিট করেছেন। একই দিনে একাধিকবার হিসাব সাবমিট করা যাবে না।");
+        isSubmittingData = false;
+        if (subBtn) subBtn.innerText = "Submit Data";
+        validateFormAndSubmitBtn();
+        return;
       }
 
       // Final programmatic safety checks. These also protect against submitData() being called
@@ -3037,7 +3026,10 @@
         };
 
         const newCollectionRef = database.ref('collections').push();
-        await newCollectionRef.set(payload);
+        const updates = {};
+        updates['collections/' + newCollectionRef.key] = payload;
+        updates['dailySubmissionIndex/' + dateStr + '/' + String(currentUser)] = newCollectionRef.key;
+        await database.ref().update(updates);
         alert("ডাটা সফলভাবে সেভ হয়েছে! (Approval Pending)");
         resetForm();
       } catch (err) {
@@ -3090,6 +3082,7 @@
 
     let realtimeListenerAttached = false;
     let groupQueryData = {};
+    let realtimeInitialDataReady = false;
 
     function detachRealtimeDataListeners() {
       realtimeListenerRefs.forEach(refInfo => {
@@ -3103,6 +3096,7 @@
       pendingOptimisticDeletes.clear();
       realtimeListenerAttached = false;
       realtimeListenerUser = null;
+      realtimeInitialDataReady = false;
       groupQueryData = {};
     }
 
@@ -3130,9 +3124,10 @@
 
       // DSO users only download their own records.
       if (currentUser && !isGroupAdmin(currentUser) && currentUser !== "admin") {
-        const ref = database.ref('collections').orderByChild('userId').equalTo(String(currentUser));
+        const ref = database.ref('collections').orderByChild('userId').equalTo(String(currentUser)).limitToLast(60);
         attachRealtimeValueListener(ref, snapshot => {
           globalAllData = snapshot.val() || {};
+          realtimeInitialDataReady = true;
           scheduleDataUiUpdate();
         });
         return;
@@ -3140,17 +3135,18 @@
 
       // Group Admins only download their assigned DSO records.
       if (isGroupAdmin(currentUser)) {
-        globalAllData = {};
-        const assigned = Array.from(SUB_ADMIN_GROUPS[currentUser] || []).map(String);
-        assigned.forEach(dsoId => {
-          const ref = database.ref('collections').orderByChild('userId').equalTo(dsoId);
-          attachRealtimeValueListener(ref, snapshot => {
-            groupQueryData[dsoId] = snapshot.val() || {};
-            const merged = {};
-            Object.keys(groupQueryData).forEach(id => Object.assign(merged, groupQueryData[id]));
-            globalAllData = merged;
-            scheduleDataUiUpdate();
+        const assigned = SUB_ADMIN_GROUPS[currentUser] || new Set();
+        const dateValue = document.getElementById('filterDate')?.value || getLocalDateString();
+        const ref = database.ref('collections').orderByChild('date').equalTo(dateValue);
+        attachRealtimeValueListener(ref, snapshot => {
+          const raw = snapshot.val() || {};
+          const scoped = {};
+          Object.keys(raw).forEach(key => {
+            if (assigned.has(String(raw[key]?.userId || ''))) scoped[key] = raw[key];
           });
+          globalAllData = scoped;
+          realtimeInitialDataReady = true;
+          scheduleDataUiUpdate();
         });
         return;
       }
@@ -3197,6 +3193,7 @@
         const incoming = snapshot.val() || {};
         pendingOptimisticDeletes.forEach(key => { delete incoming[key]; });
         globalAllData = incoming;
+        realtimeInitialDataReady = true;
         masterAdminDataLoading = false;
         scheduleDataUiUpdate();
       };
@@ -3218,6 +3215,10 @@
       if (currentUser === 'admin') {
         const dateValue = document.getElementById('filterDate')?.value || getLocalDateString();
         loadMasterAdminData('date', dateValue);
+      } else if (isGroupAdmin(currentUser)) {
+        // Rebuild the single date-scoped listener for the newly selected day.
+        realtimeListenerAttached = false;
+        listenRealtimeData();
       } else {
         applyAdminFilters(true);
       }
