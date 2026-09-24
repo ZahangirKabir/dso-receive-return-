@@ -836,7 +836,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     // Change this string in every deployed release, then publish it at appConfig/releaseVersion.
-    const APP_RELEASE_VERSION = '2026.09.24.6';
+    const APP_RELEASE_VERSION = '2026.09.24.7';
     let releaseVersionRef = null;
     function startReleaseWatcher() {
       if (releaseVersionRef) return;
@@ -1011,7 +1011,7 @@
 
     function getBankOptionsHTML() {
       let html = '<option value="">-- Select Bank --</option>';
-      bankListOptions.forEach(b => {
+      [...new Set(Object.values(KNOWN_SLIP_ACCOUNTS).map(x=>x.bank))].forEach(b => {
         html += `<option value="${b}">${b}</option>`;
       });
       return html;
@@ -1257,6 +1257,13 @@
           </div>
 
           <div class="slip-field">
+            <label class="slip-field-label">🔢 অনুমোদিত Bank Account</label>
+            <select class="slip-account-number" aria-label="Approved bank account" onchange="selectApprovedSlipAccount(${slipCounter})">
+              ${getApprovedAccountOptionsHTML()}
+            </select>
+          </div>
+
+          <div class="slip-field">
             <label class="slip-field-label">👤 Account / Credit Name</label>
             <input type="text" placeholder="Account / Credit Name" class="slip-account-name" id="slipAccount_${slipCounter}" readonly autocomplete="off">
           </div>
@@ -1354,6 +1361,7 @@
         if(!(row.querySelector('.slip-file-input')?.files?.[0] || row.dataset.existingImg) || !row.querySelector('.slip-bank-name')?.value || parseRawNumber(row.querySelector('.slip-amt-val')?.value)<=0){
           alert('প্রতিটি স্লিপের ছবি, Bank Name ও Amount দিন।');return;
         }
+        if(!isApprovedSlipAccount(row)) {alert('শুধু অনুমোদিত Bank Account এবং তার নির্ধারিত Bank Name ব্যবহার করুন।');return;}
       }
       button.disabled=true;button.textContent='Uploading...';
       try {
@@ -1362,7 +1370,9 @@
           const file=row.querySelector('.slip-file-input')?.files?.[0];
           const img=file ? await prepareSlipImageForSave(row,file) : row.dataset.existingImg;
           if(!img) throw new Error('স্লিপের ছবি পড়া যায়নি। আবার নির্বাচন করুন।');
+          if(!isApprovedSlipAccount(row)) throw new Error('অনুমোদিত Bank Account ছাড়া Slip জমা দেওয়া যাবে না।');
           slips.push({img,amt:parseRawNumber(row.querySelector('.slip-amt-val').value),bankName:row.querySelector('.slip-bank-name').value,
+            accountNumber:row.querySelector('.slip-account-number').value,
             accountName:row.querySelector('.slip-account-name')?.value||'',depositDate:row.querySelector('.slip-date-input')?.value||''});
         }
         const amount=slips.reduce((n,x)=>n+x.amt,0);
@@ -1500,6 +1510,28 @@
       "1491100322159": { bank: "DBBL", accountName: "SUMON M.F.S" },
       "20501810100344008": { bank: "Islami", accountName: "M/S. Mostafa" }
     };
+
+    function getApprovedAccountOptionsHTML() {
+      return '<option value="">-- অনুমোদিত অ্যাকাউন্ট নির্বাচন করুন --</option>'+
+        Object.entries(KNOWN_SLIP_ACCOUNTS).map(([number,info])=>
+          `<option value="${number}">${info.bank} · ${number} · ${info.accountName}</option>`).join('');
+    }
+    function selectApprovedSlipAccount(id) {
+      const row=document.getElementById(`slipRow_${id}`);
+      if(!row) return;
+      const number=row.querySelector('.slip-account-number')?.value||'';
+      const info=KNOWN_SLIP_ACCOUNTS[number];
+      row.querySelector('.slip-bank-name').value=info?.bank||'';
+      row.querySelector('.slip-account-name').value=info?.accountName||'';
+      validateFormAndSubmitBtn();
+    }
+    function isApprovedSlipAccount(row) {
+      const number=row.querySelector('.slip-account-number')?.value||'';
+      const info=KNOWN_SLIP_ACCOUNTS[number];
+      return !!info && row.querySelector('.slip-bank-name')?.value===info.bank &&
+        row.querySelector('.slip-account-name')?.value.trim()===info.accountName &&
+        (!row.dataset.ocrAccountNumber || row.dataset.ocrAccountNumber===number);
+    }
 
     function normalizeAccountOCRText(text) {
       const bn={"০":"0","১":"1","২":"2","৩":"3","৪":"4","৫":"5","৬":"6","৭":"7","৮":"8","৯":"9"};
@@ -2340,6 +2372,8 @@
       const preview=document.getElementById(`slipPreview_${id}`);
 
       if(!file){
+        delete row.dataset.ocrAccountNumber;
+        row.querySelector('.slip-account-number').value='';
         if(ocrStatus) ocrStatus.value='pending';
         if(ocrAmt) ocrAmt.value='0';
         if(ocrBank) ocrBank.value='';
@@ -2357,6 +2391,8 @@
       if(file.size>15*1024*1024){alert('স্লিপ ইমেজ 15MB-এর মধ্যে রাখুন।');event.target.value='';return;}
 
       if(ocrStatus) ocrStatus.value='processing';
+      delete row.dataset.ocrAccountNumber;
+      row.querySelector('.slip-account-number').value='';
       if(ocrAmt) ocrAmt.value='0';
       if(ocrBank) ocrBank.value='';
       if(ocrDate) ocrDate.value='';
@@ -2379,6 +2415,7 @@
         if(!ocrResults.length) throw new Error('OCR থেকে কোনো লেখা পাওয়া যায়নি।');
 
         const knownAccount=chooseKnownSlipAccount(ocrResults);
+        if(knownAccount?.accountNumber) row.dataset.ocrAccountNumber=knownAccount.accountNumber;
         const detectedBank=chooseConsensusBank(ocrResults);
         const bank=knownAccount?.bank || (detectedBank && detectedBank!=='AMBIGUOUS' ? detectedBank : '');
         const amountInfo=chooseConsensusAmount(ocrResults);
@@ -2386,8 +2423,10 @@
         const depositDate=chooseConsensusDate(ocrResults) || '';
 
         if(bank){bankSelect.value=bank;bankSelect.classList.add('ocr-locked');if(ocrBank)ocrBank.value=bank;}
+        row.querySelector('.slip-account-number').value=knownAccount?.accountNumber||'';
+        if(knownAccount) selectApprovedSlipAccount(id);
         if(amountInfo?.value>0){amtInput.value=formatBD(amountInfo.value);amtInput.classList.add('ocr-locked');if(ocrAmt)ocrAmt.value=String(amountInfo.value);}
-        if(account) accountInput.value=account;
+        if(account && !knownAccount) accountInput.value=account;
         if(depositDate){dateInput.value=depositDate;if(ocrDate)ocrDate.value=depositDate;dateInput.classList.add('ocr-locked');}
 
         const ready=!!bank && !!amountInfo?.value && !!account && !!depositDate;
@@ -2514,7 +2553,7 @@
         // Submission safety: the actual slip image, bank and positive amount are required.
         // OCR account/date/status remain audit metadata; an OCR miss must never lock Submit.
         const hasImage = !!file || !!existingImg;
-        return hasImage && !!bank && amt > 0;
+        return hasImage && !!bank && amt > 0 && isApprovedSlipAccount(row);
       });
     }
 
@@ -2925,6 +2964,8 @@
           const row = document.getElementById("slipRow_" + slipCounter);
           if (!row) return;
           row.dataset.existingImg = s.img || s.image || s.imageUrl || s.imgUrl || "";
+          row.querySelector('.slip-account-number').value=s.accountNumber ||
+            Object.keys(KNOWN_SLIP_ACCOUNTS).find(n=>KNOWN_SLIP_ACCOUNTS[n].bank===s.bankName && KNOWN_SLIP_ACCOUNTS[n].accountName===s.accountName) || '';
           setSelectValueSafe(row.querySelector(".slip-bank-name"), s.bankName || "");
           const account = row.querySelector(".slip-account-name");
           const date = row.querySelector(".slip-date-input");
@@ -3028,6 +3069,7 @@
 
         for (let i=0;i<slipRows.length;i++) {
           const row = slipRows[i];
+          if(!isApprovedSlipAccount(row)) throw new Error('অনুমোদিত Bank Account এবং Bank Name নির্বাচন করুন।');
           const file = row.querySelector(".slip-file-input")?.files?.[0] || null;
           const existingImg = row.dataset.existingImg || "";
           let imgBase64 = file ? await prepareSlipImageForSave(row, file) : existingImg;
@@ -3044,7 +3086,7 @@
           // OCR-only mode: no secondary slip validation.
           if (bankName && !bankNamesCollected.includes(bankName)) bankNamesCollected.push(bankName);
           if (imgBase64 || amt > 0 || bankName) {
-            slipsData.push({img:imgBase64,amt,bankName,accountName,depositDate,ocrBankName,ocrAmt,ocrDate,ocrStatus:status});
+            slipsData.push({img:imgBase64,amt,bankName,accountName,accountNumber:row.querySelector('.slip-account-number').value,depositDate,ocrBankName,ocrAmt,ocrDate,ocrStatus:status});
           }
         }
 
@@ -3233,8 +3275,9 @@
           const ocrDateFinal = row.querySelector('[id^="slipOcrDate_"]')?.value || '';
           const hasSlipData = !!file || !!existingImg || amt>0 || !!bankName || !!accountName || !!depositDate;
           if (!hasSlipData) continue;
+          if (!isApprovedSlipAccount(row)) throw new Error('অনুমোদিত Bank Account এবং Bank Name নির্বাচন করুন।');
           if (!imgBase64) throw new Error('Bank slip image read/convert করা যায়নি। ছবিটি আবার নির্বাচন করুন।');
-          slipsData.push({img:imgBase64,amt,bankName,accountName,depositDate,ocrBankName,ocrAmt,ocrDate:ocrDateFinal,ocrStatus:status});
+          slipsData.push({img:imgBase64,amt,bankName,accountName,accountNumber:row.querySelector('.slip-account-number').value,depositDate,ocrBankName,ocrAmt,ocrDate:ocrDateFinal,ocrStatus:status});
         }
         slipsData.forEach(slip=>{ if(slip.bankName && !bankNamesCollected.includes(slip.bankName)) bankNamesCollected.push(slip.bankName); });
 
