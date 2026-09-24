@@ -836,7 +836,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     // Change this string in every deployed release, then publish it at appConfig/releaseVersion.
-    const APP_RELEASE_VERSION = '2026.09.24.5';
+    const APP_RELEASE_VERSION = '2026.09.24.6';
     let releaseVersionRef = null;
     function startReleaseWatcher() {
       if (releaseVersionRef) return;
@@ -2532,6 +2532,10 @@
 
       let diff = totalRec - totalRet;
 
+      document.getElementById('formTotalReceived').innerText=formatBD(totalRec);
+      document.getElementById('formTotalReturn').innerText=formatBD(totalRet);
+      document.getElementById('formDifference').innerText=formatBD(diff);
+
       let totalCashCalculated = 0;
       document.querySelectorAll(".denom").forEach(input => {
         let count = parseInt(input.value, 10) || 0;
@@ -2583,7 +2587,8 @@
       isBankValid = true; // Bank slips use their own submission and approval flow.
       bankMsgBox.innerHTML = "";
 
-      subBtn.disabled = !(isCashValid && isBankValid && isDiffValid);
+      subBtn.disabled = isSubmittingData || !(isCashValid && isBankValid && isDiffValid);
+      subBtn.title = diff !== 0 ? `Received - Return ব্যবধান ৳${formatBD(diff)}; হিসাব মিললে Submit চালু হবে` : '';
     }
 
     function calcCash() {
@@ -3107,6 +3112,12 @@
     async function submitData() {
       // Lock immediately: prevents double-clicks and concurrent async submissions.
       if (isSubmittingData) return;
+      // Recheck the live fields before any upload or edit, including direct calls.
+      calcFormTotals();
+      if (parseRawNumber(document.getElementById('formDifference').textContent) !== 0) {
+        alert('❌ Received - Return ব্যবধান আছে। হিসাব সমান হলে Submit চালু হবে।');
+        return;
+      }
       isSubmittingData = true;
       const subBtn = document.getElementById("subBtn");
       if (subBtn) {
