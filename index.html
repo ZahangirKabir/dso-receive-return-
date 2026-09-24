@@ -8,6 +8,7 @@
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
   <!-- Heavy libraries are lazy-loaded so Login opens faster. -->
 
@@ -423,6 +424,7 @@
       <div id="adminTabNav" class="tab-nav" style="display:none;">
         <button class="tab-btn active" id="tabAdminReportBtn" onclick="switchAdminTab('report')">📊 Main Report</button>
         <button class="tab-btn" id="tabAdminBankBtn" onclick="switchAdminTab('bank')">🏦 Bank Details</button>
+        <button class="tab-btn" id="tabAdminSlipApprovalBtn" onclick="switchAdminTab('slipApproval')">🧾 Bank Slip Approval</button>
         <button class="tab-btn" id="tabAdminNotesBtn" onclick="switchAdminTab('notes')">💵 Note Summary</button>
         <button class="tab-btn" id="tabAdminSettingsBtn" onclick="switchAdminTab('settings')">⚙️ Settings</button>
       </div>
@@ -430,6 +432,7 @@
       <!-- DSO PANEL NAVIGATION -->
       <div id="dsoTabNav" class="tab-nav" style="display:none;">
         <button class="tab-btn active" id="tabDsoFormBtn" onclick="switchDsoTab('form')">📝 দিনের রিপোর্ট</button>
+        <button class="tab-btn" id="tabDsoSlipBtn" onclick="switchDsoTab('slip')">🧾 ব্যাংক স্লিপ আপলোড</button>
         <button class="tab-btn" id="tabDsoReportBtn" onclick="switchDsoTab('report')">📁 আমার রিপোর্ট ও ইতিহাস (My Reports)</button>
         <button class="tab-btn settings-icon" id="tabDsoSettingsBtn" type="button" onclick="switchDsoTab('settings')" title="Password Settings" aria-label="Password Settings">⚙️</button>
       </div>
@@ -553,6 +556,12 @@
         </div>
       </div>
 
+      <!-- MASTER ADMIN BANK SLIP APPROVAL -->
+      <div id="adminPageSlipApproval" style="display:none;">
+        <h3 style="color:#00695c;margin-bottom:12px">🧾 Bank Slip Approval</h3>
+        <div id="pendingBankSlipList" class="section-box">Loading...</div>
+      </div>
+
       <!-- ADMIN PAGE 3: NOTE QUANTITY & SUMMARY PAGE -->
       <div id="adminPageNotes" style="display:none;">
         <h3 style="color:#00695c; margin-bottom:10px;">💵 DSO ID ও Note অনুযায়ী বিস্তারিত ক্যাশ গণনা</h3>
@@ -580,16 +589,21 @@
       <div id="adminPageSettings" style="display:none;">
         <div class="section-box" style="margin-bottom: 20px; background: #e0f2f1; border-color: #00695c;">
           <div class="section-title" style="color: #004d40; border-color: #00695c;">🔑 পাসওয়ার্ড ম্যানেজমেন্ট</div>
+          <div style="padding:10px;border:1px solid #00695c;border-radius:6px;margin-bottom:12px;background:#fff">
+            <strong>🔄 App Update</strong><br><small>এই ফাইলের ভার্সন: <span id="currentReleaseLabel"></span>। নতুন HTML সার্ভারে প্রকাশ করার পরে নিচের বাটনে চাপুন।</small>
+            <button type="button" class="btn-add" onclick="publishCurrentRelease()">সকল ব্যবহারকারীকে আপডেট পাঠান</button>
+          </div>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
             <div style="background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #004d40;">
               <label style="font-size: 12px; font-weight: bold; color: #004d40; display: block; margin-bottom: 5px;">অ্যাডমিনের পাসওয়ার্ড পরিবর্তন</label>
               <div style="display: flex; gap: 8px;">
+                <input type="password" id="adminOldPassword" placeholder="বর্তমান পাসওয়ার্ড" style="padding:8px;border:1px solid #ccc;border-radius:4px;flex:1;">
                 <input type="password" id="adminNewPassword" placeholder="নতুন পাসওয়ার্ড দিন" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1;">
                 <button class="btn" style="width: auto; padding: 8px 12px; font-size: 13px;" onclick="changeAdminOwnPassword()">Save</button>
               </div>
             </div>
 
-            <div style="background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #004d40;">
+            <div style="display:none;background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #004d40;">
               <label style="font-size: 12px; font-weight: bold; color: #004d40; display: block; margin-bottom: 5px;">অন্যান্য DSO / ইউজারের পাসওয়ার্ড পরিবর্তন</label>
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <select id="targetUserSelect" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; min-width: 100px;">
@@ -682,19 +696,31 @@
           <div id="diffValidationMsg"></div>
         </div>
 
-        <!-- DYNAMIC DEPOSIT SLIP CONTAINER -->
-        <div class="section-box" style="margin-bottom: 15px;">
-          <div class="section-title" style="color: #00695c;">🧾 ব্যাংক ডিপোজিট স্লিপ আপলোড, ব্যাংকের নাম ও পরিমাণ <span style="color:red; font-size:11px;">(Bank Deposit থাকলে সম্পূর্ণ Slip Upload/OCR বাধ্যতামূলক)</span></div>
-          <div id="slipsContainer"></div>
-          <button type="button" class="btn-add" onclick="addSlipRow()" style="padding: 8px 12px; font-size: 13px;">+ Add Deposit Slip</button>
-          <div id="ocrStatus" class="ocr-status"></div>
-          <div id="bankValidationMsg"></div>
+        <div class="section-box" style="margin-bottom:15px;">
+          <div class="section-title">🧾 Bank Slip Upload</div>
+          <button type="button" class="btn-add" onclick="switchDsoTab('slip')">🧾 Bank Slip Upload মেনু খুলুন</button>
         </div>
 
         <div class="btn-group">
           <button class="btn" id="subBtn" onclick="submitData()">Submit Data</button>
           <button class="btn btn-cancel" onclick="cancelDeposit()">Cancel Deposit</button>
         </div>
+      </div>
+
+      <!-- DSO BANK SLIP PAGE: shared with the daily report form -->
+      <div id="dsoPageSlip" style="display:none;">
+        <h3 style="color:#00695c;margin-bottom:12px">🧾 Bank Slip Upload</h3>
+        <!-- DYNAMIC DEPOSIT SLIP CONTAINER -->
+        <div class="section-box" style="margin-bottom: 15px;">
+          <div id="slipsContainer"></div>
+          <button type="button" class="btn-add" onclick="addSlipRow()" style="padding: 8px 12px; font-size: 13px;">+ Add Deposit Slip</button>
+          <div id="ocrStatus" class="ocr-status"></div>
+          <div id="bankValidationMsg"></div>
+        </div>
+
+        <button type="button" class="btn" id="submitSlipBtn" onclick="submitBankSlips()">Submit Bank Slip</button>
+        <div id="slipSubmitMessage" style="margin:10px 0"></div>
+        <button type="button" class="btn-add" onclick="switchDsoTab('form')">← দিনের রিপোর্টে ফিরে যান</button>
       </div>
 
       <!-- DSO TAB 2: HISTORY & REPORT -->
@@ -735,6 +761,8 @@
         <div class="section-box" style="margin-bottom:15px;background:#e0f2f1;border-color:#00695c;max-width:560px;">
           <div class="section-title" style="color:#004d40;border-color:#00695c;">⚙️ Password Settings</div>
           <div class="form-group" style="margin-bottom:8px;">
+            <label>বর্তমান পাসওয়ার্ড</label>
+            <input type="password" id="oldPassword" placeholder="বর্তমান পাসওয়ার্ড" autocomplete="current-password">
             <label>নতুন পাসওয়ার্ড</label>
             <input type="password" id="newPassword" placeholder="নতুন পাসওয়ার্ড দিন" autocomplete="new-password">
           </div>
@@ -788,6 +816,12 @@
     </div>
   </div>
 
+  <div id="releaseGate" role="alertdialog" aria-modal="true" style="display:none;position:fixed;inset:0;background:#fff;z-index:999999;padding:25px;align-items:center;justify-content:center;text-align:center;">
+    <div style="max-width:440px"><h2>🔄 নতুন আপডেট এসেছে</h2><p id="releaseGateMessage" style="margin:12px 0">অ্যাপ ব্যবহার করতে আপডেট করুন।</p><button class="btn" onclick="applyRequiredUpdate()">এখনই আপডেট করুন</button></div>
+  </div>
+  <div id="passwordGate" role="alertdialog" aria-modal="true" style="display:none;position:fixed;inset:0;background:#fff;z-index:999998;padding:25px;align-items:center;justify-content:center;text-align:center;">
+    <div style="max-width:440px;width:100%"><h2>🔑 ডিফল্ট পাসওয়ার্ড পরিবর্তন বাধ্যতামূলক</h2><input id="gateOldPassword" type="password" placeholder="বর্তমান পাসওয়ার্ড" style="width:100%;padding:12px;margin:8px 0"><input id="gateNewPassword" type="password" placeholder="নতুন পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)" style="width:100%;padding:12px;margin:8px 0"><button class="btn" onclick="changePasswordAtGate()">পাসওয়ার্ড পরিবর্তন করুন</button><p id="passwordGateError" style="color:#c62828;margin-top:10px"></p></div>
+  </div>
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyAjTNlvbrVyqI30-e1waJT1HKRd6dge43A",
@@ -802,6 +836,55 @@
 
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
+    const auth = firebase.auth();
+    const authEmail = id => `${String(id).toLowerCase()}@${firebaseConfig.projectId}.firebaseapp.com`;
+    // Change this string in every deployed release, then publish it at appConfig/releaseVersion.
+    const APP_RELEASE_VERSION = '2026.09.24.3';
+    let releaseVersionRef = null;
+    function startReleaseWatcher() {
+      if (releaseVersionRef) return;
+      releaseVersionRef = database.ref('appConfig/releaseVersion');
+      releaseVersionRef.on('value', snap => {
+        const required = String(snap.val() || '').trim();
+        const stale = !!required && required !== APP_RELEASE_VERSION;
+        const gate = document.getElementById('releaseGate');
+        gate.style.display = stale ? 'flex' : 'none';
+        if(stale) document.getElementById('releaseGateMessage').textContent = `নতুন ভার্সন ${required} এসেছে। অ্যাপ ব্যবহার করতে আপডেট করুন।`;
+      }, err => console.error('Version check failed:',err));
+    }
+    async function publishCurrentRelease(){
+      if(currentUser !== 'admin') return;
+      if(!confirm('নতুন HTML ফাইল সার্ভারে প্রকাশ করেছেন? এখন সকল ব্যবহারকারীকে এই ভার্সনের আপডেট পাঠাবেন?')) return;
+      try {await database.ref('appConfig/releaseVersion').set(APP_RELEASE_VERSION);
+        alert('আপডেট নোটিশ সকল খোলা অ্যাপে পাঠানো হয়েছে।');
+      }catch(err){alert('Update notification পাঠানো যায়নি: '+err.message);}
+    }
+    // Also detect replaced HTML automatically on the same hosted URL, including logged-out tabs.
+    async function checkHostedRelease() {
+      if(location.protocol !== 'http:' && location.protocol !== 'https:') return;
+      try {
+        const url=new URL(location.pathname,location.origin);
+        url.searchParams.set('_release_check',Date.now());
+        const controller=new AbortController();
+        const timeout=setTimeout(()=>controller.abort(),7000);
+        try {
+          const response=await fetch(url,{cache:'no-store',signal:controller.signal});
+          if(!response.ok) return;
+          const html=await response.text();
+          const match=html.match(/const APP_RELEASE_VERSION\s*=\s*['"]([^'"]+)['"]/);
+          if(match && match[1] !== APP_RELEASE_VERSION){
+            const gate=document.getElementById('releaseGate');gate.style.display='flex';
+            document.getElementById('releaseGateMessage').textContent=`নতুন ভার্সন ${match[1]} এসেছে। অ্যাপ ব্যবহার করতে আপডেট করুন।`;
+          }
+        }finally{clearTimeout(timeout);}
+      }catch(err){console.warn('Hosted version check unavailable:',err);}
+    }
+    function applyRequiredUpdate() {
+      const u = new URL(window.location.href);
+      u.searchParams.set('release', String(Date.now()));
+      window.location.replace(u.toString());
+    }
+
     let currentUser = null;
     let globalAllData = null;
     let slipCounter = 0;
@@ -872,12 +955,13 @@
 
     function switchAdminTab(tab) {
       activeAdminTab = tab;
-      ["report","bank","notes","settings"].forEach(t => {
+      ["report","bank","slipApproval","notes","settings"].forEach(t => {
         const btn = document.getElementById("tabAdmin" + t.charAt(0).toUpperCase() + t.slice(1) + "Btn");
         const page = document.getElementById("adminPage" + t.charAt(0).toUpperCase() + t.slice(1));
         if (btn) btn.classList.toggle("active", t === tab);
         if (page) page.style.display = t === tab ? "block" : "none";
       });
+      if (tab === 'slipApproval') listenPendingBankSlips();
       if (tab !== 'settings') applyAdminFilters(true);
     }
 
@@ -892,13 +976,16 @@
 
 
     function switchDsoTab(tab) {
-      ["Form","Report","Settings"].forEach(name => {
+      ["Form","Slip","Report","Settings"].forEach(name => {
         document.getElementById("tabDso" + name + "Btn")?.classList.remove("active");
         const page = document.getElementById("dsoPage" + name);
         if (page) page.style.display = "none";
       });
 
-      if (tab === 'report') {
+      if (tab === 'slip') {
+        document.getElementById("tabDsoSlipBtn")?.classList.add("active");
+        document.getElementById("dsoPageSlip").style.display = "block";
+      } else if (tab === 'report') {
         document.getElementById("tabDsoReportBtn")?.classList.add("active");
         document.getElementById("dsoPageReport").style.display = "block";
         renderDsoHistory(globalAllData);
@@ -940,8 +1027,8 @@
       adminSingair: new Set(["810","835","836","837","838","839","840","841","842","843","844","845"]),
       adminGhior: new Set(["824","825","826","827","828","829","830","831","832","833","834"])
     };
-    const SUB_ADMIN_PASSWORD = "1234";
-    function isGroupAdmin(id) { return Object.prototype.hasOwnProperty.call(SUB_ADMIN_GROUPS, String(id)); }
+    let signedRole = null;
+    function isGroupAdmin(id) { return signedRole === 'group' && Object.prototype.hasOwnProperty.call(SUB_ADMIN_GROUPS, String(id)); }
     function allowedDsoForCurrentUser(dsoId) {
       const viewer = String(currentUser || "").trim();
       const target = String(dsoId || "").trim();
@@ -956,7 +1043,7 @@
 
     function openPortalForUser(id, {freshLogin=false} = {}) {
       currentUser = String(id || '').trim();
-      if (!currentUser) return;
+      if (!currentUser || auth.currentUser?.uid !== currentUser || !signedRole) return;
       try { sessionStorage.setItem(PORTAL_SESSION_KEY, currentUser); } catch (_) {}
 
       document.getElementById("loginSection").style.display = "none";
@@ -971,6 +1058,7 @@
         document.getElementById("adminFilterPanel").classList.toggle("master-admin-filter", currentUser === "admin");
         document.getElementById("tabAdminSettingsBtn").style.display = currentUser === "admin" ? "inline-block" : "none";
         document.getElementById("tabAdminBankBtn").style.display = isGroupAdmin(currentUser) ? "none" : "inline-block";
+        document.getElementById("tabAdminSlipApprovalBtn").style.display = currentUser === "admin" ? "inline-block" : "none";
         document.getElementById("tabAdminNotesBtn").style.display = isGroupAdmin(currentUser) ? "none" : "inline-block";
         document.getElementById("dsoView").style.display = "none";
         document.getElementById("dsoTabNav").style.display = "none";
@@ -987,10 +1075,11 @@
         document.getElementById("adminTabNav").style.display = "none";
         switchDsoTab('form');
         resetForm();
-        checkDsoNotifications();
+        listenDsoNotifications();
       }
       listenRealtimeData();
-      scheduleHeavyLibrariesPreload();
+      if (!freshLogin) database.ref('passwordChangeRequired/'+currentUser).once('value').then(snap=>{if(currentUser===String(id) && snap.val()===true) showPasswordGate();}).catch(err=>console.error('Password status check failed:',err));
+      // OCR assets load only when a slip is selected, keeping login light.
     }
 
     let loginInProgress = false;
@@ -1001,22 +1090,25 @@
       const btn = document.getElementById("loginBtn");
       if (!id || !pass) { alert("ইউজার আইডি এবং পাসওয়ার্ড লিখুন!"); return; }
       let userIdNum = parseInt(id, 10);
-      const isPrivileged = id === "admin" || isGroupAdmin(id);
+      const isPrivileged = id === "admin" || Object.prototype.hasOwnProperty.call(SUB_ADMIN_GROUPS,id);
       if (!isPrivileged && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
         alert("অপ্রবেশযোগ্য আইডি! শুধুমাত্র ৮০১ থেকে ৮৪৫ অথবা অনুমোদিত Admin ID ব্যবহার করুন।"); return;
       }
       loginInProgress = true;
       if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Checking…';}
       try {
-        let dbPass;
-        if (isGroupAdmin(id)) dbPass = SUB_ADMIN_PASSWORD;
-        else {
-          const snap = await database.ref('users/' + id + '/password').once('value');
-          dbPass = snap.val();
-          if (dbPass === null || dbPass === undefined) dbPass = '123456';
+        const credential = await auth.signInWithEmailAndPassword(authEmail(id), pass);
+        const token = await credential.user.getIdTokenResult(true);
+        if (credential.user.uid !== id || !['admin','group','dso'].includes(token.claims.role) ||
+            (id === 'admin') !== (token.claims.role === 'admin') ||
+            (SUB_ADMIN_GROUPS[id] ? token.claims.role !== 'group' : token.claims.role === 'group')) {
+          await auth.signOut();throw new Error('এই User ID-তে প্রবেশের অনুমতি নেই।');
         }
-        if (pass !== String(dbPass).trim()) { alert("ভুল পাসওয়ার্ড! দয়া করে সঠিক পাসওয়ার্ড দিন।"); return; }
-        openPortalForUser(id, {freshLogin:true});
+        signedRole=token.claims.role;
+        if(currentUser !== id) openPortalForUser(id, {freshLogin:true});
+        // Migrated initial accounts carry the one-time reset marker.
+        const initial = await database.ref('passwordChangeRequired/'+id).once('value');
+        if(initial.val() === true) showPasswordGate();
       } catch (e) {
         alert("লগইন চেক করতে সমস্যা হয়েছে: " + e.message);
       } finally {
@@ -1025,35 +1117,39 @@
       }
     }
 
-    async function changePassword() {
-      let newPass = document.getElementById("newPassword").value.trim();
-      if (!newPass) { alert("নতুন পাসওয়ার্ড ফিল্ডে লিখুন!"); return; }
-      try {
-        await database.ref('users/' + currentUser + '/password').set(newPass);
-        alert("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!");
-        document.getElementById("newPassword").value = "";
-      } catch (err) { alert("পাসওয়ার্ড সেভ করা যায়নি: " + err.message); }
+    function showPasswordGate() { document.getElementById('passwordGate').style.display='flex'; }
+    async function updateOwnPassword(oldPass,newPass) {
+      const user=auth.currentUser;
+      if (!user || user.uid !== currentUser) throw new Error('আগে লগইন করুন।');
+      if (!oldPass || !newPass || newPass.length < 8) throw new Error('বর্তমান এবং কমপক্ষে ৮ অক্ষরের নতুন পাসওয়ার্ড দিন।');
+      if (newPass === oldPass) throw new Error('নতুন পাসওয়ার্ড আলাদা হতে হবে।');
+      const credential=firebase.auth.EmailAuthProvider.credential(user.email,oldPass);
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPass);
+      await database.ref('passwordChangeRequired/'+currentUser).set(false);
+      document.getElementById('passwordGate').style.display='none';
+      return true;
     }
-
+    async function changePasswordAtGate() {
+      const error=document.getElementById('passwordGateError');error.textContent='';
+      try { await updateOwnPassword(document.getElementById('gateOldPassword').value,document.getElementById('gateNewPassword').value.trim());
+        document.getElementById('gateOldPassword').value='';document.getElementById('gateNewPassword').value='';
+        alert('পাসওয়ার্ড পরিবর্তন হয়েছে।');
+      } catch(err) {error.textContent=err.message;}
+    }
+    async function changePassword() {
+      try {await updateOwnPassword(document.getElementById('oldPassword').value,document.getElementById('newPassword').value.trim());
+        document.getElementById('oldPassword').value='';document.getElementById('newPassword').value='';alert('পাসওয়ার্ড পরিবর্তন হয়েছে।');
+      }catch(err){alert(err.message);}
+    }
     async function changeAdminOwnPassword() {
-      let newPass = document.getElementById("adminNewPassword").value.trim();
-      if (!newPass) { alert("নতুন পাসওয়ার্ড ফিল্ডে লিখুন!"); return; }
-      try {
-        await database.ref('users/admin/password').set(newPass);
-        alert("অ্যাডমিনের পাসওয়ার্ড আপডেট হয়েছে!");
-        document.getElementById("adminNewPassword").value = "";
-      } catch (err) { alert("পাসওয়ার্ড সেভ করা যায়নি: " + err.message); }
+      try {await updateOwnPassword(document.getElementById('adminOldPassword').value,document.getElementById('adminNewPassword').value.trim());
+        document.getElementById('adminOldPassword').value='';document.getElementById('adminNewPassword').value='';alert('পাসওয়ার্ড পরিবর্তন হয়েছে।');
+      }catch(err){alert(err.message);}
     }
 
     async function changeUserPasswordByAdmin() {
-      let targetUser = document.getElementById("targetUserSelect").value;
-      let newPass = document.getElementById("targetUserPassword").value.trim();
-      if (!targetUser || !newPass) { alert("ইউজার সিলেক্ট করুন এবং নতুন পাসওয়ার্ড দিন!"); return; }
-      try {
-        await database.ref('users/' + targetUser + '/password').set(newPass);
-        alert(`DSO '${targetUser}' এর পাসওয়ার্ড আপডেট করা হয়েছে!`);
-        document.getElementById("targetUserPassword").value = "";
-      } catch (err) { alert("পাসওয়ার্ড সেভ করা যায়নি: " + err.message); }
+      alert('অন্য ব্যবহারকারীর Firebase Authentication পাসওয়ার্ড শুধু নিরাপদ Admin provisioning script দিয়ে reset করা যায়।');
     }
 
     async function refreshCurrentData() {
@@ -1070,7 +1166,7 @@
           realtimeListenerAttached=false;
           listenRealtimeData();
         }
-        await new Promise(r=>setTimeout(r,250));
+
       }catch(e){ console.error('Refresh failed:',e); }
       finally{
         if(btn){btn.disabled=false;btn.textContent='🔄 Refresh';}
@@ -1078,9 +1174,13 @@
     }
 
     function logout() {
+      auth.signOut().catch(err=>console.error('Logout failed:',err));
       detachRealtimeDataListeners();
+      if(dsoNotificationRef){dsoNotificationRef.off('value',dsoNotificationHandler);dsoNotificationRef=null;}
+      if (slipApprovalRef) { slipApprovalRef.off('value',slipApprovalHandler); slipApprovalRef=null; }
       try { sessionStorage.removeItem(PORTAL_SESSION_KEY); } catch (_) {}
-      currentUser = null;
+      currentUser = null; signedRole=null;
+      document.getElementById('passwordGate').style.display='none';
       globalAllData = null;
       dsoEditModeKey = null;
       document.getElementById("appContainer").style.display = "none";
@@ -1202,8 +1302,127 @@
         totalBankAmt += parseRawNumber(input.value);
       });
       const bankInput = document.getElementById("bankDeposit");
-      bankInput.value = formatBD(totalBankAmt);
+      bankInput.value = formatBD(submittedBankAmount || 0); // Only submitted slips count.
       calcFormTotals();
+    }
+
+    // Independent bank slip requests; approval applies each request exactly once.
+    let submittedBankAmount = 0;
+    let slipApprovalRef = null;
+    let slipApprovalHandler = null;
+    function listenPendingBankSlips() {
+      if (slipApprovalRef) { slipApprovalRef.off('value', slipApprovalHandler); slipApprovalRef = null; }
+      if (currentUser !== 'admin') return;
+      slipApprovalRef = database.ref('bankSlipRequests').orderByChild('status').equalTo('pending');
+      slipApprovalHandler = snap => {
+        const box = document.getElementById('pendingBankSlipList');
+        if (!box || currentUser !== 'admin') return;
+        const items = snap.val() || {};
+        box.replaceChildren();
+        if (!Object.keys(items).length) { box.textContent = 'কোনো Pending Bank Slip নেই।'; return; }
+        Object.entries(items).sort((a,b) => (b[1].submittedAt||0)-(a[1].submittedAt||0)).forEach(([key,item]) => {
+          const row = document.createElement('div');
+          row.style.cssText='padding:12px;border-bottom:1px solid #ddd;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+          const label = document.createElement('strong');
+          label.textContent = `DSO ${item.userId} · ${item.date} · ৳${formatBD(item.amount)} · ${(item.slips||[]).length} slip(s)`;
+          row.appendChild(label);
+          (item.slips||[]).forEach((slip,i) => {
+            const view = document.createElement('button'); view.type='button';view.className='btn-add';
+            view.textContent=`View Slip ${i+1}`;
+            view.onclick=()=>{ if(slip.img) zoomImage(slip.img,item.userId,slip.bankName,slip.amt,slip.depositDate); };
+            row.appendChild(view);
+          });
+          const approve=document.createElement('button');approve.type='button';approve.className='btn-add';approve.textContent='✔ Approve';
+          approve.onclick=async()=>{approve.disabled=true;try{await approveBankSlipRequest(key,item);}finally{approve.disabled=false;}};
+          row.appendChild(approve);box.appendChild(row);
+        });
+      };
+      slipApprovalRef.on('value', slipApprovalHandler, err => { document.getElementById('pendingBankSlipList').textContent='Pending Slip লোড হয়নি: '+err.message; });
+    }
+
+    async function submitBankSlips() {
+      if (!currentUser || currentUser==='admin' || isGroupAdmin(currentUser)) return;
+      const button=document.getElementById('submitSlipBtn');
+      const rows=[...document.querySelectorAll('#slipsContainer .slip-box-item')];
+      const active=rows.filter(row=>row.querySelector('.slip-file-input')?.files?.[0] || row.dataset.existingImg || parseRawNumber(row.querySelector('.slip-amt-val')?.value));
+      if(!active.length){alert('প্রথমে Bank Slip যোগ করুন।');return;}
+      for(const row of active){
+        if(!(row.querySelector('.slip-file-input')?.files?.[0] || row.dataset.existingImg) || !row.querySelector('.slip-bank-name')?.value || parseRawNumber(row.querySelector('.slip-amt-val')?.value)<=0){
+          alert('প্রতিটি স্লিপের ছবি, Bank Name ও Amount দিন।');return;
+        }
+      }
+      button.disabled=true;button.textContent='Uploading...';
+      try {
+        const slips=[];
+        for(const row of active){
+          const file=row.querySelector('.slip-file-input')?.files?.[0];
+          const img=file ? await prepareSlipImageForSave(row,file) : row.dataset.existingImg;
+          if(!img) throw new Error('স্লিপের ছবি পড়া যায়নি। আবার নির্বাচন করুন।');
+          slips.push({img,amt:parseRawNumber(row.querySelector('.slip-amt-val').value),bankName:row.querySelector('.slip-bank-name').value,
+            accountName:row.querySelector('.slip-account-name')?.value||'',depositDate:row.querySelector('.slip-date-input')?.value||''});
+        }
+        const amount=slips.reduce((n,x)=>n+x.amt,0);
+        const reqRef=database.ref('bankSlipRequests').push();
+        await reqRef.set({userId:String(currentUser),date:getLocalDateString(),amount,slips,status:'pending',submittedAt:firebase.database.ServerValue.TIMESTAMP});
+        // If today's daily report exists, apply the submitted amount immediately.
+        const indexSnap=await database.ref('dailySubmissionIndex/'+getLocalDateString()+'/'+String(currentUser)).once('value');
+        let recordKey=indexSnap.val()||null;
+        if(!recordKey){ // Compatibility with records created before the day index.
+          const daySnap=await database.ref('collections').orderByChild('date').equalTo(getLocalDateString()).once('value');
+          daySnap.forEach(child=>{if(String(child.val()?.userId)===String(currentUser)) recordKey=child.key;});
+        }
+        if(recordKey){
+          const applied=await database.ref('collections/'+recordKey).transaction(record=>{
+            if(!record) return;
+            if(record.submittedSlipRequests?.[reqRef.key]) return;
+            record.submittedSlipRequests=record.submittedSlipRequests||{};
+            record.submittedSlipRequests[reqRef.key]=true;
+            record.bankDeposit=(Number(record.bankDeposit)||0)+amount;
+            record.slips=[...(record.slips||[]),...slips];
+            record.bankName=[...new Set([...(record.bankName||'').split(', ').filter(Boolean),...slips.map(x=>x.bankName)])].join(', ');
+            record.approvalStatus='pending';
+            return record;
+          },undefined,false);
+          if(!applied.snapshot.val()?.submittedSlipRequests?.[reqRef.key]) throw new Error('স্লিপ জমা হয়েছে, কিন্তু দিনের রিপোর্ট আপডেট হয়নি। Admin-কে জানান।');
+        }
+        submittedBankAmount += amount;
+        recalculateBankDepositFromSlips();
+        rows.forEach(cleanupSlipPreview);
+        document.getElementById('slipsContainer').innerHTML='';slipCounter=0;addSlipRow();
+        document.getElementById('slipSubmitMessage').textContent=`✅ ৳${formatBD(amount)} Bank Slip জমা হয়েছে। Admin Approval Pending।`;
+        alert('Bank Slip জমা হয়েছে। Bank Deposit Amount যোগ হয়েছে; Admin Slip Approval Pending।');
+      }catch(err){alert('Bank Slip জমা হয়নি: '+err.message);}
+      finally{button.disabled=false;button.textContent='Submit Bank Slip';}
+    }
+
+    async function approveBankSlipRequest(key,item){
+      if(currentUser!=='admin') return;
+      if(!confirm(`DSO ${item.userId} এর ৳${formatBD(item.amount)} Bank Slip অনুমোদন করবেন?`)) return;
+      try{
+        const snap=await database.ref('collections').orderByChild('date').equalTo(item.date).once('value');
+        let recordKey=null;
+        snap.forEach(child=>{if(String(child.val()?.userId)===String(item.userId)) recordKey=child.key;});
+        if(!recordKey) throw new Error('এই DSO-এর ওই তারিখের দিনের রিপোর্ট পাওয়া যায়নি। আগে দিনের রিপোর্ট Submit করতে হবে।');
+        const ref=database.ref('collections/'+recordKey);
+        const result=await ref.transaction(record=>{
+          if(!record) return;
+          if(record.approvedSlipRequests?.[key]) return;
+          record.approvedSlipRequests=record.approvedSlipRequests||{};
+          record.approvedSlipRequests[key]=true;
+          // Compatibility for slips submitted before the daily report was created.
+          if(!record.submittedSlipRequests?.[key]){
+            record.submittedSlipRequests=record.submittedSlipRequests||{};
+            record.submittedSlipRequests[key]=true;
+            record.bankDeposit=(Number(record.bankDeposit)||0)+(Number(item.amount)||0);
+            record.slips=[...(record.slips||[]),...(item.slips||[])];
+          }
+          return record;
+        },undefined,false);
+        const updated=result.snapshot.val();
+        if(!updated?.approvedSlipRequests?.[key]) throw new Error('Slip Approval আপডেট হয়নি। আবার চেষ্টা করুন।');
+        await database.ref('bankSlipRequests/'+key).update({status:'approved',approvedAt:firebase.database.ServerValue.TIMESTAMP,approvedBy:currentUser,collectionKey:recordKey});
+        alert('Bank Slip Approved। Bank Deposit Amount ৳'+formatBD(updated.bankDeposit));
+      }catch(err){alert('Approval ব্যর্থ: '+err.message);}
     }
 
     // ---------- STRICT BANK-SLIP OCR v3 ----------
@@ -2357,7 +2576,7 @@
 
       // নতুন নিয়ম:
       // Bank Deposit থাকলে Slip image + bank + amount বাধ্যতামূলক; OCR miss Submit lock করবে না।
-      isBankValid = validateBankSlipRequirement();
+      isBankValid = true; // Bank slips use their own submission and approval flow.
       bankMsgBox.innerHTML = "";
 
       subBtn.disabled = !(isCashValid && isBankValid && isDiffValid);
@@ -2795,14 +3014,6 @@
 
       // Final safety check: Bank Deposit থাকলে সম্পূর্ণ Bank Slip ছাড়া
       // কোনোভাবেই submit হতে দেবে না—even if submitData() is triggered programmatically.
-      if (!validateBankSlipRequirement()) {
-        if (subBtn) {
-          subBtn.disabled = true;
-          subBtn.innerText = "Submit Data";
-        }
-        isSubmittingData = false;
-        return;
-      }
         const slipsData = [];
         const bankNamesCollected = [];
 
@@ -2844,12 +3055,14 @@
           dsoReceivedList: getDsoReceivedList(),
           emReturn: parseRawNumber(document.getElementById("emReturn").value),
           bankDeposit: bankDepositVal,
-          bankName: bankNamesCollected.join(", "),
+          bankName: original.bankName || bankNamesCollected.join(', '),
+          submittedSlipRequests: original.submittedSlipRequests || {},
+          approvedSlipRequests: original.approvedSlipRequests || {},
           dsoTransferList: getDsoTransferList(),
           cashDeposit: cashDepositAmt,
           notes: {n1000,n500,n200,n100,n50},
           totalCash: totalCashVal,
-          slips: slipsData,
+          slips: slipsData.length ? slipsData : (original.slips || []),
           approvalStatus: "pending",
           editPermission: {
             status: "none",
@@ -2920,6 +3133,19 @@
         return;
       }
 
+      // Reconcile submitted slips on every submit, including after page reload.
+      let todaySlipRequests = {};
+      try {
+        const slipSnap=await database.ref('bankSlipRequests').orderByChild('userId').equalTo(String(currentUser)).once('value');
+        todaySlipRequests=Object.fromEntries(Object.entries(slipSnap.val()||{}).filter(([_,r])=>r.date===dateStr && (r.status==='pending'||r.status==='approved')));
+        submittedBankAmount=Object.values(todaySlipRequests).reduce((sum,r)=>sum+(Number(r.amount)||0),0);
+        document.getElementById('bankDeposit').value=formatBD(submittedBankAmount);
+        calcFormTotals();
+      } catch(err) {
+        alert('Bank Slip যাচাই করা যায়নি: '+err.message);
+        isSubmittingData=false;subBtn.innerText='Submit Data';validateFormAndSubmitBtn();return;
+      }
+
       // Final programmatic safety checks. These also protect against submitData() being called
       // directly while the visible button is disabled.
       const totalRecSafety = parseRawNumber(document.getElementById("emReceived").value)
@@ -2936,14 +3162,6 @@
         validateFormAndSubmitBtn();
         return;
       }
-      if (!validateBankSlipRequirement()) {
-        alert("❌ Bank Deposit থাকলে প্রতিটি ব্যবহৃত Slip-এর Image, Bank Name এবং Amount দিতে হবে।");
-        isSubmittingData = false;
-        if (subBtn) subBtn.innerText = "Submit Data";
-        validateFormAndSubmitBtn();
-        return;
-      }
-
       const minimumBad = validateMainAmountMinimums();
       if(minimumBad.length){ alert("❌ B2B Received, Cash Received ও Bank Amount-এ ৩ digit amount গ্রহণযোগ্য নয়। ন্যূনতম ৳1,000 দিন।"); validateFormAndSubmitBtn(); isSubmittingData = false; if(subBtn) subBtn.innerText="Submit Data"; return; }
 
@@ -2954,7 +3172,7 @@
         isSubmittingData = false;
         return;
       }
-      const slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
+      const slipRows = []; // Bank slips are submitted in the separate menu.
 
       // OCR-only slip mode: no secondary slip validation, mismatch checking, or popup.
       // The values currently populated by OCR are submitted as-is.
@@ -3015,12 +3233,14 @@
           dsoReceivedList: getDsoReceivedList(),
           emReturn: parseRawNumber(document.getElementById("emReturn").value),
           bankDeposit: bankDepositVal,
-          bankName: bankNamesCollected.join(", "),
+          bankName: [...new Set(Object.values(todaySlipRequests).flatMap(r=>(r.slips||[]).map(x=>x.bankName).filter(Boolean)))].join(", "),
+          submittedSlipRequests: Object.fromEntries(Object.keys(todaySlipRequests).map(key=>[key,true])),
+          approvedSlipRequests: Object.fromEntries(Object.entries(todaySlipRequests).filter(([_,r])=>r.status==='approved').map(([key])=>[key,true])),
           dsoTransferList: getDsoTransferList(),
           cashDeposit: cashDepositAmt,
           notes: { n1000, n500, n200, n100, n50 },
           totalCash: totalCashVal,
-          slips: slipsData,
+          slips: Object.values(todaySlipRequests).flatMap(r=>r.slips||[]),
           approvalStatus: "pending",
           timestamp: Date.now()
         };
@@ -3046,6 +3266,7 @@
 
     function resetForm() {
       dsoEditModeKey = null;
+      submittedBankAmount = 0;
       const subBtn = document.getElementById("subBtn");
       if (subBtn) subBtn.innerText = "Submit Data";
       document.querySelectorAll(".amt-field").forEach(input => input.value = "");
@@ -3071,10 +3292,7 @@
         </div>
       `;
 
-      document.querySelectorAll("#slipsContainer .slip-box-item").forEach(cleanupSlipPreview);
-      document.getElementById("slipsContainer").innerHTML = "";
-      slipCounter = 0;
-      addSlipRow();
+      if (!document.querySelector("#slipsContainer .slip-box-item")) addSlipRow();
       
       document.getElementById("ocrStatus").innerText = "";
       calcFormTotals();
@@ -3112,7 +3330,6 @@
         scheduleAdminRender();
       } else {
         renderDsoHistory(globalAllData);
-        checkDsoNotifications();
       }
     }
 
@@ -3150,23 +3367,33 @@
         };
         ref.on('value', handler, errorHandler);
         realtimeListenerRefs.push({ref, handler});
+        // Load the complete DSO history in the background and keep it live.
+        const allRef=database.ref('collections').orderByChild('userId').equalTo(String(currentUser));
+        const allHandler=snap=>{
+          if (realtimeListenerUser !== currentUser) return;
+          globalAllData=snap.val()||{};
+          realtimeInitialDataReady=true;
+          scheduleDataUiUpdate();
+          // The complete stream includes the last 60; avoid two UI renders thereafter.
+          try {ref.off('value',handler);}catch(_){}
+          realtimeListenerRefs=realtimeListenerRefs.filter(x=>x.ref!==ref);
+        };
+        allRef.on('value',allHandler,err=>console.error('Complete DSO history failed:',err));
+        realtimeListenerRefs.push({ref:allRef,handler:allHandler});
         return;
       }
 
       // Group Admins only download their assigned DSO records.
       if (isGroupAdmin(currentUser)) {
-        const assigned = SUB_ADMIN_GROUPS[currentUser] || new Set();
-        const dateValue = document.getElementById('filterDate')?.value || getLocalDateString();
-        const ref = database.ref('collections').orderByChild('date').equalTo(dateValue);
-        attachRealtimeValueListener(ref, snapshot => {
-          const raw = snapshot.val() || {};
-          const scoped = {};
-          Object.keys(raw).forEach(key => {
-            if (assigned.has(String(raw[key]?.userId || ''))) scoped[key] = raw[key];
+        const assigned=SUB_ADMIN_GROUPS[currentUser]||new Set();
+        groupQueryData={};
+        assigned.forEach(id=>{
+          const ref=database.ref('collections').orderByChild('userId').equalTo(String(id));
+          attachRealtimeValueListener(ref,snapshot=>{
+            groupQueryData[id]=snapshot.val()||{};
+            globalAllData=Object.assign({},...Object.values(groupQueryData));
+            realtimeInitialDataReady=true;scheduleDataUiUpdate();
           });
-          globalAllData = scoped;
-          realtimeInitialDataReady = true;
-          scheduleDataUiUpdate();
         });
         return;
       }
@@ -3244,6 +3471,18 @@
       }
     }
 
+    let dsoNotificationRef=null, dsoNotificationHandler=null;
+    function listenDsoNotifications(){
+      if(dsoNotificationRef){dsoNotificationRef.off('value',dsoNotificationHandler);dsoNotificationRef=null;}
+      if(!currentUser || currentUser==='admin' || isGroupAdmin(currentUser)) return;
+      dsoNotificationRef=database.ref('notifications/'+currentUser);
+      dsoNotificationHandler=snap=>{
+        const n=snap.val();const banner=document.getElementById('dsoNotificationBanner');
+        banner.style.display=n?.unread?'block':'none';
+        if(n?.unread) document.getElementById('dsoNotificationText').textContent=n.message||'🔔 আপনার হিসাব Admin আপডেট করেছেন।';
+      };
+      dsoNotificationRef.on('value',dsoNotificationHandler,err=>console.error('Notification stream failed:',err));
+    }
     async function checkDsoNotifications() {
       if (!currentUser || currentUser === "admin" || isGroupAdmin(currentUser)) return;
       try {
@@ -3842,6 +4081,16 @@
       if (currentUser !== "admin") { alert("❌ এই কাজটি শুধুমাত্র Master Admin করতে পারবেন।"); return; }
       if (!globalAllData?.[key]) return;
       if (!confirm("আপনি কি নিশ্চিত যে এই রিপোর্টটি Approve করতে চান?")) return;
+      try {
+        const item=globalAllData[key];
+        const snap=await database.ref('bankSlipRequests').orderByChild('userId').equalTo(String(item.userId)).once('value');
+        const requests=Object.entries(snap.val()||{}).filter(([_,r])=>r.date===item.date);
+        if(Number(item.bankDeposit)>0 && !requests.length){alert('❌ Bank Deposit আছে, কিন্তু কোনো Bank Slip জমা নেই।');return;}
+        if(requests.some(([_,r])=>r.status!=='approved')){alert('❌ সব Bank Slip Approve করার পর দিনের রিপোর্ট Approve করুন।');return;}
+        const credited=Object.keys(item.submittedSlipRequests||{});
+        if(credited.some(k=>!requests.some(([id,r])=>id===k && r.status==='approved'))){alert('❌ রিপোর্টের সব Bank Slip Approve হয়নি।');return;}
+        if(requests.length && Math.abs(requests.reduce((a,[_,r])=>a+(Number(r.amount)||0),0)-(Number(item.bankDeposit)||0))>0.01){alert('❌ Slip Amount এবং Bank Deposit Amount মিলছে না।');return;}
+      }catch(err){alert('Bank Slip Approval যাচাই করা যায়নি: '+err.message);return;}
       const previous = { ...globalAllData[key] };
       globalAllData[key] = { ...globalAllData[key], approvalStatus: "approved" };
       scheduleDataUiUpdate();
@@ -3961,17 +4210,9 @@
       if (confirmPass === null) return;
 
       try {
-        const passSnapshot = await database.ref('users/admin/password').once('value');
-        const adminPass = passSnapshot.val() || "123456";
-        if (confirmPass.trim() !== String(adminPass).trim()) {
-          alert("ভুল এডমিন পাসওয়ার্ড! মুছে ফেলা সম্ভব হয়নি।");
-          return;
-        }
-
-        pendingOptimisticDeletes.add(key);
-        delete globalAllData[key];
-        scheduleDataUiUpdate();
-
+        const adminAuth = auth.currentUser;
+        if(!adminAuth || adminAuth.uid !== 'admin') throw new Error('Admin Authentication প্রয়োজন।');
+        await adminAuth.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(adminAuth.email,confirmPass));
         await database.ref('collections/' + key).remove();
         pendingOptimisticDeletes.delete(key);
         alert(`DSO ID: ${dsoId} এর রেকর্ড সফলভাবে ডিলেট করা হয়েছে।`);
@@ -4575,13 +4816,24 @@
         alert("Excel ডাউনলোড করতে সমস্যা হয়েছে: " + (err?.message || err));
       }
     }
-    // Keep the authenticated portal open across accidental mobile pull-to-refresh /
-    // viewport reloads. Only the explicit Logout button clears this session.
-    try {
-      const savedPortalUser = sessionStorage.getItem(PORTAL_SESSION_KEY);
-      if (savedPortalUser) setTimeout(() => openPortalForUser(savedPortalUser), 0);
-    } catch (_) {}
+    // Restore only sessions verified by Firebase Authentication.
+    auth.onAuthStateChanged(async user => {
+      if (!user) { if(currentUser) logout(); return; }
+      try {
+        const token=await user.getIdTokenResult();
+        if(!['admin','group','dso'].includes(token.claims.role) ||
+           ((user.uid === 'admin') !== (token.claims.role === 'admin')) ||
+           (SUB_ADMIN_GROUPS[user.uid] ? token.claims.role !== 'group' : user.uid !== 'admin' && token.claims.role !== 'dso')) {
+          await auth.signOut();return; }
+        signedRole=token.claims.role;
+        if (!currentUser) openPortalForUser(user.uid);
+      }catch(err){ console.error('Authentication restore failed:',err); }
+    });
 
+    document.getElementById('currentReleaseLabel').textContent=APP_RELEASE_VERSION;
+    startReleaseWatcher();
+    setTimeout(checkHostedRelease,10000);
+    setInterval(checkHostedRelease,20000);
     document.getElementById('loginPass')?.addEventListener('keydown',e=>{if(e.key==='Enter')handleLogin();});
     document.getElementById('loginId')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass')?.focus();});
   </script>
