@@ -553,6 +553,8 @@
             <tfoot id="bankDetailsTableFoot"></tfoot>
           </table>
         </div>
+        <h3>Bank Deposit Status (Pending / Approved / Rejected)</h3>
+        <div class="table-container"><table><thead><tr><th>তারিখ</th><th>DSO</th><th>Bank Name / Account</th><th>Amount</th><th>Status</th><th>কারণ</th></tr></thead><tbody id="adminBankSlipStatusBody"></tbody></table></div>
       </div>
 
       <!-- MASTER ADMIN BANK SLIP APPROVAL -->
@@ -719,6 +721,8 @@
 
         <button type="button" class="btn" id="submitSlipBtn" onclick="submitBankSlips()">Submit Bank Slip</button>
         <div id="slipSubmitMessage" style="margin:10px 0"></div>
+        <h3>আমার Bank Deposit Status</h3>
+        <div class="table-container"><table><thead><tr><th>তারিখ</th><th>Bank Name / Account</th><th>Amount</th><th>Status</th><th>কারণ</th></tr></thead><tbody id="dsoBankSlipStatusBody"></tbody></table></div>
         <button type="button" class="btn-add" onclick="switchDsoTab('form')">← দিনের রিপোর্টে ফিরে যান</button>
       </div>
 
@@ -836,7 +840,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     // Change this string in every deployed release, then publish it at appConfig/releaseVersion.
-    const APP_RELEASE_VERSION = '2026.09.24.7';
+    const APP_RELEASE_VERSION = '2026.09.24.8';
     let releaseVersionRef = null;
     function startReleaseWatcher() {
       if (releaseVersionRef) return;
@@ -877,6 +881,8 @@
       }catch(err){console.warn('Hosted version check unavailable:',err);}
     }
     function applyRequiredUpdate() {
+      // Updating the application always returns to the explicit login screen.
+      try { sessionStorage.removeItem(PORTAL_SESSION_KEY); } catch (_) {}
       const u = new URL(window.location.href);
       u.searchParams.set('release', String(Date.now()));
       window.location.replace(u.toString());
@@ -1041,7 +1047,7 @@
     function openPortalForUser(id, {freshLogin=false} = {}) {
       currentUser = String(id || '').trim();
       if (!currentUser) return;
-      try { sessionStorage.setItem(PORTAL_SESSION_KEY, currentUser); } catch (_) {}
+      // Login is only opened from an explicit button click or Enter key.
 
       document.getElementById("loginSection").style.display = "none";
       document.getElementById("appContainer").style.display = "block";
@@ -1075,6 +1081,7 @@
         listenDsoNotifications();
       }
       listenRealtimeData();
+      listenBankSlipStatuses();
       // OCR assets load only when a slip is selected, keeping login light.
     }
 
@@ -1180,6 +1187,7 @@
 
     function logout() {
       detachRealtimeDataListeners();
+      if(slipStatusRef){slipStatusRef.off('value',slipStatusHandler);slipStatusRef=null;}
       if(dsoNotificationRef){dsoNotificationRef.off('value',dsoNotificationHandler);dsoNotificationRef=null;}
       if (slipApprovalRef) { slipApprovalRef.off('value',slipApprovalHandler); slipApprovalRef=null; }
       try { sessionStorage.removeItem(PORTAL_SESSION_KEY); } catch (_) {}
@@ -1321,14 +1329,43 @@
     let submittedBankAmount = 0;
     let slipApprovalRef = null;
     let slipApprovalHandler = null;
+    let slipStatusRef = null, slipStatusHandler = null;
+    function listenBankSlipStatuses(){
+      if(slipStatusRef){slipStatusRef.off('value',slipStatusHandler);slipStatusRef=null;}
+      if(!currentUser || isGroupAdmin(currentUser)) return;
+      const user=String(currentUser);
+      slipStatusRef=user==='admin' ? database.ref('bankSlipRequests') :
+        database.ref('bankSlipRequests').orderByChild('userId').equalTo(user);
+      slipStatusHandler=snap=>{
+        if(String(currentUser)!==user)return;
+        const entries=Object.entries(snap.val()||{}).sort((a,b)=>(b[1].submittedAt||0)-(a[1].submittedAt||0));
+        const body=document.getElementById(user==='admin'?'adminBankSlipStatusBody':'dsoBankSlipStatusBody');
+        if(!body)return;
+        body.replaceChildren();
+        if(!entries.length){const tr=body.insertRow();const td=tr.insertCell();td.colSpan=user==='admin'?6:5;td.textContent='কোনো Bank Slip নেই।';return;}
+        entries.forEach(([key,item])=>{
+          const tr=body.insertRow();
+          const banks=[...new Set((item.slips||[]).map(s=>`${s.bankName||''} ${s.accountNumber||''}`).filter(Boolean))].join(', ');
+          const fields=user==='admin'?[item.date,item.userId,banks,`৳${formatBD(item.amount)}`,slipStatusLabel(item.status),item.rejectReason||'—']:
+            [item.date,banks,`৳${formatBD(item.amount)}`,slipStatusLabel(item.status),item.rejectReason||'—'];
+          fields.forEach(value=>{tr.insertCell().textContent=String(value??'');});
+        });
+        if(user!=='admin'){
+          submittedBankAmount=entries.filter(([_,r])=>r.date===getLocalDateString() && (r.status==='pending'||r.status==='approved'||r.status==='approving')).reduce((sum,[_,r])=>sum+(Number(r.amount)||0),0);
+          recalculateBankDepositFromSlips();
+        }
+      };
+      slipStatusRef.on('value',slipStatusHandler,err=>console.error('Bank Slip status load failed:',err));
+    }
+    function slipStatusLabel(status){return ({approved:'✅ Approved',rejected:'❌ Rejected',rejecting:'⏳ Rejecting',approving:'⏳ Approving',pending:'⏳ Pending'})[status]||String(status||'Pending');}
     function listenPendingBankSlips() {
       if (slipApprovalRef) { slipApprovalRef.off('value', slipApprovalHandler); slipApprovalRef = null; }
       if (currentUser !== 'admin') return;
-      slipApprovalRef = database.ref('bankSlipRequests').orderByChild('status').equalTo('pending');
+      slipApprovalRef = database.ref('bankSlipRequests');
       slipApprovalHandler = snap => {
         const box = document.getElementById('pendingBankSlipList');
         if (!box || currentUser !== 'admin') return;
-        const items = snap.val() || {};
+        const items = Object.fromEntries(Object.entries(snap.val()||{}).filter(([_,v])=>['pending','rejecting','approving'].includes(v.status)));
         box.replaceChildren();
         if (!Object.keys(items).length) { box.textContent = 'কোনো Pending Bank Slip নেই।'; return; }
         Object.entries(items).sort((a,b) => (b[1].submittedAt||0)-(a[1].submittedAt||0)).forEach(([key,item]) => {
@@ -1343,9 +1380,13 @@
             view.onclick=()=>{ if(slip.img) zoomImage(slip.img,item.userId,slip.bankName,slip.amt,slip.depositDate); };
             row.appendChild(view);
           });
-          const approve=document.createElement('button');approve.type='button';approve.className='btn-add';approve.textContent='✔ Approve';
+          const approve=document.createElement('button');approve.type='button';approve.className='btn-add';approve.textContent=item.status==='approving'?'↻ Finish Approval':'✔ Approve';
           approve.onclick=async()=>{approve.disabled=true;try{await approveBankSlipRequest(key,item);}finally{approve.disabled=false;}};
-          row.appendChild(approve);box.appendChild(row);
+          approve.style.display=item.status==='rejecting'?'none':'';
+          const reject=document.createElement('button');reject.type='button';reject.className='btn btn-cancel';reject.textContent=item.status==='rejecting'?'↻ Finish Rejection':'✖ Reject';
+          reject.onclick=async()=>{reject.disabled=true;try{await rejectBankSlipRequest(key,item);}finally{reject.disabled=false;}};
+          reject.style.display=item.status==='approving'?'none':'';
+          row.appendChild(approve);row.appendChild(reject);box.appendChild(row);
         });
       };
       slipApprovalRef.on('value', slipApprovalHandler, err => { document.getElementById('pendingBankSlipList').textContent='Pending Slip লোড হয়নি: '+err.message; });
@@ -1375,8 +1416,9 @@
             accountNumber:row.querySelector('.slip-account-number').value,
             accountName:row.querySelector('.slip-account-name')?.value||'',depositDate:row.querySelector('.slip-date-input')?.value||''});
         }
-        const amount=slips.reduce((n,x)=>n+x.amt,0);
         const reqRef=database.ref('bankSlipRequests').push();
+        slips.forEach(s=>s.requestKey=reqRef.key);
+        const amount=slips.reduce((n,x)=>n+x.amt,0);
         await reqRef.set({userId:String(currentUser),date:getLocalDateString(),amount,slips,status:'pending',submittedAt:firebase.database.ServerValue.TIMESTAMP});
         // If today's daily report exists, apply the submitted amount immediately.
         const indexSnap=await database.ref('dailySubmissionIndex/'+getLocalDateString()+'/'+String(currentUser)).once('value');
@@ -1411,8 +1453,15 @@
 
     async function approveBankSlipRequest(key,item){
       if(currentUser!=='admin') return;
-      if(!confirm(`DSO ${item.userId} এর ৳${formatBD(item.amount)} Bank Slip অনুমোদন করবেন?`)) return;
+      if(item.status!=='approving' && !confirm(`DSO ${item.userId} এর ৳${formatBD(item.amount)} Bank Slip অনুমোদন করবেন?`)) return;
       try{
+        const requestRef=database.ref('bankSlipRequests/'+key);
+        const claim=await requestRef.transaction(request=>{
+          if(!request || (request.status!=='pending' && request.status!=='approving')) return;
+          request.status='approving';return request;
+        },undefined,false);
+        if(!claim.committed) throw new Error('এই স্লিপ ইতিমধ্যে নিষ্পত্তি করা হয়েছে।');
+        item=claim.snapshot.val();
         const snap=await database.ref('collections').orderByChild('date').equalTo(item.date).once('value');
         let recordKey=null;
         snap.forEach(child=>{if(String(child.val()?.userId)===String(item.userId)) recordKey=child.key;});
@@ -1435,8 +1484,55 @@
         const updated=result.snapshot.val();
         if(!updated?.approvedSlipRequests?.[key]) throw new Error('Slip Approval আপডেট হয়নি। আবার চেষ্টা করুন।');
         await database.ref('bankSlipRequests/'+key).update({status:'approved',approvedAt:firebase.database.ServerValue.TIMESTAMP,approvedBy:currentUser,collectionKey:recordKey});
+        await database.ref('notifications/'+item.userId).set({unread:true,type:'bank_slip_approved',message:`✅ ${item.date} তারিখের ৳${formatBD(item.amount)} Bank Slip Approved হয়েছে।`,timestamp:firebase.database.ServerValue.TIMESTAMP}).catch(err=>console.error('Approval notification failed:',err));
         alert('Bank Slip Approved। Bank Deposit Amount ৳'+formatBD(updated.bankDeposit));
       }catch(err){alert('Approval ব্যর্থ: '+err.message);}
+    }
+
+    async function rejectBankSlipRequest(key,item){
+      if(currentUser!=='admin')return;
+      let reason=item.rejectReason||'';
+      if(item.status!=='rejecting'){
+        const answer=prompt(`DSO ${item.userId} এর ৳${formatBD(item.amount)} Bank Slip Reject করার কারণ লিখুন:`);
+        if(answer===null)return;
+        reason=answer.trim();
+        if(!reason){alert('Reject করার কারণ লিখতে হবে।');return;}
+      }
+      try{
+        const requestRef=database.ref('bankSlipRequests/'+key);
+        const claim=await requestRef.transaction(request=>{
+          if(!request || (request.status!=='pending' && request.status!=='rejecting'))return;
+          request.status='rejecting';request.rejectReason=reason;return request;
+        },undefined,false);
+        if(!claim.committed)throw new Error('এই স্লিপ ইতিমধ্যে নিষ্পত্তি করা হয়েছে।');
+        item=claim.snapshot.val();
+        const indexSnap=await database.ref('dailySubmissionIndex/'+item.date+'/'+item.userId).once('value');
+        let recordKey=indexSnap.val()||item.collectionKey||null;
+        if(!recordKey){const snap=await database.ref('collections').orderByChild('date').equalTo(item.date).once('value');snap.forEach(child=>{if(String(child.val()?.userId)===String(item.userId))recordKey=child.key;});}
+        if(recordKey){
+          const result=await database.ref('collections/'+recordKey).transaction(record=>{
+            if(!record)return;
+            if(record.approvedSlipRequests?.[key])return;
+            if(record.rejectedSlipRequests?.[key])return;
+            record.rejectedSlipRequests=record.rejectedSlipRequests||{};
+            record.rejectedSlipRequests[key]=true;
+            if(record.submittedSlipRequests?.[key]){
+              delete record.submittedSlipRequests[key];
+              record.bankDeposit=Math.max(0,(Number(record.bankDeposit)||0)-(Number(item.amount)||0));
+              const rejectedImages=new Set((item.slips||[]).map(s=>s.img).filter(Boolean));
+              record.slips=(record.slips||[]).filter(s=>s.requestKey!==key && !(s.img && rejectedImages.has(s.img)));
+              record.bankName=[...new Set(record.slips.map(s=>s.bankName).filter(Boolean))].join(', ');
+            }
+            record.approvalStatus='pending';
+            return record;
+          },undefined,false);
+          if(result.snapshot.val()?.approvedSlipRequests?.[key])throw new Error('এই স্লিপ ইতিমধ্যে Approved হয়েছে।');
+          if(!result.snapshot.val()?.rejectedSlipRequests?.[key])throw new Error('দিনের হিসাব আপডেট করা যায়নি। আবার Reject চাপুন।');
+        }
+        await requestRef.update({status:'rejected',rejectReason:reason,rejectedAt:firebase.database.ServerValue.TIMESTAMP,rejectedBy:currentUser,collectionKey:recordKey||null});
+        await database.ref('notifications/'+item.userId).set({unread:true,type:'bank_slip_rejected',message:`❌ ${item.date} তারিখের ৳${formatBD(item.amount)} Bank Slip Rejected। কারণ: ${reason}`,timestamp:firebase.database.ServerValue.TIMESTAMP}).catch(err=>console.error('Rejection notification failed:',err));
+        alert('Bank Slip Rejected; DSO status আপডেট হয়েছে।');
+      }catch(err){alert('Reject সম্পন্ন হয়নি: '+err.message+'। তালিকায় Retry দেখালে সেটি চাপুন।');}
     }
 
     // ---------- STRICT BANK-SLIP OCR v3 ----------
@@ -4144,13 +4240,16 @@
       if (!confirm("আপনি কি নিশ্চিত যে এই রিপোর্টটি Approve করতে চান?")) return;
       try {
         const item=globalAllData[key];
+        const received=(Number(item.emReceived)||0)+(Number(item.cashReceived)||0)+(item.dsoReceivedList||[]).reduce((sum,x)=>sum+(Number(x.amount)||0),0);
+        const returned=(Number(item.emReturn)||0)+(Number(item.bankDeposit)||0)+(Number(item.cashDeposit)||0)+(item.dsoTransferList||[]).reduce((sum,x)=>sum+(Number(x.amount)||0),0);
+        if(Math.abs(received-returned)>0.01){alert('❌ Reject-এর পর Received - Return মিলছে না। হিসাব ঠিক করার পর Approve করুন।');return;}
         const snap=await database.ref('bankSlipRequests').orderByChild('userId').equalTo(String(item.userId)).once('value');
         const requests=Object.entries(snap.val()||{}).filter(([_,r])=>r.date===item.date);
         if(Number(item.bankDeposit)>0 && !requests.length){alert('❌ Bank Deposit আছে, কিন্তু কোনো Bank Slip জমা নেই।');return;}
-        if(requests.some(([_,r])=>r.status!=='approved')){alert('❌ সব Bank Slip Approve করার পর দিনের রিপোর্ট Approve করুন।');return;}
+        if(requests.some(([_,r])=>r.status==='pending'||r.status==='approving'||r.status==='rejecting')){alert('❌ Pending Bank Slip নিষ্পত্তির পর দিনের রিপোর্ট Approve করুন।');return;}
         const credited=Object.keys(item.submittedSlipRequests||{});
         if(credited.some(k=>!requests.some(([id,r])=>id===k && r.status==='approved'))){alert('❌ রিপোর্টের সব Bank Slip Approve হয়নি।');return;}
-        if(requests.length && Math.abs(requests.reduce((a,[_,r])=>a+(Number(r.amount)||0),0)-(Number(item.bankDeposit)||0))>0.01){alert('❌ Slip Amount এবং Bank Deposit Amount মিলছে না।');return;}
+        if(requests.length && Math.abs(requests.filter(([_,r])=>r.status==='approved').reduce((a,[_,r])=>a+(Number(r.amount)||0),0)-(Number(item.bankDeposit)||0))>0.01){alert('❌ Approved Slip Amount এবং Bank Deposit Amount মিলছে না।');return;}
       }catch(err){alert('Bank Slip Approval যাচাই করা যায়নি: '+err.message);return;}
       const previous = { ...globalAllData[key] };
       globalAllData[key] = { ...globalAllData[key], approvalStatus: "approved" };
@@ -4885,21 +4984,8 @@
         alert("Excel ডাউনলোড করতে সমস্যা হয়েছে: " + (err?.message || err));
       }
     }
-    // Restore this browser tab's session; recheck the default-password gate first.
-    try {
-      const savedPortalUser = sessionStorage.getItem(PORTAL_SESSION_KEY);
-      if (savedPortalUser) database.ref('users/'+savedPortalUser+'/password').once('value').then(snap=>{
-        const active=sessionStorage.getItem(PORTAL_SESSION_KEY);
-        if(active!==savedPortalUser)return;
-        if(String(snap.val() ?? defaultPasswordFor(savedPortalUser))===defaultPasswordFor(savedPortalUser)){
-          sessionStorage.removeItem(PORTAL_SESSION_KEY);
-          currentUser=null;
-          document.getElementById('loginId').value=savedPortalUser;
-          document.getElementById('loginPass').value='';
-          alert('ডিফল্ট পাসওয়ার্ড পরিবর্তন করতে আবার লগইন করুন।');
-        } else openPortalForUser(savedPortalUser);
-      }).catch(err=>{sessionStorage.removeItem(PORTAL_SESSION_KEY);console.error('Session restore failed:',err);});
-    } catch (_) {}
+    // Never restore a session automatically after reload or a forced update.
+    try { sessionStorage.removeItem(PORTAL_SESSION_KEY); } catch (_) {}
 
     document.getElementById('currentReleaseLabel').textContent=APP_RELEASE_VERSION;
     startReleaseWatcher();
