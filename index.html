@@ -8,7 +8,6 @@
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
   <!-- Heavy libraries are lazy-loaded so Login opens faster. -->
 
@@ -603,7 +602,7 @@
               </div>
             </div>
 
-            <div style="display:none;background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #004d40;">
+            <div style="background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #004d40;">
               <label style="font-size: 12px; font-weight: bold; color: #004d40; display: block; margin-bottom: 5px;">অন্যান্য DSO / ইউজারের পাসওয়ার্ড পরিবর্তন</label>
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <select id="targetUserSelect" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; min-width: 100px;">
@@ -836,10 +835,8 @@
 
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
-    const auth = firebase.auth();
-    const authEmail = id => `${String(id).toLowerCase()}@${firebaseConfig.projectId}.firebaseapp.com`;
     // Change this string in every deployed release, then publish it at appConfig/releaseVersion.
-    const APP_RELEASE_VERSION = '2026.09.24.3';
+    const APP_RELEASE_VERSION = '2026.09.24.5';
     let releaseVersionRef = null;
     function startReleaseWatcher() {
       if (releaseVersionRef) return;
@@ -1027,8 +1024,8 @@
       adminSingair: new Set(["810","835","836","837","838","839","840","841","842","843","844","845"]),
       adminGhior: new Set(["824","825","826","827","828","829","830","831","832","833","834"])
     };
-    let signedRole = null;
-    function isGroupAdmin(id) { return signedRole === 'group' && Object.prototype.hasOwnProperty.call(SUB_ADMIN_GROUPS, String(id)); }
+    const SUB_ADMIN_PASSWORD = "1234";
+    function isGroupAdmin(id) { return Object.prototype.hasOwnProperty.call(SUB_ADMIN_GROUPS, String(id)); }
     function allowedDsoForCurrentUser(dsoId) {
       const viewer = String(currentUser || "").trim();
       const target = String(dsoId || "").trim();
@@ -1043,7 +1040,7 @@
 
     function openPortalForUser(id, {freshLogin=false} = {}) {
       currentUser = String(id || '').trim();
-      if (!currentUser || auth.currentUser?.uid !== currentUser || !signedRole) return;
+      if (!currentUser) return;
       try { sessionStorage.setItem(PORTAL_SESSION_KEY, currentUser); } catch (_) {}
 
       document.getElementById("loginSection").style.display = "none";
@@ -1078,7 +1075,6 @@
         listenDsoNotifications();
       }
       listenRealtimeData();
-      if (!freshLogin) database.ref('passwordChangeRequired/'+currentUser).once('value').then(snap=>{if(currentUser===String(id) && snap.val()===true) showPasswordGate();}).catch(err=>console.error('Password status check failed:',err));
       // OCR assets load only when a slip is selected, keeping login light.
     }
 
@@ -1090,25 +1086,24 @@
       const btn = document.getElementById("loginBtn");
       if (!id || !pass) { alert("ইউজার আইডি এবং পাসওয়ার্ড লিখুন!"); return; }
       let userIdNum = parseInt(id, 10);
-      const isPrivileged = id === "admin" || Object.prototype.hasOwnProperty.call(SUB_ADMIN_GROUPS,id);
+      const isPrivileged = id === "admin" || isGroupAdmin(id);
       if (!isPrivileged && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
         alert("অপ্রবেশযোগ্য আইডি! শুধুমাত্র ৮০১ থেকে ৮৪৫ অথবা অনুমোদিত Admin ID ব্যবহার করুন।"); return;
       }
       loginInProgress = true;
       if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Checking…';}
       try {
-        const credential = await auth.signInWithEmailAndPassword(authEmail(id), pass);
-        const token = await credential.user.getIdTokenResult(true);
-        if (credential.user.uid !== id || !['admin','group','dso'].includes(token.claims.role) ||
-            (id === 'admin') !== (token.claims.role === 'admin') ||
-            (SUB_ADMIN_GROUPS[id] ? token.claims.role !== 'group' : token.claims.role === 'group')) {
-          await auth.signOut();throw new Error('এই User ID-তে প্রবেশের অনুমতি নেই।');
+        let dbPass;
+        const snap = await database.ref('users/' + id + '/password').once('value');
+        dbPass = snap.val();
+        if (dbPass === null || dbPass === undefined) dbPass = isGroupAdmin(id) ? SUB_ADMIN_PASSWORD : '123456';
+        if (pass !== String(dbPass).trim()) { alert("ভুল পাসওয়ার্ড! দয়া করে সঠিক পাসওয়ার্ড দিন।"); return; }
+        if (String(dbPass).trim() === defaultPasswordFor(id)) {
+          currentUser=id;
+          showPasswordGate();
+          return;
         }
-        signedRole=token.claims.role;
-        if(currentUser !== id) openPortalForUser(id, {freshLogin:true});
-        // Migrated initial accounts carry the one-time reset marker.
-        const initial = await database.ref('passwordChangeRequired/'+id).once('value');
-        if(initial.val() === true) showPasswordGate();
+        openPortalForUser(id, {freshLogin:true});
       } catch (e) {
         alert("লগইন চেক করতে সমস্যা হয়েছে: " + e.message);
       } finally {
@@ -1117,17 +1112,20 @@
       }
     }
 
+    function defaultPasswordFor(id) { return isGroupAdmin(id) ? SUB_ADMIN_PASSWORD : '123456'; }
     function showPasswordGate() { document.getElementById('passwordGate').style.display='flex'; }
     async function updateOwnPassword(oldPass,newPass) {
-      const user=auth.currentUser;
-      if (!user || user.uid !== currentUser) throw new Error('আগে লগইন করুন।');
+      if (!currentUser) throw new Error('আগে লগইন করুন।');
       if (!oldPass || !newPass || newPass.length < 8) throw new Error('বর্তমান এবং কমপক্ষে ৮ অক্ষরের নতুন পাসওয়ার্ড দিন।');
-      if (newPass === oldPass) throw new Error('নতুন পাসওয়ার্ড আলাদা হতে হবে।');
-      const credential=firebase.auth.EmailAuthProvider.credential(user.email,oldPass);
-      await user.reauthenticateWithCredential(credential);
-      await user.updatePassword(newPass);
-      await database.ref('passwordChangeRequired/'+currentUser).set(false);
+      if (newPass === oldPass || newPass === defaultPasswordFor(currentUser)) throw new Error('নতুন পাসওয়ার্ড আলাদা হতে হবে।');
+      const ref=database.ref('users/'+currentUser+'/password');
+      const result=await ref.transaction(value=>{
+        const existing=value == null ? defaultPasswordFor(currentUser) : String(value);
+        return existing === oldPass ? newPass : undefined;
+      },undefined,false);
+      if (!result.committed) throw new Error('বর্তমান পাসওয়ার্ড সঠিক নয়।');
       document.getElementById('passwordGate').style.display='none';
+      if (document.getElementById('appContainer').style.display !== 'block') openPortalForUser(currentUser, {freshLogin:true});
       return true;
     }
     async function changePasswordAtGate() {
@@ -1149,7 +1147,14 @@
     }
 
     async function changeUserPasswordByAdmin() {
-      alert('অন্য ব্যবহারকারীর Firebase Authentication পাসওয়ার্ড শুধু নিরাপদ Admin provisioning script দিয়ে reset করা যায়।');
+      let targetUser = document.getElementById("targetUserSelect").value;
+      let newPass = document.getElementById("targetUserPassword").value.trim();
+      if (!targetUser || !newPass) { alert("ইউজার সিলেক্ট করুন এবং নতুন পাসওয়ার্ড দিন!"); return; }
+      try {
+        await database.ref('users/' + targetUser + '/password').set(newPass);
+        alert(`DSO '${targetUser}' এর পাসওয়ার্ড আপডেট করা হয়েছে!`);
+        document.getElementById("targetUserPassword").value = "";
+      } catch (err) { alert("পাসওয়ার্ড সেভ করা যায়নি: " + err.message); }
     }
 
     async function refreshCurrentData() {
@@ -1174,12 +1179,11 @@
     }
 
     function logout() {
-      auth.signOut().catch(err=>console.error('Logout failed:',err));
       detachRealtimeDataListeners();
       if(dsoNotificationRef){dsoNotificationRef.off('value',dsoNotificationHandler);dsoNotificationRef=null;}
       if (slipApprovalRef) { slipApprovalRef.off('value',slipApprovalHandler); slipApprovalRef=null; }
       try { sessionStorage.removeItem(PORTAL_SESSION_KEY); } catch (_) {}
-      currentUser = null; signedRole=null;
+      currentUser = null;
       document.getElementById('passwordGate').style.display='none';
       globalAllData = null;
       dsoEditModeKey = null;
@@ -3385,15 +3389,18 @@
 
       // Group Admins only download their assigned DSO records.
       if (isGroupAdmin(currentUser)) {
-        const assigned=SUB_ADMIN_GROUPS[currentUser]||new Set();
-        groupQueryData={};
-        assigned.forEach(id=>{
-          const ref=database.ref('collections').orderByChild('userId').equalTo(String(id));
-          attachRealtimeValueListener(ref,snapshot=>{
-            groupQueryData[id]=snapshot.val()||{};
-            globalAllData=Object.assign({},...Object.values(groupQueryData));
-            realtimeInitialDataReady=true;scheduleDataUiUpdate();
+        const assigned = SUB_ADMIN_GROUPS[currentUser] || new Set();
+        const dateValue = document.getElementById('filterDate')?.value || getLocalDateString();
+        const ref = database.ref('collections').orderByChild('date').equalTo(dateValue);
+        attachRealtimeValueListener(ref, snapshot => {
+          const raw = snapshot.val() || {};
+          const scoped = {};
+          Object.keys(raw).forEach(key => {
+            if (assigned.has(String(raw[key]?.userId || ''))) scoped[key] = raw[key];
           });
+          globalAllData = scoped;
+          realtimeInitialDataReady = true;
+          scheduleDataUiUpdate();
         });
         return;
       }
@@ -4210,9 +4217,17 @@
       if (confirmPass === null) return;
 
       try {
-        const adminAuth = auth.currentUser;
-        if(!adminAuth || adminAuth.uid !== 'admin') throw new Error('Admin Authentication প্রয়োজন।');
-        await adminAuth.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(adminAuth.email,confirmPass));
+        const passSnapshot = await database.ref('users/admin/password').once('value');
+        const adminPass = passSnapshot.val() || "123456";
+        if (confirmPass.trim() !== String(adminPass).trim()) {
+          alert("ভুল এডমিন পাসওয়ার্ড! মুছে ফেলা সম্ভব হয়নি।");
+          return;
+        }
+
+        pendingOptimisticDeletes.add(key);
+        delete globalAllData[key];
+        scheduleDataUiUpdate();
+
         await database.ref('collections/' + key).remove();
         pendingOptimisticDeletes.delete(key);
         alert(`DSO ID: ${dsoId} এর রেকর্ড সফলভাবে ডিলেট করা হয়েছে।`);
@@ -4816,19 +4831,21 @@
         alert("Excel ডাউনলোড করতে সমস্যা হয়েছে: " + (err?.message || err));
       }
     }
-    // Restore only sessions verified by Firebase Authentication.
-    auth.onAuthStateChanged(async user => {
-      if (!user) { if(currentUser) logout(); return; }
-      try {
-        const token=await user.getIdTokenResult();
-        if(!['admin','group','dso'].includes(token.claims.role) ||
-           ((user.uid === 'admin') !== (token.claims.role === 'admin')) ||
-           (SUB_ADMIN_GROUPS[user.uid] ? token.claims.role !== 'group' : user.uid !== 'admin' && token.claims.role !== 'dso')) {
-          await auth.signOut();return; }
-        signedRole=token.claims.role;
-        if (!currentUser) openPortalForUser(user.uid);
-      }catch(err){ console.error('Authentication restore failed:',err); }
-    });
+    // Restore this browser tab's session; recheck the default-password gate first.
+    try {
+      const savedPortalUser = sessionStorage.getItem(PORTAL_SESSION_KEY);
+      if (savedPortalUser) database.ref('users/'+savedPortalUser+'/password').once('value').then(snap=>{
+        const active=sessionStorage.getItem(PORTAL_SESSION_KEY);
+        if(active!==savedPortalUser)return;
+        if(String(snap.val() ?? defaultPasswordFor(savedPortalUser))===defaultPasswordFor(savedPortalUser)){
+          sessionStorage.removeItem(PORTAL_SESSION_KEY);
+          currentUser=null;
+          document.getElementById('loginId').value=savedPortalUser;
+          document.getElementById('loginPass').value='';
+          alert('ডিফল্ট পাসওয়ার্ড পরিবর্তন করতে আবার লগইন করুন।');
+        } else openPortalForUser(savedPortalUser);
+      }).catch(err=>{sessionStorage.removeItem(PORTAL_SESSION_KEY);console.error('Session restore failed:',err);});
+    } catch (_) {}
 
     document.getElementById('currentReleaseLabel').textContent=APP_RELEASE_VERSION;
     startReleaseWatcher();
