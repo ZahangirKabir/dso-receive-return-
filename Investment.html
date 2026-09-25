@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.09.25.27">
+<meta name="investment-release-version" content="2026.09.25.29">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -162,7 +162,7 @@ function show(key){stop();page=key;menu.replaceChildren();content.replaceChildre
  if(key==='capital')capitalForm();else if(key==='petty')pettyForm();else report(key);
  if(preview){items={};render();return;}
  stream=database.ref('investmentEntries');const expected=key;
- handler=snap=>{if(String(bridge.getUser())!==owner||page!==expected)return;items=snap.val()||{};if(page==='capital')window.investmentSyncOpening?.();render();};
+ handler=snap=>{if(String(bridge.getUser())!==owner||page!==expected)return;items=snap.val()||{};if(page==='capital'){window.investmentSyncOpening?.();window.investmentSyncCapitalState?.();}render();};
  stream.on('value',handler,err=>{const box=document.getElementById('investList');if(box)box.textContent='ডাটা লোড হয়নি: '+err.message;});
 }
 function card(title){const div=node('div');div.className='card';div.append(node('h2',title));content.append(div);return div;}
@@ -193,8 +193,20 @@ function capitalForm(){
  const differenceGrid=node('div');differenceGrid.className='card fields difference-total';form.append(differenceGrid);const difference=field(differenceGrid,'পার্থক্য (Opening − Closing)','balance_difference','text');difference.readOnly=true;difference.setAttribute('aria-live','polite');
  const updateClosingSum=()=>{const names=['closing_wallet','closing_cashHand','closing_cashOffice',...banks.map(bank=>`closingBank_${bank}`),'transfer_salary','transfer_route','transfer_petty'];const extra=[...headTransfers.querySelectorAll('[name=received_amount]')];closingSum.value=money([...names.map(name=>form.elements[name]),...extra].reduce((sum,input)=>sum+(Number(input.value.replace(/,/g,''))||0),0));updateDifference();};
  closingLevel.addEventListener('input',updateClosingSum);updateClosingSum();
- const {save,status}=submitTools(form,box);listBox();
- form.onsubmit=async event=>{event.preventDefault();if(!form.reportValidity()||String(bridge.getUser())!==owner)return;
+ const {save,status}=submitTools(form,box);const edit=node('button','✏️ আজকের হিসাব Edit করুন');edit.type='button';edit.className='add-row';edit.hidden=true;form.insertBefore(edit,save);let editing=false,saving=false,editRevision=null;
+ const setAmount=(name,value)=>{form.elements[name].value=value==null?'':money(value);};
+ const populateRows=(container,entries,kind)=>{const values=Array.isArray(entries)?entries:(entries?.amount?[entries]:[]);while(container.children.length>1)container.lastElementChild.remove();
+  while(container.children.length<Math.max(1,values.length))container.nextElementSibling.click();
+  values.forEach((item,i)=>{const row=container.children[i];row.querySelector('[name='+kind+'_amount]').value=money(item.amount);if(kind==='commission')row.querySelector('[name=commission_type]').value=item.type||'';
+   else{const via=row.querySelector('[name=received_via]');via.value=item.via||'';via.dispatchEvent(new Event('change'));row.querySelector('[name=received_bank]').value=item.bankName||'';row.querySelector('[name=received_person]').value=item.personName||'';}});
+ };
+ const syncCapitalState=()=>{if(!form.isConnected)return;const exists=!!items[today()+'_company'];edit.hidden=!exists||editing;save.disabled=preview||saving||(exists&&!editing);save.textContent=editing?'সংশোধন Submit':'Submit';};
+ window.investmentSyncCapitalState=syncCapitalState;syncCapitalState();
+ edit.onclick=()=>{const saved=items[today()+'_company'];if(!saved||saved.type!=='capital')return;editing=true;editRevision=saved.updatedAt||saved.createdAt||null;syncOpening();
+  const balances=[['opening_wallet',saved.opening?.maWallet],['opening_cashHand',saved.opening?.cashInHand],['opening_cashOffice',saved.opening?.cashInOffice],['closing_wallet',saved.closing?.maWallet],['closing_cashHand',saved.closing?.cashInHand],['closing_cashOffice',saved.closing?.cashInOffice],...banks.flatMap(bank=>[[`openingBank_${bank}`,saved.opening?.banks?.[bank]],[`closingBank_${bank}`,saved.closing?.banks?.[bank]]]),['transfer_salary',saved.transfers?.salary],['transfer_route',saved.transfers?.routeConvence],['transfer_petty',saved.transfers?.petty]];
+  balances.forEach(([name,value])=>setAmount(name,value));
+  populateRows(commissions,saved.commission,'commission');populateRows(receipts,saved.headOfficeReceive,'received');populateRows(headTransfers,saved.headOfficeTransfer,'received');updateOpeningSum();updateClosingSum();syncCapitalState();status.textContent='আজকের হিসাব সংশোধন করে Submit করুন।';};
+ form.onsubmit=async event=>{event.preventDefault();if(saving||!form.reportValidity()||String(bridge.getUser())!==owner)return;
   try{const date=today();syncOpening();
    const opening={maWallet:amount(form.elements.opening_wallet.value),cashInHand:amount(form.elements.opening_cashHand.value),cashInOffice:amount(form.elements.opening_cashOffice.value),banks:collectBank(form,'openingBank')};
    const closing={maWallet:amount(form.elements.closing_wallet.value),cashInHand:amount(form.elements.closing_cashHand.value),cashInOffice:amount(form.elements.closing_cashOffice.value),banks:collectBank(form,'closingBank')};
@@ -206,12 +218,15 @@ function capitalForm(){
    if(Math.round(openingTotal*100)!==Math.round(closingTotal*100))throw Error(`Total Opening Balance ৳${money(openingTotal)} এবং Total Closing Balance ৳${money(closingTotal)} সমান নয়। পার্থক্য থাকলে Submit হবে না।`);
    const record={type:'capital',date,scope:'company',opening,closing,commission,headOfficeReceive,headOfficeTransfer,transfers,
     openingTotal,closingTotal,pettyCashTransfer:transfers.petty,createdBy:owner,createdAt:bridge.serverTimestamp};
-   save.disabled=true;status.textContent='Saving…';
-   const result=await database.ref('investmentEntries/'+date+'_company').transaction(existing=>existing===null?record:undefined,undefined,false);
-   if(!result.committed)throw Error('এই তারিখের Working Capital আগে জমা হয়েছে।');
-   status.textContent=`✅ ${date} তারিখের Working Capital রিপোর্টে জমা হয়েছে। Petty Cash Opening Balance-এ ৳${money(transfers.petty)} যোগ হয়েছে।`;
-   form.reset();syncOpening();updateClosingSum();
-  }catch(err){status.textContent='Submit হয়নি: '+err.message;}finally{save.disabled=false;}
+   saving=true;syncCapitalState();status.textContent='Saving…';
+   const result=await database.ref('investmentEntries/'+date+'_company').transaction(existing=>{
+    if(editing){if(!existing||existing.type!=='capital'||(existing.updatedAt||existing.createdAt||null)!==editRevision)return;return {...record,createdAt:existing.createdAt||record.createdAt,createdBy:existing.createdBy||owner,updatedAt:bridge.serverTimestamp,updatedBy:owner};}
+    return existing===null?record:undefined;
+   },undefined,false);
+   if(!result.committed)throw Error(editing?'আজকের হিসাব পাওয়া যায়নি। আবার খুলে চেষ্টা করুন।':'এই তারিখের Working Capital আগে জমা হয়েছে। Edit ব্যবহার করুন।');
+   status.textContent=editing?`✅ ${date} তারিখের Working Capital সংশোধন হয়েছে।`:`✅ ${date} তারিখের Working Capital রিপোর্টে জমা হয়েছে। Petty Cash Opening Balance-এ ৳${money(transfers.petty)} যোগ হয়েছে।`;
+   editing=false;items[date+'_company']=result.snapshot.val();syncCapitalState();
+  }catch(err){status.textContent='Submit হয়নি: '+err.message;}finally{saving=false;syncCapitalState();}
  };
 }
 function pettyForm(){const box=card('Daily Petty Cash'),form=node('form');form.id='pettyForm';baseFields(form);
@@ -246,7 +261,7 @@ function report(key){
  }else{
   const filter=node('input');filter.type='month';filter.id='investMonth';filter.setAttribute('aria-label','Report month');filter.onchange=render;box.append(node('label','Month Filter'),filter);
  }
- const summary=node('p');summary.id='investSummary';summary.className='balance';box.append(summary);listBox();
+ if(key!=='capitalReport'){const summary=node('p');summary.id='investSummary';summary.className='balance';box.append(summary);}listBox();
 }
 function showCapitalClosingDetails(record){const reportNodes=[...content.children],previousMenuHidden=menu.hidden;reportNodes.forEach(element=>element.hidden=true);menu.hidden=true;
  const detailPage=node('section');detailPage.className='card';const back=node('button','← Working Capital Report');back.type='button';back.className='report-detail-button';back.onclick=()=>{detailPage.remove();reportNodes.forEach(element=>element.hidden=false);menu.hidden=previousMenuHidden;};detailPage.append(back,node('h2',`${record.date} · Closing Balance Details`));
