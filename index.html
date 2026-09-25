@@ -861,9 +861,9 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Change this string in every deployed release, then publish it at appConfig/releaseVersion.
-    const APP_RELEASE_VERSION = '2026.09.25.7';
-    const INVESTMENT_RELEASE_VERSION = '2026.09.25.23';
-    const INVESTMENT_RELEASE_SHA256 = '59a8c53e8916a0f3afbd989cb5ae783ac49ac56807178adf9ce21801e1fe25da';
+    const APP_RELEASE_VERSION = '2026.09.25.9';
+    // Track Investment.html independently. Future Investment updates do not require changing index.html.
+    let loadedInvestmentHash = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = true, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
     function updateReleaseGate(message){const blocked=firebaseReleaseMismatch||hostedReleaseMismatch;const gate=document.getElementById('releaseGate');gate.style.display=blocked?'flex':'none';
       if(blocked)document.getElementById('releaseGateMessage').textContent=message||'অ্যাপের নতুন ফাইল যাচাই হচ্ছে। আপডেট না করে Login করা যাবে না।';
@@ -886,7 +886,7 @@
         alert('আপডেট নোটিশ সকল খোলা অ্যাপে পাঠানো হয়েছে।');
       }catch(err){alert('Update notification পাঠানো যায়নি: '+err.message);}
     }
-    // Check both deployed files before Login and while the app is open.
+    // index.html has its own release; Investment.html is detected by its deployed content hash.
     async function checkHostedRelease(force=false) {
       if(releaseCheckPromise)return releaseCheckPromise;
       if(!force&&Date.now()-hostedReleaseCheckedAt<5000)return !hostedReleaseMismatch;
@@ -897,9 +897,9 @@
           const urls=[new URL(location.pathname,location.origin),new URL('Investment.html',location.href)];
           const versions=await Promise.all(urls.map(async url=>{url.searchParams.set('_release_check',Date.now());const response=await fetch(url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('ফাইল পাওয়া যায়নি: '+url.pathname);return response.text();}));
           const index=versions[0].match(/const APP_RELEASE_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1];
-          const investment=versions[1].match(/<meta name="investment-release-version" content="([^"]+)"/)?.[1];
           const investmentHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(versions[1])))).map(byte=>byte.toString(16).padStart(2,'0')).join('');
-          hostedReleaseMismatch=!index||!investment||index!==APP_RELEASE_VERSION||investment!==INVESTMENT_RELEASE_VERSION||investmentHash!==INVESTMENT_RELEASE_SHA256;
+          if(loadedInvestmentHash===null)loadedInvestmentHash=investmentHash;
+          hostedReleaseMismatch=!index||index!==APP_RELEASE_VERSION||investmentHash!==loadedInvestmentHash;
           hostedReleaseCheckedAt=Date.now();
           updateReleaseGate(hostedReleaseMismatch?'নতুন index.html অথবা Investment.html এসেছে। আপডেট না করলে Login বা অ্যাপ ব্যবহার করা যাবে না।':null);
           return !hostedReleaseMismatch;
