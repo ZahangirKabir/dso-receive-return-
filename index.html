@@ -861,10 +861,10 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Change this string in every deployed release, then publish it at appConfig/releaseVersion.
-    const APP_RELEASE_VERSION = '2026.09.25.9';
+    const APP_RELEASE_VERSION = '2026.09.25.10';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
-    let loadedInvestmentHash = null;
-    let firebaseReleaseMismatch = false, hostedReleaseMismatch = true, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
+    let loadedInvestmentSource = null;
+    let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
     function updateReleaseGate(message){const blocked=firebaseReleaseMismatch||hostedReleaseMismatch;const gate=document.getElementById('releaseGate');gate.style.display=blocked?'flex':'none';
       if(blocked)document.getElementById('releaseGateMessage').textContent=message||'অ্যাপের নতুন ফাইল যাচাই হচ্ছে। আপডেট না করে Login করা যাবে না।';
       const login=document.getElementById('loginBtn');if(login&&!loginInProgress)login.disabled=blocked;
@@ -886,24 +886,28 @@
         alert('আপডেট নোটিশ সকল খোলা অ্যাপে পাঠানো হয়েছে।');
       }catch(err){alert('Update notification পাঠানো যায়নি: '+err.message);}
     }
-    // index.html has its own release; Investment.html is detected by its deployed content hash.
+    // index.html has its own release; Investment.html is compared independently.
     async function checkHostedRelease(force=false) {
       if(releaseCheckPromise)return releaseCheckPromise;
-      if(!force&&Date.now()-hostedReleaseCheckedAt<5000)return !hostedReleaseMismatch;
+      if(!force&&Date.now()-hostedReleaseCheckedAt<15000)return !hostedReleaseMismatch;
       releaseCheckPromise=(async()=>{
-        if(location.protocol!=='http:'&&location.protocol!=='https:'){hostedReleaseMismatch=true;updateReleaseGate('ফাইল সার্ভারে চালু করে আপডেট যাচাই করুন।');return false;}
-        const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),10000);
+        if(location.protocol!=='http:'&&location.protocol!=='https:')return !hostedReleaseMismatch;
+        const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
         try{
-          const urls=[new URL(location.pathname,location.origin),new URL('Investment.html',location.href)];
-          const versions=await Promise.all(urls.map(async url=>{url.searchParams.set('_release_check',Date.now());const response=await fetch(url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('ফাইল পাওয়া যায়নি: '+url.pathname);return response.text();}));
-          const index=versions[0].match(/const APP_RELEASE_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1];
-          const investmentHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(versions[1])))).map(byte=>byte.toString(16).padStart(2,'0')).join('');
-          if(loadedInvestmentHash===null)loadedInvestmentHash=investmentHash;
-          hostedReleaseMismatch=!index||index!==APP_RELEASE_VERSION||investmentHash!==loadedInvestmentHash;
+          const fetchAsset=async url=>{url.searchParams.set('_release_check',Date.now());const response=await fetch(url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('HTTP '+response.status+' '+url.pathname);return response.text();};
+          const indexHtml=await fetchAsset(new URL(location.pathname,location.origin));
+          const index=indexHtml.match(/const APP_RELEASE_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1];
+          if(!index)throw Error('সার্ভারের index.html ভার্সন পড়া যায়নি');
+          let investmentChanged=false;
+          try{const investmentHtml=await fetchAsset(new URL('Investment.html',location.href));
+            if(loadedInvestmentSource===null)loadedInvestmentSource=investmentHtml;
+            else investmentChanged=investmentHtml!==loadedInvestmentSource;
+          }catch(error){console.warn('Investment update check will retry:',error);}
+          hostedReleaseMismatch=index!==APP_RELEASE_VERSION||investmentChanged;
           hostedReleaseCheckedAt=Date.now();
           updateReleaseGate(hostedReleaseMismatch?'নতুন index.html অথবা Investment.html এসেছে। আপডেট না করলে Login বা অ্যাপ ব্যবহার করা যাবে না।':null);
           return !hostedReleaseMismatch;
-        }catch(err){hostedReleaseMismatch=true;updateReleaseGate('আপডেট যাচাই করা যায়নি। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।');return false;}
+        }catch(err){console.warn('Hosted update check will retry without locking the app:',err);hostedReleaseCheckedAt=Date.now();return !hostedReleaseMismatch;}
         finally{clearTimeout(timeout);}
       })();
       try{return await releaseCheckPromise;}finally{releaseCheckPromise=null;}
@@ -5032,10 +5036,10 @@
     try { sessionStorage.removeItem(PORTAL_SESSION_KEY); } catch (_) {}
 
     document.getElementById('currentReleaseLabel').textContent=APP_RELEASE_VERSION;
-    updateReleaseGate('ফাইলের আপডেট যাচাই হচ্ছে। অনুগ্রহ করে অপেক্ষা করুন।');
+    updateReleaseGate();
     startReleaseWatcher();
     checkHostedRelease(true);
-    setInterval(()=>checkHostedRelease(),5000);
+    setInterval(()=>checkHostedRelease(),15000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkHostedRelease(true);});
     document.getElementById('loginPass')?.addEventListener('keydown',e=>{if(e.key==='Enter')handleLogin();});
     document.getElementById('loginId')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass')?.focus();});
