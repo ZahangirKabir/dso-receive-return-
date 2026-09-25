@@ -50,13 +50,14 @@ button{cursor:pointer}
 .repeat-row{align-items:end;border-bottom:1px solid var(--line);padding:9px 0}.repeat-row>.add-row{align-self:end}
 button.save{display:inline-flex;justify-content:center;align-items:center;min-width:190px;background:var(--teal);border:0;color:white;border-radius:9px;padding:12px 22px;font-weight:800;box-shadow:0 5px 12px rgba(0,105,92,.16);margin-top:10px}
 button.save:hover{background:var(--deep)}button:disabled{opacity:.55;cursor:wait}
+.clear-investment-data{margin-left:auto;border:1px solid #bd4949!important;color:#a31515!important;background:#fff5f5!important}.clear-investment-data:hover{background:#ffe4e4!important}
 #investMessage,#bankMessage{min-height:20px;font-weight:700;color:#b71c1c;margin:12px 0 0}
 .balance{display:block;font-weight:800;color:var(--deep);background:var(--light);border:1px solid #beddd5;padding:12px;border-radius:9px}
 .difference-total.balance-mismatch{border-color:#db8989;background:#fff2f2}.difference-total.balance-mismatch input{color:#a31515;font-weight:800}
 .report-difference{background:#ffe8e8;color:#a31515;font-weight:900}.capital-report-table th{white-space:nowrap}.capital-report-table td{white-space:nowrap}.capital-report-table td:last-child{white-space:normal;min-width:240px}
 .scroll{overflow-x:auto}table{border-collapse:separate;border-spacing:0;width:100%;min-width:680px}th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #e1ece8;font-size:12px}th{background:#e8f5f1;color:var(--deep);font-weight:800;position:sticky;top:0}tbody tr:nth-child(even){background:#f9fcfb}tbody tr:hover{background:#eff8f5}
 @media(max-width:650px){body{padding:8px}.investment-hero{padding:18px}.hero-icon{display:none}.card{padding:14px}.working-level{padding:9px}.nav-group{width:100%}.nav-group strong{width:100%}button.save{width:100%}}
-</style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden><button type="button" id="showWorkingCapital" class="active">💼 Working Capital</button><button type="button" id="showPettyCash">💵 Petty Cash</button><button type="button" id="showTotalInvestment">📊 Total Investment</button><button type="button" id="showBank">🏦 Bank</button></nav><main id="app" hidden><nav id="menu" class="menu" aria-label="Investment submenu"></nav><section id="content"></section></main><p id="bankAccess" hidden></p><main id="bankApp" hidden><nav id="bankMenu" class="menu"></nav><section id="bankContent"></section></main>
+</style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden><button type="button" id="showWorkingCapital" class="active">💼 Working Capital</button><button type="button" id="showPettyCash">💵 Petty Cash</button><button type="button" id="showTotalInvestment">📊 Total Investment</button><button type="button" id="showBank">🏦 Bank</button><button type="button" id="clearInvestmentData" class="clear-investment-data" hidden>🗑 পরীক্ষার ডাটা পরিষ্কার</button></nav><main id="app" hidden><nav id="menu" class="menu" aria-label="Investment submenu"></nav><section id="content"></section></main><p id="bankAccess" hidden></p><main id="bankApp" hidden><nav id="bankMenu" class="menu"></nav><section id="bankContent"></section></main>
 <script>
 // All Investment form, Working Capital reports and Petty Cash accounting live here.
 (()=>{'use strict';
@@ -304,6 +305,18 @@ window.addEventListener('pagehide',stop);show('cheque');
  const investment=document.getElementById('app'),bank=document.getElementById('bankApp'),tabs=document.getElementById('moduleMenu');
  if(investment.hidden&&bank.hidden)return;
  tabs.hidden=false;
+ const clear=document.getElementById('clearInvestmentData');let bridge=null;
+ try{bridge=parent!==window&&parent.location.origin===location.origin?parent.portalInvestmentContext:null;}catch(_){bridge=null;}
+ if(bridge?.database&&bridge.getUser?.()==='admin'){
+  clear.hidden=false;clear.onclick=async()=>{
+   const answer=prompt('শুধু Investment.html-এর জমা দেওয়া Working Capital, Petty Cash ও Bank Tracker পরীক্ষার সব ডাটা স্থায়ীভাবে মুছে যাবে। নিশ্চিত হলে CLEAR লিখুন:');
+   if(answer!=='CLEAR')return;
+   if(bridge.getUser()!=='admin')return;
+   clear.disabled=true;clear.textContent='ডাটা পরিষ্কার হচ্ছে…';
+   try{await bridge.database.ref().update({investmentEntries:null,bankTrackerEntries:null});alert('Investment পেজের পরীক্ষার ডাটা পরিষ্কার হয়েছে।');location.reload();}
+   catch(error){alert('ডাটা পরিষ্কার হয়নি: '+error.message);clear.disabled=false;clear.textContent='🗑 পরীক্ষার ডাটা পরিষ্কার';}
+  };
+ }
  const ids={capital:'showWorkingCapital',petty:'showPettyCash',total:'showTotalInvestment',bank:'showBank'};
  function open(which){
   investment.hidden=which==='bank';bank.hidden=which!=='bank';
