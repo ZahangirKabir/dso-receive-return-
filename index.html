@@ -831,8 +831,8 @@
     </div>
   </div>
 
-  <div id="releaseGate" role="alertdialog" aria-modal="true" style="display:none;position:fixed;inset:0;background:#fff;z-index:999999;padding:25px;align-items:center;justify-content:center;text-align:center;">
-    <div style="max-width:440px"><h2>🔄 নতুন আপডেট এসেছে</h2><p id="releaseGateMessage" style="margin:12px 0">অ্যাপ ব্যবহার করতে আপডেট করুন।</p><button class="btn" onclick="applyRequiredUpdate()">এখনই আপডেট করুন</button></div>
+  <div id="releaseGate" role="alertdialog" aria-modal="true" aria-labelledby="releaseGateTitle" aria-describedby="releaseGateMessage" style="display:none;position:fixed;inset:0;background:rgba(9,39,35,.76);z-index:999999;padding:18px;align-items:center;justify-content:center;text-align:center;backdrop-filter:blur(4px);">
+    <div style="width:min(100%,420px);background:#fff;border-radius:18px;padding:28px 22px;box-shadow:0 25px 70px rgba(0,0,0,.25);border-top:5px solid #00695c"><div style="font-size:39px" aria-hidden="true">🔄</div><h2 id="releaseGateTitle" style="margin:7px 0;color:#004d40">নতুন আপডেট এসেছে</h2><p id="releaseGateMessage" style="margin:12px 0 20px;line-height:1.6">অ্যাপ ব্যবহার করতে আপডেট করুন।</p><button class="btn" style="width:100%;min-height:46px" onclick="applyRequiredUpdate()">এখনই আপডেট করুন</button></div>
   </div>
   <div id="passwordGate" role="alertdialog" aria-modal="true" style="display:none;position:fixed;inset:0;background:#fff;z-index:999998;padding:25px;align-items:center;justify-content:center;text-align:center;">
     <div style="max-width:440px;width:100%"><h2>🔑 ডিফল্ট পাসওয়ার্ড পরিবর্তন বাধ্যতামূলক</h2><input id="gateOldPassword" type="password" placeholder="বর্তমান পাসওয়ার্ড" style="width:100%;padding:12px;margin:8px 0"><input id="gateNewPassword" type="password" placeholder="নতুন পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)" style="width:100%;padding:12px;margin:8px 0"><button class="btn" onclick="changePasswordAtGate()">পাসওয়ার্ড পরিবর্তন করুন</button><p id="passwordGateError" style="color:#c62828;margin-top:10px"></p></div>
@@ -861,7 +861,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Change this string in every deployed release, then publish it at appConfig/releaseVersion.
-    const APP_RELEASE_VERSION = '2026.09.25.10';
+    const APP_RELEASE_VERSION = '2026.09.25.11';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentSource = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
