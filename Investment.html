@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.09.25.25">
+<meta name="investment-release-version" content="2026.09.25.27">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -55,7 +55,22 @@ button.save:hover{background:var(--deep)}button:disabled{opacity:.55;cursor:wait
 #investMessage,#bankMessage{min-height:20px;font-weight:700;color:#b71c1c;margin:12px 0 0}
 .balance{display:block;font-weight:800;color:var(--deep);background:var(--light);border:1px solid #beddd5;padding:12px;border-radius:9px}
 .difference-total.balance-mismatch{border-color:#db8989;background:#fff2f2}.difference-total.balance-mismatch input{color:#a31515;font-weight:800}
-.report-difference{background:#ffe8e8;color:#a31515;font-weight:900}.capital-report-table th{white-space:nowrap}.capital-report-table td{white-space:nowrap}.capital-report-table td:last-child{white-space:normal;min-width:240px}
+.report-difference{background:#ffe8e8;color:#a31515;font-weight:900}.capital-report-table th{white-space:nowrap}.capital-report-table td{white-space:nowrap}.capital-report-table td:last-child{white-space:normal;min-width:135px}
+.capital-report-table{border:1px solid #d7e3e2;border-radius:10px;overflow:hidden;background:#fff}
+.capital-report-table th,.capital-report-table td{border-right:1px solid #edf1f0;font-variant-numeric:tabular-nums;padding:11px 13px}
+.capital-report-table thead tr:first-child th{position:static;background:#eaf1f0;color:#254c45;font-size:13px}
+.capital-report-table thead tr:first-child th:nth-child(2){background:#e2eeeb;color:#06574d;text-align:center;border-bottom:3px solid #218376}
+.capital-report-table thead tr:first-child th:nth-child(3){background:#e9eef1;color:#344d59;text-align:center;border-bottom:3px solid #6f8b98}
+.capital-report-table thead tr:nth-child(2) th{position:static;background:#f6f9f8;color:#38574f;font-size:11px;line-height:1.3}
+.capital-report-table tbody td{color:#263b36;background:#fff}
+.capital-report-table tbody tr:nth-child(even) td{background:#f8faf9}
+.capital-report-table tbody tr:hover td{background:#eef7f4}
+.capital-report-table tbody td:nth-child(7),.capital-report-table tbody td:nth-child(13){font-weight:850;color:#075b50;background:#f0f7f4!important}
+.capital-report-table tbody td:nth-child(7){border-right:2px solid #a9cfc5}
+.capital-report-table tbody td:nth-child(13){border-right:2px solid #bdcbd0}
+.capital-report-table tbody td.report-difference{background:#ffeded!important;color:#aa2525!important;font-weight:900}
+.capital-report-table tbody td:first-child{position:sticky;left:0;z-index:2;font-weight:800;box-shadow:2px 0 6px rgba(26,61,52,.08)}
+.capital-report-table tbody td:nth-child(n+2):nth-child(-n+14){text-align:right}
 .report-detail-button{border:1px solid #9bcbbb;background:#e9f7f1;color:var(--deep);border-radius:7px;padding:7px 10px;font-weight:800}.report-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.report-detail-grid section{padding:12px;border:1px solid var(--line);border-radius:9px;background:white}.report-detail-grid h4{margin:0 0 7px;color:var(--deep)}.report-detail-grid p{margin:4px 0}
 .scroll{overflow-x:auto}table{border-collapse:separate;border-spacing:0;width:100%;min-width:680px}th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #e1ece8;font-size:12px}th{background:#e8f5f1;color:var(--deep);font-weight:800;position:sticky;top:0}tbody tr:nth-child(even){background:#f9fcfb}tbody tr:hover{background:#eff8f5}
 /* Opening and Closing use separate visual cues throughout the form. */
