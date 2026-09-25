@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.09.25.24">
+<meta name="investment-release-version" content="2026.09.25.25">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -58,7 +58,26 @@ button.save:hover{background:var(--deep)}button:disabled{opacity:.55;cursor:wait
 .report-difference{background:#ffe8e8;color:#a31515;font-weight:900}.capital-report-table th{white-space:nowrap}.capital-report-table td{white-space:nowrap}.capital-report-table td:last-child{white-space:normal;min-width:240px}
 .report-detail-button{border:1px solid #9bcbbb;background:#e9f7f1;color:var(--deep);border-radius:7px;padding:7px 10px;font-weight:800}.report-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.report-detail-grid section{padding:12px;border:1px solid var(--line);border-radius:9px;background:white}.report-detail-grid h4{margin:0 0 7px;color:var(--deep)}.report-detail-grid p{margin:4px 0}
 .scroll{overflow-x:auto}table{border-collapse:separate;border-spacing:0;width:100%;min-width:680px}th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #e1ece8;font-size:12px}th{background:#e8f5f1;color:var(--deep);font-weight:800;position:sticky;top:0}tbody tr:nth-child(even){background:#f9fcfb}tbody tr:hover{background:#eff8f5}
-@media(max-width:650px){body{padding:8px}.investment-hero{padding:18px}.hero-icon{display:none}.card{padding:14px}.working-level{padding:9px}.nav-group{width:100%}.nav-group strong{width:100%}button.save{width:100%}}
+/* Opening and Closing use separate visual cues throughout the form. */
+body{overflow-x:hidden}main,#content,#bankContent,form,fieldset,.field,.fields>*{min-width:0;max-width:100%}
+.opening-level{border:2px solid #80bbdc;background:#edf7fd;box-shadow:inset 4px 0 0 #1573a6,0 7px 20px rgba(27,112,161,.07)}
+.opening-level>legend{color:#105a80;background:#e3f2fb;border:1px solid #aed5eb;border-radius:8px;padding:5px 13px}
+.opening-level .finance-section{border-color:#bdddee;background:#fbfdff}
+.opening-level .finance-section legend{color:#14648d}
+.closing-level{border:2px solid #e5ba78;background:#fff8ed;box-shadow:inset 4px 0 0 #bf7b21,0 7px 20px rgba(171,109,30,.07)}
+.closing-level>legend{color:#875115;background:#fff0d7;border:1px solid #e8c392;border-radius:8px;padding:5px 13px}
+.closing-level .finance-section{border-color:#efd9b5;background:#fffdfa}
+.closing-level .finance-section legend{color:#965e18}
+.opening-total{border:1px solid #a5cfe7;background:#eff8fe}.closing-total{border:1px solid #e9c690;background:#fff5e5}
+.opening-total input,.closing-total input,.difference-total input{font-size:17px;font-weight:850}
+.menu button,.add-row,.report-detail-button{min-height:42px}.field input,.field select,.fields input,.fields select{min-height:44px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #2489b4;outline-offset:2px}
+.scroll{max-width:100%;-webkit-overflow-scrolling:touch;scrollbar-width:thin}.scroll table{min-width:680px}.capital-report-table{min-width:1380px}
+.report-detail-grid section{overflow-wrap:anywhere}
+@media(max-width:800px){#moduleMenu{position:relative;top:auto}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.repeat-row{grid-template-columns:repeat(2,minmax(0,1fr))}.repeat-row>.add-row{grid-column:1/-1}.report-filter>*{min-width:0}}
+@media(max-width:560px){body{padding:8px}.card{padding:14px;margin:10px 0}.working-level{padding:10px;margin:15px 0}.finance-section{padding:10px}.fields,.repeat-row,.report-detail-grid{grid-template-columns:minmax(0,1fr)}#moduleMenu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:8px}#moduleMenu button{width:100%;padding:10px 6px;font-size:12px;white-space:normal}.clear-investment-data{grid-column:1/-1;margin-left:0}.nav-group{width:100%}.nav-group strong{width:100%}.report-filter{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.report-filter input{width:100%}.report-filter button{min-width:0}button.save{width:100%}.card h2{font-size:17px}}
+@media(max-width:360px){#moduleMenu{grid-template-columns:1fr}.report-filter{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.menu button,.field input,.field select{transition:none}}
 </style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden><button type="button" id="showWorkingCapital" class="active">💼 Working Capital</button><button type="button" id="showPettyCash">💵 Petty Cash</button><button type="button" id="showTotalInvestment">📊 Total Investment</button><button type="button" id="showBank">🏦 Bank</button><button type="button" id="clearInvestmentData" class="clear-investment-data" hidden>🗑 পরীক্ষার ডাটা পরিষ্কার</button></nav><main id="app" hidden><nav id="menu" class="menu" aria-label="Investment submenu"></nav><section id="content"></section></main><p id="bankAccess" hidden></p><main id="bankApp" hidden><nav id="bankMenu" class="menu"></nav><section id="bankContent"></section></main>
 <script>
 // All Investment form, Working Capital reports and Petty Cash accounting live here.
