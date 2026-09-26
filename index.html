@@ -196,6 +196,12 @@
     #adminSlipApprovalTable tbody td:nth-child(3) { position:sticky; left:0; z-index:6; background:#fff; min-width:64px; font-weight:700; box-shadow:3px 0 7px rgba(0,0,0,.12); }
     #adminSlipApprovalTable tbody tr:nth-child(even) td:nth-child(3) { background:#f9f9f9; }
     #adminSlipApprovalTable thead th:nth-child(3) { left:0; z-index:18; box-shadow:3px 0 7px rgba(0,0,0,.16); }
+    .approval-slip-thumbs { min-width:76px; max-width:260px; }
+    .approval-slip-thumbs .thumb-list { display:flex; flex-wrap:wrap; justify-content:center; gap:5px; }
+    .approval-slip-thumb { width:76px; min-height:84px; padding:3px; border:1px solid #a9d4ca; border-radius:8px; background:#f2faf8; cursor:zoom-in; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
+    .approval-slip-thumb:hover,.approval-slip-thumb:focus-visible { border-color:#00695c; box-shadow:0 0 0 2px #b2dfdb; }
+    .approval-slip-thumb img { display:block; width:68px; height:65px; object-fit:contain; border-radius:4px; background:#fff; }
+    .approval-slip-thumb span { color:#004d40; font-size:10px; font-weight:700; }
     table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 11px; text-align: center; white-space: nowrap; }
     table th, table td { border-bottom: 1px solid #ccc; border-right: 1px solid #ccc; vertical-align: middle; padding: 6px; }
     table th:first-child, table td:first-child { border-left: 1px solid #ccc; }
@@ -563,7 +569,6 @@
 
       <!-- ADMIN PAGE 2: BANK DETAILS PAGE -->
       <div id="adminPageBank" style="display:none;">
-        <h3 style="color:#00695c; margin-bottom:10px;">🏦 ডিপোজিট অনুযায়ী Bank Name, Column Wise Total & Details</h3>
         <div class="summary-cards" id="bankSummaryCardsContainer"></div>
         <div class="table-container">
           <table id="bankDetailsTable">
@@ -580,7 +585,7 @@
         <div class="report-filter" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:end">
           <label>Status <select id="slipApprovalStatus" onchange="renderSlipApprovalFilters()"><option value="">সব Status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></label>
         </div>
-        <div class="table-container"><table id="adminSlipApprovalTable"><thead><tr><th>তারিখ</th><th>Upload Time</th><th>DSO</th><th>Bank Name / Account</th><th>Transaction ID / Ref</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Slip</th><th>Approval / Reject</th></tr></thead><tbody id="adminBankSlipStatusBody"></tbody></table></div>
+        <div class="table-container"><table id="adminSlipApprovalTable"><thead><tr><th>তারিখ</th><th>Upload Time</th><th>DSO</th><th>Bank Name / Account</th><th>Transaction ID / Ref</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Bank Slip</th><th>Approval / Reject</th></tr></thead><tbody id="adminBankSlipStatusBody"></tbody></table></div>
       </div>
 
       <!-- ADMIN PAGE 3: NOTE QUANTITY & SUMMARY PAGE -->
@@ -869,7 +874,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.2';
+    const APP_RELEASE_VERSION = '2026.09.27.3';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentSource = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, releaseSignalMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1495,8 +1500,23 @@
         const uploaded=Number(item.submittedAt)>0?new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dhaka',hour:'2-digit',minute:'2-digit',hour12:true}).format(new Date(Number(item.submittedAt))):'—';
         const fields=user==='admin'?[item.date,uploaded,item.userId,banks,transactionIds,`৳${formatBD(item.amount)}`,slipStatusLabel(item.status),item.rejectReason||'—']:[item.date,uploaded,banks,transactionIds,`৳${formatBD(item.amount)}`,slipStatusLabel(item.status),item.rejectReason||'—'];
         fields.forEach(value=>{tr.insertCell().textContent=String(value??'');});const slipCell=tr.insertCell();
-        (item.slips||[]).forEach((slip,i)=>{if(!slip.img)return;const view=document.createElement('button');view.type='button';view.className='btn-add';view.textContent=`Slip ${i+1}`;view.style.margin='2px';view.onclick=()=>zoomImage(slip.img,item.userId,slip.bankName,slip.amt,slip.depositDate);slipCell.append(view);});
-        if(!slipCell.childNodes.length)slipCell.textContent='—';
+        let thumbList=null;
+        if(user==='admin'){slipCell.className='approval-slip-thumbs';thumbList=document.createElement('div');thumbList.className='thumb-list';slipCell.append(thumbList);}
+        (item.slips||[]).forEach((slip,i)=>{
+          if(!slip.img)return;
+          const view=document.createElement('button');view.type='button';
+          view.setAttribute('aria-label',`Bank Slip ${i+1} বড় করে দেখুন`);
+          view.onclick=()=>zoomImage(slip.img,item.userId,slip.bankName,slip.amt,slip.depositDate);
+          if(user==='admin'){
+            view.className='approval-slip-thumb';view.title='বড় করে দেখুন';
+            const thumb=document.createElement('img');thumb.src=slip.img;thumb.alt=`Bank Slip ${i+1}`;
+            thumb.loading='lazy';thumb.decoding='async';
+            const label=document.createElement('span');label.textContent=`Slip ${i+1}`;
+            view.append(thumb,label);
+          }else{view.className='btn-add';view.textContent=`Slip ${i+1}`;view.style.margin='2px';}
+          (thumbList||slipCell).append(view);
+        });
+        if(!(thumbList||slipCell).childNodes.length)slipCell.textContent='—';
         if(user==='admin'){
           const actions=tr.insertCell(),status=item.status||'pending';
           const hasDuplicate=Object.entries(slipStatusItems).some(([otherKey,other])=>otherKey!==key&&other?.date===item.date&&other.status!=='rejected'&&(item.slips||[]).some(s=>(other.slips||[]).some(old=>sameSlipIdentity(s,old))));
