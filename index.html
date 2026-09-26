@@ -722,11 +722,6 @@
           <div id="diffValidationMsg"></div>
         </div>
 
-        <div class="section-box" style="margin-bottom:15px;">
-          <div class="section-title">🧾 Bank Slip Upload</div>
-          <button type="button" class="btn-add" onclick="switchDsoTab('slip')">🧾 Bank Slip Upload মেনু খুলুন</button>
-        </div>
-
         <div class="btn-group">
           <button class="btn" id="subBtn" onclick="submitData()">Submit Data</button>
           <button class="btn btn-cancel" onclick="cancelDeposit()">Cancel Deposit</button>
@@ -753,13 +748,11 @@
       <!-- DSO TAB 2: HISTORY & REPORT -->
       <div id="dsoPageReport" style="display:none;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:10px;">
-          <h3 id="dsoHistoryTitle">আমার পূর্বের জমা হিসাব (My History & Report)</h3>
+          <div><h3 id="dsoHistoryTitle">আমার পূর্বের জমা হিসাব (My History & Report)</h3><small style="color:#55746d">ডিফল্ট: আজ ও গতকাল; অন্য দিনের জন্য তারিখ নির্বাচন করুন।</small></div>
           <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
             <label style="font-size:11px; font-weight:bold; color:#004d40;">তারিখ:</label>
-            <input type="date" id="dsoHistoryDateFilter" onchange="renderDsoHistory(globalAllData)" style="padding:6px 7px; border:1px solid #004d40; border-radius:4px; font-size:12px;">
-            <button type="button" class="btn-reset" onclick="setDsoHistoryToday()">📅 আজ</button>
-            <button type="button" class="btn-reset" onclick="setDsoHistoryThisMonth()">🗓️ এই মাস</button>
-            <button type="button" class="btn-reset" onclick="resetDsoHistoryFilter()">🔄 সকল</button>
+            <input type="date" id="dsoHistoryDateFilter" onchange="onDsoHistoryDateChange()" style="padding:6px 7px; border:1px solid #004d40; border-radius:4px; font-size:12px;">
+            <button type="button" class="btn-reset" onclick="resetDsoHistoryFilter()">↩ আজ ও গতকাল</button>
           </div>
         </div>
 
@@ -874,7 +867,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.4';
+    const APP_RELEASE_VERSION = '2026.09.27.5';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentSource = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, releaseSignalMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1071,8 +1064,8 @@
       } else if (tab === 'report') {
         document.getElementById("tabDsoReportBtn")?.classList.add("active");
         document.getElementById("dsoPageReport").style.display = "block";
+        loadSelectedDsoHistoryIfNeeded();
         renderDsoHistory(globalAllData);
-        startDsoFullHistoryListener();
       } else if (tab === 'settings') {
         document.getElementById("tabDsoSettingsBtn")?.classList.add("active");
         document.getElementById("dsoPageSettings").style.display = "block";
@@ -1155,6 +1148,7 @@
         document.getElementById("adminFilterPanel").style.display = "flex";
       } else {
         document.getElementById("portalTitle").innerText = "DSO Entry Portal (ID: " + currentUser + ")";
+        document.getElementById('dsoHistoryDateFilter').value='';
         const dsoHistoryTitle = document.getElementById("dsoHistoryTitle");
         if (dsoHistoryTitle) dsoHistoryTitle.innerText = "আমার পূর্বের জমা হিসাব (My History & Report) — DSO " + currentUser;
         document.getElementById("dsoView").style.display = "block";
@@ -3891,24 +3885,23 @@
       } catch(e){}
     }
 
-    let dsoHistoryMonthFilter = "";
-
-    function setDsoHistoryToday() {
-      dsoHistoryMonthFilter = "";
-      const el = document.getElementById("dsoHistoryDateFilter");
-      if (el) el.value = getLocalDateString();
-      renderDsoHistory(globalAllData);
+    function dsoReportDates(){
+      const today=new Date(),yesterday=new Date(today);
+      yesterday.setDate(today.getDate()-1);
+      return [getLocalDateString(today),getLocalDateString(yesterday)];
     }
 
-    function setDsoHistoryThisMonth() {
-      dsoHistoryMonthFilter = getLocalMonthString();
-      const el = document.getElementById("dsoHistoryDateFilter");
-      if (el) el.value = "";
+    function loadSelectedDsoHistoryIfNeeded(){
+      const date=document.getElementById('dsoHistoryDateFilter')?.value;
+      if(date&&!dsoReportDates().includes(date))startDsoFullHistoryListener();
+    }
+
+    function onDsoHistoryDateChange(){
+      loadSelectedDsoHistoryIfNeeded();
       renderDsoHistory(globalAllData);
     }
 
     function resetDsoHistoryFilter() {
-      dsoHistoryMonthFilter = "";
       const el = document.getElementById("dsoHistoryDateFilter");
       if (el) el.value = "";
       renderDsoHistory(globalAllData);
@@ -3920,10 +3913,10 @@
       tbody.innerHTML = "";
 
       if (!data) {
-        const loading = !realtimeInitialDataReady;
+        const loading = !realtimeInitialDataReady || (dsoFullHistoryRef&&!dsoFullHistoryReady);
         tbody.innerHTML = loading
           ? `<tr><td colspan="9" style="text-align:center; padding:15px; color:#00695c; font-weight:bold;">⏳ আপনার রিপোর্ট লোড হচ্ছে...</td></tr>`
-          : `<tr><td colspan="9" style="text-align:center; padding:15px; color:#c62828;">কোনো রিপোর্ট জমা দেওয়া হয়নি।</td></tr>`;
+          : `<tr><td colspan="9" style="text-align:center; padding:15px; color:#c62828;">${escapeHtml(dsoFullHistoryError||'কোনো রিপোর্ট জমা দেওয়া হয়নি।')}</td></tr>`;
         return;
       }
 
@@ -3938,17 +3931,13 @@
         .map(key => ({ key, ...data[key] }))
         .filter(item => String(item.userId) === String(currentUser));
 
-      if (dateFilter) {
-        dsoHistoryMonthFilter = "";
-        userEntries = userEntries.filter(item => item.date === dateFilter);
-      } else if (dsoHistoryMonthFilter) {
-        userEntries = userEntries.filter(item => String(item.date || "").startsWith(dsoHistoryMonthFilter));
-      }
+      if(dateFilter) userEntries=userEntries.filter(item=>item.date===dateFilter);
+      else {const recent=new Set(dsoReportDates());userEntries=userEntries.filter(item=>recent.has(item.date));}
 
-      userEntries.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      userEntries.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||(b.timestamp||0)-(a.timestamp||0));
 
       if (userEntries.length === 0) {
-        const row=tbody.insertRow(),cell=row.insertCell();cell.colSpan=9;cell.style.cssText='text-align:center;padding:15px;color:#c62828;';cell.textContent=(dsoFullHistoryRef&&!dsoFullHistoryReady)?'সম্পূর্ণ ইতিহাস লোড হচ্ছে...':'কোনো রিপোর্ট ডাটা পাওয়া যায়নি।';
+        const row=tbody.insertRow(),cell=row.insertCell();cell.colSpan=9;cell.style.cssText='text-align:center;padding:15px;color:#c62828;';cell.textContent=(dsoFullHistoryRef&&!dsoFullHistoryReady)?'সম্পূর্ণ ইতিহাস লোড হচ্ছে...':dateFilter?'নির্বাচিত তারিখে কোনো জমা হিসাব নেই।':'আজ ও গতকালের কোনো জমা হিসাব নেই।';
         return;
       }
 
