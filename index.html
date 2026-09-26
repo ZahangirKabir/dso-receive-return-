@@ -102,6 +102,7 @@
     }
     #adminFilterPanel .admin-filter-action:hover{transform:translateY(-1px); filter:brightness(.98);}
     #adminFilterPanel.group-admin-filter .range-filter{display:none;}
+    #adminFilterPanel.slip-approval-filter .range-filter{display:none!important;}
     #adminFilterPanel.group-admin-filter .filter-group.date-filter{flex:1.1; min-width:190px;}
     #adminFilterPanel.group-admin-filter .filter-group.dso-filter{flex:2; min-width:240px;}
     #adminFilterPanel.group-admin-filter .filter-group.dso-filter label:after{content:' (শুধু আপনার নির্ধারিত DSO)';font-weight:normal;color:#607d8b;}
@@ -258,8 +259,10 @@
     .slip-card-modal img { width: 100%; height: 120px; object-fit: contain; background: #f0f0f0; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
     
     .image-zoom-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 10px; }
-    .image-zoom-container { max-width: 90%; max-height: 90%; text-align: center; background: #fff; padding: 10px; border-radius: 8px; position: relative; overflow: auto; }
-    .image-zoom-container img { max-width: 100%; max-height: 75vh; object-fit: contain; border-radius: 4px; }
+    .image-zoom-container { width:min(98vw,1100px); max-width:98vw; max-height:96vh; text-align:center; background:#fff; padding:10px; border-radius:8px; position:relative; overflow:auto; }
+    #zoomedImageSrc { display:block; max-width:none; max-height:none; height:auto; margin:0 auto; border-radius:4px; }
+    .zoom-controls { position:sticky; top:0; z-index:12; display:flex; justify-content:center; flex-wrap:wrap; gap:8px; background:#fff; padding:8px 50px 8px 8px; }
+    .zoom-controls button { min-height:38px; border:1px solid #00897b; border-radius:7px; color:#005b50; background:#fff; font-weight:700; cursor:pointer; }
     .zoom-details-info { margin-top: 10px; padding: 8px; background: #e0f2f1; border-radius: 4px; color: #004d40; font-weight: bold; font-size: 14px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }
 
     @media screen and (max-width: 900px) {
@@ -566,13 +569,9 @@
       <div id="adminPageSlipApproval" style="display:none;">
         <h3 style="color:#00695c;margin-bottom:12px">🧾 Bank Slip Approval</h3>
         <div class="report-filter" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:end">
-          <label>তারিখ <input type="date" id="slipApprovalDate" onchange="renderSlipApprovalFilters()"></label>
-          <label>DSS <select id="slipApprovalDss" onchange="updateSlipApprovalDsos();renderSlipApprovalFilters()"><option value="">সব DSS</option></select></label>
-          <label>DSO <select id="slipApprovalDso" onchange="renderSlipApprovalFilters()"><option value="">সব DSO</option></select></label>
+          <label>Status <select id="slipApprovalStatus" onchange="renderSlipApprovalFilters()"><option value="">সব Status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></label>
         </div>
-        <div id="pendingBankSlipList" class="section-box">Loading...</div>
-        <h3>Bank Deposit Status (Pending / Approved / Rejected)</h3>
-        <div class="table-container"><table><thead><tr><th>তারিখ</th><th>DSO</th><th>Bank Name / Account</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Slip</th></tr></thead><tbody id="adminBankSlipStatusBody"></tbody></table></div>
+        <div class="table-container"><table><thead><tr><th>তারিখ</th><th>Upload Time</th><th>DSO</th><th>Bank Name / Account</th><th>Transaction ID / Ref</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Slip</th><th>Approval / Reject</th></tr></thead><tbody id="adminBankSlipStatusBody"></tbody></table></div>
       </div>
 
       <!-- ADMIN PAGE 3: NOTE QUANTITY & SUMMARY PAGE -->
@@ -726,7 +725,6 @@
         <!-- DYNAMIC DEPOSIT SLIP CONTAINER -->
         <div class="section-box" style="margin-bottom: 15px;">
           <div id="slipsContainer"></div>
-          <button type="button" class="btn-add" onclick="addSlipRow()" style="padding: 8px 12px; font-size: 13px;">+ Add Deposit Slip</button>
           <div id="ocrStatus" class="ocr-status"></div>
           <div id="bankValidationMsg"></div>
         </div>
@@ -734,7 +732,7 @@
         <button type="button" class="btn" id="submitSlipBtn" onclick="submitBankSlips()">Submit Bank Slip</button>
         <div id="slipSubmitMessage" style="margin:10px 0"></div>
         <h3>আমার Bank Deposit Status</h3>
-        <div class="table-container"><table><thead><tr><th>তারিখ</th><th>Bank Name / Account</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Slip</th></tr></thead><tbody id="dsoBankSlipStatusBody"></tbody></table></div>
+        <div class="table-container"><table><thead><tr><th>তারিখ</th><th>Upload Time</th><th>Bank Name / Account</th><th>Transaction ID / Ref</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Slip</th></tr></thead><tbody id="dsoBankSlipStatusBody"></tbody></table></div>
         <button type="button" class="btn-add" onclick="switchDsoTab('form')">← দিনের রিপোর্টে ফিরে যান</button>
       </div>
 
@@ -825,7 +823,8 @@
   <!-- ZOOM IMAGE MODAL POPUP -->
   <div id="imageZoomModal" class="image-zoom-overlay" onclick="closeImageZoomModal()">
     <div class="image-zoom-container" onclick="event.stopPropagation();">
-      <button class="modal-close" style="position: absolute; top: 10px; right: 10px; z-index: 10;" onclick="closeImageZoomModal()">✖ Close</button>
+      <button class="modal-close" style="position: absolute; top: 10px; right: 10px; z-index: 20;" onclick="closeImageZoomModal()">✖ Close</button>
+      <div class="zoom-controls"><button type="button" onclick="changeSlipZoom(-1)" aria-label="Zoom out">− ছোট করুন</button><button type="button" onclick="changeSlipZoom(0)" aria-label="Fit image">পুরো ছবি</button><button type="button" onclick="changeSlipZoom(1)" aria-label="Zoom in">+ বড় করুন</button></div>
       <img id="zoomedImageSrc" src="" alt="Bank Slip Image Preview">
       <div class="zoom-details-info" id="zoomImageDetails"></div>
     </div>
@@ -988,7 +987,10 @@
       }
     }
 
+    let slipReturnState=null;
     function switchAdminTab(tab) {
+      const previousTab=activeAdminTab;
+      if(tab==='slipApproval'&&previousTab!=='slipApproval')slipReturnState={mode:masterAdminDataMode,date:document.getElementById('filterDate').value};
       activeAdminTab = tab;
       ["report","bank","slipApproval","notes","settings","investment"].forEach(t => {
         const btn = document.getElementById("tabAdmin" + t.charAt(0).toUpperCase() + t.slice(1) + "Btn");
@@ -997,15 +999,21 @@
         if (page) page.style.display = t === tab ? "block" : "none";
       });
       const investmentFrame=document.getElementById('investmentFrame');
-      document.getElementById('adminFilterPanel').style.display=tab==='investment'?'none':'flex';
+      const filterPanel=document.getElementById('adminFilterPanel');
+      filterPanel.style.display=['investment','settings'].includes(tab)?'none':'flex';
+      filterPanel.classList.toggle('slip-approval-filter',tab==='slipApproval');
       if(tab==='investment') {
         // Reload this one file on every open: Investment.html can update without changing index.html.
         investmentFrame.src='Investment.html?updated='+Date.now();
       } else if(investmentFrame.hasAttribute('src')) {
         investmentFrame.removeAttribute('src');
       }
-      if (tab === 'slipApproval') {initSlipApprovalFilters();listenPendingBankSlips();}
-      if (tab !== 'settings' && tab !== 'investment') applyAdminFilters(true);
+      if (tab === 'slipApproval') {slipApprovalViewMode=masterAdminDataMode==='month'?'month':masterAdminDataMode==='all'?'all':'date';renderBankSlipStatus('admin');}
+      if(previousTab==='slipApproval'&&tab!=='slipApproval'&&slipReturnState&&currentUser==='admin'){
+        document.getElementById('filterDate').value=slipReturnState.date;
+        loadMasterAdminData(slipReturnState.mode,slipReturnState.date);
+        slipReturnState=null;
+      }else if (['report','bank','notes'].includes(tab)) applyAdminFilters(true);
     }
 
     function scheduleAdminRender(immediate=false) {
@@ -1235,7 +1243,6 @@
       detachRealtimeDataListeners();
       if(slipStatusRef){slipStatusRef.off('value',slipStatusHandler);slipStatusRef=null;}
       if(dsoNotificationRef){dsoNotificationRef.off('value',dsoNotificationHandler);dsoNotificationRef=null;}
-      if (slipApprovalRef) { slipApprovalRef.off('value',slipApprovalHandler); slipApprovalRef=null; }
       try { sessionStorage.removeItem(PORTAL_SESSION_KEY); } catch (_) {}
       currentUser = null;
       document.getElementById('passwordGate').style.display='none';
@@ -1331,6 +1338,10 @@
             <label class="slip-field-label">💰 Deposit Amount</label>
             <input type="text" placeholder="৳ Amount" class="amt-field slip-amt-val" id="slipAmt_${slipCounter}" readonly inputmode="decimal" oninput="handleAmountInput(this); recalculateBankDepositFromSlips(); validateSlipManual(${slipCounter});">
           </div>
+          <div class="slip-field">
+            <label class="slip-field-label">🔖 Transaction ID / Reference No.</label>
+            <input type="text" class="slip-transaction-id" maxlength="40" placeholder="OCR থেকে আসবে; ভুল হলে সংশোধন করুন" autocomplete="off" aria-label="Transaction ID or Reference Number">
+          </div>
 
           <input type="hidden" id="slipOcrAmt_${slipCounter}" class="slip-ocr-val" value="0">
           <input type="hidden" id="slipOcrBank_${slipCounter}" value="">
@@ -1374,37 +1385,97 @@
     // Independent bank slip requests; approval applies each request exactly once.
     let submittedBankAmount = 0;
     let bankSlipSubmitInProgress = false;
+    function normalizeSlipTransactionId(value){
+      const normalized=String(value||'').replace(/[০-৯]/g,c=>String('০১২৩৪৫৬৭৮৯'.indexOf(c))).toUpperCase().replace(/[^A-Z0-9]/g,'');
+      return normalized.length>=6 && normalized.length<=36 && /\d/.test(normalized)?normalized:'';
+    }
+    function sameSlipTransaction(a,b){
+      const left=normalizeSlipTransactionId(a.transactionId),right=normalizeSlipTransactionId(b.transactionId);
+      return !!left && left===right && String(a.bankName||'').trim().toUpperCase()===String(b.bankName||'').trim().toUpperCase();
+    }
+    function sameSlipIdentity(a,b){
+      return !!(a?.img && b?.img && a.img===b.img) || sameSlipTransaction(a,b);
+    }
+    function extractSlipTransactionId(ocrResults){
+      const label=/(?:\b(?:transaction|trans(?:action)?|txn|trx|tx)\s*(?:id|no\.?|number|#)?\b|\b(?:reference|ref)\s*(?:id|no\.?|number|#)?\b|লেনদেন\s*(?:আইডি|নং|নম্বর)|রেফারেন্স\s*(?:আইডি|নং|নম্বর))/i;
+      const candidates=[];
+      for(const result of ocrResults||[]){
+        const lines=String(result?.text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
+        for(let i=0;i<lines.length;i++){
+          const match=lines[i].match(label);if(!match)continue;
+          const tail=lines[i].slice(match.index+match[0].length).replace(/^[\s.:#=\-–]+/,'');
+          const next=/^(?:no\.?|number|id)\s*[:#=\-–]*\s*/i.test(tail)?tail.replace(/^(?:no\.?|number|id)\s*[:#=\-–]*\s*/i,''):tail;
+          const adjacent=next?[]:[lines[i+1]||'', /^(?:no\.?|number|id)\s*[:#=\-–]*$/i.test(lines[i+1]||'')?lines[i+2]||'':''];
+          for(const candidate of [next,...adjacent]){
+            const token=String(candidate).match(/^[A-Z0-9০-৯][A-Z0-9০-৯\-\/]{5,40}/i)?.[0];
+            const value=normalizeSlipTransactionId(token);
+            if(value)candidates.push(value);
+          }
+        }
+      }
+      const counts=new Map();candidates.forEach(id=>counts.set(id,(counts.get(id)||0)+1));
+      const ranked=[...counts].sort((a,b)=>b[1]-a[1]);
+      return ranked.length===1 || ranked[0]?.[1]>ranked[1]?.[1]?ranked[0]?.[0]||'':'';
+    }
+    function uniqueSlipAmounts(requests){
+      const images=new Set();let total=0,duplicate=false;
+      for(const request of Object.values(requests)){
+        const slips=Array.isArray(request?.slips)?request.slips:[];
+        if(!slips.length){total+=Number(request?.amount)||0;continue;}
+        for(const slip of slips){
+          if(slip.img&&images.has(slip.img)){duplicate=true;continue;}
+          if(slip.img)images.add(slip.img);
+          total+=Number(slip.amt??slip.amount)||0;
+        }
+      }
+      return {total:Math.round(total*100)/100,duplicate};
+    }
+    async function slipFingerprint(value){
+      if(!globalThis.crypto?.subtle || !globalThis.TextEncoder)throw new Error('নিরাপদ সংযোগ ছাড়া Bank Slip-এর duplicate যাচাই করা যায় না। HTTPS-এ অ্যাপ খুলুন।');
+      const bytes=new TextEncoder().encode(value);
+      const hash=await crypto.subtle.digest('SHA-256',bytes);
+      return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
     function refreshSubmittedBankAmount(){
-      submittedBankAmount=Object.values(slipStatusItems).filter(r=>r && r.date===getLocalDateString() && ['pending','approved','approving'].includes(r.status)).reduce((sum,r)=>sum+(Number(r.amount)||0),0);
+      submittedBankAmount=uniqueSlipAmounts(Object.fromEntries(Object.entries(slipStatusItems).filter(([_,r])=>r && r.date===getLocalDateString() && ['pending','approved','approving'].includes(r.status)))).total;
       recalculateBankDepositFromSlips();
     }
-    let slipApprovalRef = null;
-    let slipApprovalHandler = null;
     let slipStatusRef = null, slipStatusHandler = null;
-    let slipApprovalItems = {}, slipStatusItems = {};
-    function initSlipApprovalFilters(){
-      const date=document.getElementById('slipApprovalDate');if(!date.value)date.value=getLocalDateString();
-      const dss=document.getElementById('slipApprovalDss');if(dss.options.length===1)Object.keys(SUB_ADMIN_GROUPS).forEach(id=>{const option=document.createElement('option');option.value=id;option.textContent=id.replace(/^admin/,'DSS ');dss.append(option);});
-      updateSlipApprovalDsos();
+    let slipStatusItems = {};
+    let slipApprovalViewMode='date';
+    function slipMatchesApprovalFilters(item){
+      const date=document.getElementById('filterDate')?.value||getLocalDateString();
+      const adminGroup=getSelectedAdminGroup(),chosenDsos=getSelectedDsoValues();
+      const status=document.getElementById('slipApprovalStatus')?.value||'';
+      const actual=['approving','rejecting'].includes(item.status)?'pending':item.status||'pending';
+      const matchDate=slipApprovalViewMode==='all'||(slipApprovalViewMode==='month'?String(item.date||'').startsWith(getLocalMonthString()):item.date===date);
+      const matchAdmin=!adminGroup||!SUB_ADMIN_GROUPS[adminGroup]||SUB_ADMIN_GROUPS[adminGroup].has(String(item.userId));
+      const matchDso=!chosenDsos.length||chosenDsos.includes(String(item.userId));
+      return matchDate&&matchAdmin&&matchDso&&(!status||actual===status);
     }
-    function updateSlipApprovalDsos(){const dss=document.getElementById('slipApprovalDss').value,select=document.getElementById('slipApprovalDso'),previous=select.value;
-      select.replaceChildren(new Option('সব DSO',''));const allowed=dss?SUB_ADMIN_GROUPS[dss]:null;
-      for(let id=801;id<=845;id++){if(allowed&&!allowed.has(String(id)))continue;select.add(new Option('DSO '+id,String(id)));}
-      if([...select.options].some(option=>option.value===previous))select.value=previous;
-    }
-    function slipMatchesApprovalFilters(item){const date=document.getElementById('slipApprovalDate')?.value||getLocalDateString(),dss=document.getElementById('slipApprovalDss')?.value||'',dso=document.getElementById('slipApprovalDso')?.value||'';
-      return item.date===date&&(!dss||SUB_ADMIN_GROUPS[dss]?.has(String(item.userId)))&&(!dso||String(item.userId)===dso);}
-    function renderSlipApprovalFilters(){renderPendingSlipRequests();renderBankSlipStatus('admin');}
+    function renderSlipApprovalFilters(){renderBankSlipStatus('admin');}
     function renderBankSlipStatus(user){const body=document.getElementById(user==='admin'?'adminBankSlipStatusBody':'dsoBankSlipStatusBody');if(!body)return;
       const all=Object.entries(slipStatusItems).sort((a,b)=>(b[1].submittedAt||0)-(a[1].submittedAt||0));
       const entries=user==='admin'?all.filter(([_,item])=>slipMatchesApprovalFilters(item)):all;
       body.replaceChildren();
-      if(!entries.length){const tr=body.insertRow();const td=tr.insertCell();td.colSpan=user==='admin'?7:6;td.textContent='কোনো Bank Slip নেই।';return;}
+      if(!entries.length){const tr=body.insertRow();const td=tr.insertCell();td.colSpan=user==='admin'?10:8;td.textContent='কোনো Bank Slip নেই।';return;}
       entries.forEach(([key,item])=>{const tr=body.insertRow();const banks=[...new Set((item.slips||[]).map(s=>`${s.bankName||''} ${s.accountNumber||''}`).filter(Boolean))].join(', ');
-        const fields=user==='admin'?[item.date,item.userId,banks,`৳${formatBD(item.amount)}`,slipStatusLabel(item.status),item.rejectReason||'—']:[item.date,banks,`৳${formatBD(item.amount)}`,slipStatusLabel(item.status),item.rejectReason||'—'];
+        const transactionIds=[...new Set((item.slips||[]).map(s=>s.transactionId).filter(Boolean))].join(', ')||'—';
+        const uploaded=Number(item.submittedAt)>0?new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dhaka',hour:'2-digit',minute:'2-digit',hour12:true}).format(new Date(Number(item.submittedAt))):'—';
+        const fields=user==='admin'?[item.date,uploaded,item.userId,banks,transactionIds,`৳${formatBD(item.amount)}`,slipStatusLabel(item.status),item.rejectReason||'—']:[item.date,uploaded,banks,transactionIds,`৳${formatBD(item.amount)}`,slipStatusLabel(item.status),item.rejectReason||'—'];
         fields.forEach(value=>{tr.insertCell().textContent=String(value??'');});const slipCell=tr.insertCell();
         (item.slips||[]).forEach((slip,i)=>{if(!slip.img)return;const view=document.createElement('button');view.type='button';view.className='btn-add';view.textContent=`Slip ${i+1}`;view.style.margin='2px';view.onclick=()=>zoomImage(slip.img,item.userId,slip.bankName,slip.amt,slip.depositDate);slipCell.append(view);});
-        if(!slipCell.childNodes.length)slipCell.textContent='—';});
+        if(!slipCell.childNodes.length)slipCell.textContent='—';
+        if(user==='admin'){
+          const actions=tr.insertCell(),status=item.status||'pending';
+          const hasDuplicate=Object.entries(slipStatusItems).some(([otherKey,other])=>otherKey!==key&&other?.date===item.date&&other.status!=='rejected'&&(item.slips||[]).some(s=>(other.slips||[]).some(old=>sameSlipIdentity(s,old))));
+          if(hasDuplicate){const warning=document.createElement('div');warning.textContent='⚠ একই ছবি বা Transaction ID অন্য স্লিপেও আছে; যাচাই করুন';warning.style.color='#b71c1c';actions.append(warning);}
+          const addAction=(label,handler,enabled=true)=>{const button=document.createElement('button');button.type='button';button.className='btn-add';button.textContent=label;button.disabled=!enabled;button.style.margin='2px';button.onclick=async()=>{button.disabled=true;try{await handler(key,item);}finally{button.disabled=false;}};actions.append(button);};
+          if(status==='pending'||status==='approving')addAction(status==='approving'?'↻ Finish Approval':'✔ Approve',approveBankSlipRequest);
+          if(status==='pending'||status==='rejecting')addAction(status==='rejecting'?'↻ Finish Rejection':'✖ Reject',rejectBankSlipRequest);
+          if(status==='approved'||status==='rejected')actions.append(document.createTextNode('—'));
+        }
+      });
     }
     function listenBankSlipStatuses(){
       if(slipStatusRef){slipStatusRef.off('value',slipStatusHandler);slipStatusRef=null;}
@@ -1422,27 +1493,6 @@
       slipStatusRef.on('value',slipStatusHandler,err=>console.error('Bank Slip status load failed:',err));
     }
     function slipStatusLabel(status){return ({approved:'✅ Approved',rejected:'❌ Rejected',rejecting:'⏳ Rejecting',approving:'⏳ Approving',pending:'⏳ Pending'})[status]||String(status||'Pending');}
-    function renderPendingSlipRequests(){
-      const box=document.getElementById('pendingBankSlipList');if(!box||currentUser!=='admin')return;
-      const items=Object.fromEntries(Object.entries(slipApprovalItems).filter(([_,v])=>['pending','rejecting','approving'].includes(v.status)&&slipMatchesApprovalFilters(v)));
-      box.replaceChildren();if(!Object.keys(items).length){box.textContent='নির্বাচিত তারিখে কোনো Pending Bank Slip নেই।';return;}
-      Object.entries(items).sort((a,b)=>(b[1].submittedAt||0)-(a[1].submittedAt||0)).forEach(([key,item])=>{
-        const row=document.createElement('div');row.style.cssText='padding:12px;border-bottom:1px solid #ddd;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
-        const label=document.createElement('strong');label.textContent=`DSO ${item.userId} · ${item.date} · ৳${formatBD(item.amount)} · ${(item.slips||[]).length} slip(s)`;row.appendChild(label);
-        (item.slips||[]).forEach((slip,i)=>{const view=document.createElement('button');view.type='button';view.className='btn-add';view.textContent=`View Slip ${i+1}`;view.onclick=()=>{if(slip.img)zoomImage(slip.img,item.userId,slip.bankName,slip.amt,slip.depositDate);};row.appendChild(view);});
-        const approve=document.createElement('button');approve.type='button';approve.className='btn-add';approve.textContent=item.status==='approving'?'↻ Finish Approval':'✔ Approve';approve.onclick=async()=>{approve.disabled=true;try{await approveBankSlipRequest(key,item);}finally{approve.disabled=false;}};approve.style.display=item.status==='rejecting'?'none':'';
-        const reject=document.createElement('button');reject.type='button';reject.className='btn btn-cancel';reject.textContent=item.status==='rejecting'?'↻ Finish Rejection':'✖ Reject';reject.onclick=async()=>{reject.disabled=true;try{await rejectBankSlipRequest(key,item);}finally{reject.disabled=false;}};reject.style.display=item.status==='approving'?'none':'';
-        row.append(approve,reject);box.append(row);
-      });
-    }
-    function listenPendingBankSlips() {
-      if (slipApprovalRef) { slipApprovalRef.off('value', slipApprovalHandler); slipApprovalRef = null; }
-      if (currentUser !== 'admin') return;
-      slipApprovalRef = database.ref('bankSlipRequests');
-      slipApprovalHandler=snap=>{slipApprovalItems=snap.val()||{};renderPendingSlipRequests();};
-      slipApprovalRef.on('value', slipApprovalHandler, err => { document.getElementById('pendingBankSlipList').textContent='Pending Slip লোড হয়নি: '+err.message; });
-    }
-
     async function submitBankSlips() {
       if (!currentUser || currentUser==='admin' || isGroupAdmin(currentUser)) return;
       if(bankSlipSubmitInProgress)return;
@@ -1459,45 +1509,64 @@
       bankSlipSubmitInProgress=true;button.disabled=true;button.textContent='Uploading...';
       let requestSaved=false;
       try {
+        const uploadDate=getLocalDateString(),uploadUser=String(currentUser);
         const slips=[];
         for(const row of active){
           const file=row.querySelector('.slip-file-input')?.files?.[0];
           const img=file ? await prepareSlipImageForSave(row,file) : row.dataset.existingImg;
           if(!img) throw new Error('স্লিপের ছবি পড়া যায়নি। আবার নির্বাচন করুন।');
           if(!isApprovedSlipAccount(row)) throw new Error('অনুমোদিত Bank Account ছাড়া Slip জমা দেওয়া যাবে না।');
+          const rawTransactionId=row.querySelector('.slip-transaction-id')?.value.trim()||'';
+          if(rawTransactionId&&!normalizeSlipTransactionId(rawTransactionId))throw new Error('Transaction ID / Reference No. কমপক্ষে ৬ অক্ষর এবং একটি সংখ্যা হতে হবে।');
           slips.push({img,amt:parseRawNumber(row.querySelector('.slip-amt-val').value),bankName:row.querySelector('.slip-bank-name').value,
             accountNumber:row.querySelector('.slip-account-number').value,
-            accountName:row.querySelector('.slip-account-name')?.value||'',depositDate:row.querySelector('.slip-date-input')?.value||''});
+            accountName:row.querySelector('.slip-account-name')?.value||'',depositDate:row.querySelector('.slip-date-input')?.value||'',
+            transactionId:normalizeSlipTransactionId(rawTransactionId)});
         }
-        const reqRef=database.ref('bankSlipRequests').push();
+        // Use image hashes to reject the same slip in this batch and older requests.
+        const fingerprints=await Promise.all(slips.map(s=>slipFingerprint(s.img)));
+        if(new Set(fingerprints).size!==fingerprints.length)throw new Error('একই ছবি একাধিকবার নির্বাচন করা হয়েছে।');
+        if(slips.some((slip,i)=>slips.slice(0,i).some(previous=>sameSlipTransaction(slip,previous))))throw new Error('একই ব্যাংকের একই Transaction ID / Reference No. এই Submit-এ দুবার আছে।');
+        const existingSnap=await database.ref('bankSlipRequests').orderByChild('userId').equalTo(uploadUser).once('value');
+        const oldImages=new Set(),todayOldSlips=[];
+        existingSnap.forEach(child=>{const r=child.val();if(r?.status!=='rejected')for(const s of r?.slips||[]){if(s.img)oldImages.add(s.img);if(r.date===uploadDate)todayOldSlips.push(s);}});
+        if(slips.some(s=>oldImages.has(s.img)))throw new Error('এই Bank Slip আগে জমা হয়েছে। একই ছবি আবার Submit করা যাবে না।');
+        if(slips.some(s=>todayOldSlips.some(old=>sameSlipTransaction(s,old))))throw new Error('আজ এই ব্যাংকের একই Transaction ID / Reference No. আগে Submit হয়েছে।');
+        const identities=slips.map((s,i)=>s.transactionId?'ID:'+s.bankName.toUpperCase()+':'+s.transactionId:'IMAGE:'+fingerprints[i]);
+        const batchHash=await slipFingerprint(uploadUser+'|'+uploadDate+'|'+identities.sort().join('|'));
+        const baseKey=uploadUser+'_'+uploadDate+'_'+batchHash;
+        const rejectedBefore=existingSnap.val()?.[baseKey]?.status==='rejected';
+        const reqRef=database.ref('bankSlipRequests/'+(rejectedBefore?baseKey+'_retry_'+Date.now().toString(36):baseKey));
         slips.forEach(s=>s.requestKey=reqRef.key);
         const amount=slips.reduce((n,x)=>n+x.amt,0);
-        await reqRef.set({userId:String(currentUser),date:getLocalDateString(),amount,slips,status:'pending',submittedAt:firebase.database.ServerValue.TIMESTAMP});
+        const created=await reqRef.transaction(existing=>existing===null?{userId:uploadUser,date:uploadDate,amount,slips,status:'pending',submittedAt:firebase.database.ServerValue.TIMESTAMP}:undefined,undefined,false);
+        if(!created.committed)throw new Error('এই Bank Slip আগে জমা হয়েছে। আবার Submit করবেন না।');
         requestSaved=true;
         // The live listener may have already counted this request. Count by request key,
         // never add its amount a second time after the write completes.
-        slipStatusItems[reqRef.key]={userId:String(currentUser),date:getLocalDateString(),amount,slips,status:'pending'};
+        slipStatusItems[reqRef.key]={userId:uploadUser,date:uploadDate,amount,slips,status:'pending'};
         refreshSubmittedBankAmount();
         // If today's daily report exists, apply the submitted amount immediately.
-        const indexSnap=await database.ref('dailySubmissionIndex/'+getLocalDateString()+'/'+String(currentUser)).once('value');
+        const indexSnap=await database.ref('dailySubmissionIndex/'+uploadDate+'/'+uploadUser).once('value');
         let recordKey=indexSnap.val()||null;
         if(!recordKey){ // Compatibility with records created before the day index.
-          const daySnap=await database.ref('collections').orderByChild('date').equalTo(getLocalDateString()).once('value');
-          daySnap.forEach(child=>{if(String(child.val()?.userId)===String(currentUser)) recordKey=child.key;});
+          const daySnap=await database.ref('collections').orderByChild('date').equalTo(uploadDate).once('value');
+          daySnap.forEach(child=>{if(String(child.val()?.userId)===uploadUser) recordKey=child.key;});
         }
         if(recordKey){
           const applied=await database.ref('collections/'+recordKey).transaction(record=>{
             if(!record) return;
             if(record.submittedSlipRequests?.[reqRef.key]) return;
+            if((record.slips||[]).some(old=>slips.some(s=>(old.img&&old.img===s.img)||sameSlipTransaction(old,s))))return;
             record.submittedSlipRequests=record.submittedSlipRequests||{};
             record.submittedSlipRequests[reqRef.key]=true;
-            record.bankDeposit=(Number(record.bankDeposit)||0)+amount;
             record.slips=[...(record.slips||[]),...slips];
+            record.bankDeposit=Math.round(record.slips.reduce((sum,s)=>sum+(Number(s.amt??s.amount)||0),0)*100)/100;
             record.bankName=[...new Set([...(record.bankName||'').split(', ').filter(Boolean),...slips.map(x=>x.bankName)])].join(', ');
             record.approvalStatus='pending';
             return record;
           },undefined,false);
-          if(!applied.snapshot.val()?.submittedSlipRequests?.[reqRef.key]) throw new Error('স্লিপ জমা হয়েছে, কিন্তু দিনের রিপোর্ট আপডেট হয়নি। Admin-কে জানান।');
+          if(!applied.snapshot.val()?.submittedSlipRequests?.[reqRef.key]) throw new Error('স্লিপ জমা হয়েছে, কিন্তু দিনের রিপোর্টে duplicate বা সমন্বয়ের সমস্যা আছে। Admin-কে জানান।');
         }
         rows.forEach(cleanupSlipPreview);
         document.getElementById('slipsContainer').innerHTML='';slipCounter=0;addSlipRow();
@@ -1516,6 +1585,10 @@
       if(currentUser!=='admin') return;
       if(item.status!=='approving' && !confirm(`DSO ${item.userId} এর ৳${formatBD(item.amount)} Bank Slip অনুমোদন করবেন?`)) return;
       try{
+        const allToday=await database.ref('bankSlipRequests').once('value');
+        let duplicateId=false;
+        allToday.forEach(child=>{const other=child.val();if(child.key!==key&&other?.date===item.date&&other.status!=='rejected'&&(item.slips||[]).some(s=>(other.slips||[]).some(old=>sameSlipIdentity(s,old))))duplicateId=true;});
+        if(duplicateId)throw new Error('একই ছবি অথবা একই ব্যাংকের Transaction ID অন্য সক্রিয় Bank Slip-এ আছে। অতিরিক্ত request যাচাই করে Reject করুন।');
         const requestRef=database.ref('bankSlipRequests/'+key);
         const claim=await requestRef.transaction(request=>{
           if(!request || (request.status!=='pending' && request.status!=='approving')) return;
@@ -1528,22 +1601,28 @@
         snap.forEach(child=>{if(String(child.val()?.userId)===String(item.userId)) recordKey=child.key;});
         if(!recordKey) throw new Error('এই DSO-এর ওই তারিখের দিনের রিপোর্ট পাওয়া যায়নি। আগে দিনের রিপোর্ট Submit করতে হবে।');
         const ref=database.ref('collections/'+recordKey);
+        const existingRecord=(await ref.once('value')).val();
+        if((existingRecord?.slips||[]).some(s=>s.requestKey && s.requestKey!==key && (item.slips||[]).some(candidate=>sameSlipIdentity(s,candidate))))
+          throw new Error('দিনের রিপোর্টে এই ছবি অথবা Transaction ID অন্য request-এর নামে জমা আছে। আগে duplicate request যাচাই ও নিষ্পত্তি করুন।');
         const result=await ref.transaction(record=>{
           if(!record) return;
           if(record.approvedSlipRequests?.[key]) return;
+          if((record.slips||[]).some(s=>s.requestKey && s.requestKey!==key && (item.slips||[]).some(candidate=>sameSlipIdentity(s,candidate))))return;
           record.approvedSlipRequests=record.approvedSlipRequests||{};
           record.approvedSlipRequests[key]=true;
           // Compatibility for slips submitted before the daily report was created.
           if(!record.submittedSlipRequests?.[key]){
             record.submittedSlipRequests=record.submittedSlipRequests||{};
             record.submittedSlipRequests[key]=true;
-            record.bankDeposit=(Number(record.bankDeposit)||0)+(Number(item.amount)||0);
-            record.slips=[...(record.slips||[]),...(item.slips||[])];
+            const previousImages=new Set((record.slips||[]).map(s=>s.img).filter(Boolean));
+            record.slips=[...(record.slips||[]),...(item.slips||[]).filter(s=>!s.img||!previousImages.has(s.img))];
           }
+          // Approval must never credit the same slip a second time.
+          record.bankDeposit=Math.round((record.slips||[]).reduce((sum,s)=>sum+(Number(s.amt??s.amount)||0),0)*100)/100;
           return record;
         },undefined,false);
         const updated=result.snapshot.val();
-        if(!updated?.approvedSlipRequests?.[key]) throw new Error('Slip Approval আপডেট হয়নি। আবার চেষ্টা করুন।');
+        if(!updated?.approvedSlipRequests?.[key]) throw new Error('Slip Approval আপডেট হয়নি; একই ছবি অন্য request-এ থাকলে সেটি যাচাই করুন।');
         await database.ref('bankSlipRequests/'+key).update({status:'approved',approvedAt:firebase.database.ServerValue.TIMESTAMP,approvedBy:currentUser,collectionKey:recordKey});
         await database.ref('notifications/'+item.userId).set({unread:true,type:'bank_slip_approved',message:`✅ ${item.date} তারিখের ৳${formatBD(item.amount)} Bank Slip Approved হয়েছে।`,timestamp:firebase.database.ServerValue.TIMESTAMP}).catch(err=>console.error('Approval notification failed:',err));
         alert('Bank Slip Approved। Bank Deposit Amount ৳'+formatBD(updated.bankDeposit));
@@ -2224,7 +2303,7 @@
 
       // Pass 2 only when the first pass is incomplete. PSM 11 is stronger for
       // scattered/thermal bank-slip text and broken line layouts.
-      if(ocrNeedsRecovery(first)){
+      if(ocrNeedsRecovery(first)||!extractSlipTransactionId([first])){
         const enhanced=await preprocessImage(file,4,0);
         results.push(await recognizeSlipPass(worker,enhanced,'11'));
       }
@@ -2526,6 +2605,7 @@
       const ocrDate=document.getElementById(`slipOcrDate_${id}`);
       const ocrStatus=document.getElementById(`slipOcrStatus_${id}`);
       const preview=document.getElementById(`slipPreview_${id}`);
+      const transactionInput=row.querySelector('.slip-transaction-id');
 
       if(!file){
         delete row.dataset.ocrAccountNumber;
@@ -2534,6 +2614,7 @@
         if(ocrAmt) ocrAmt.value='0';
         if(ocrBank) ocrBank.value='';
         if(ocrDate) ocrDate.value='';
+        if(transactionInput)transactionInput.value='';
         if(dateInput){dateInput.value='';dateInput.readOnly=true;dateInput.classList.remove('manual-mode','manual-confirmed');}
         if(preview){preview.src='';preview.classList.remove('visible');}
         const manualConfirm=document.getElementById(`slipManualConfirm_${id}`);
@@ -2552,6 +2633,7 @@
       if(ocrAmt) ocrAmt.value='0';
       if(ocrBank) ocrBank.value='';
       if(ocrDate) ocrDate.value='';
+      if(transactionInput)transactionInput.value='';
       // Show the selected image immediately from the File itself. This is
       // independent of OCR and Base64 conversion, so the preview cannot go blank
       // just because OCR/conversion is slow or fails.
@@ -2577,6 +2659,8 @@
         const amountInfo=chooseConsensusAmount(ocrResults);
         const account=knownAccount?.accountName || chooseConsensusAccount(ocrResults) || '';
         const depositDate=chooseConsensusDate(ocrResults) || '';
+        const transactionId=extractSlipTransactionId(ocrResults);
+        if(transactionInput)transactionInput.value=transactionId;
 
         if(bank){bankSelect.value=bank;bankSelect.classList.add('ocr-locked');if(ocrBank)ocrBank.value=bank;}
         row.querySelector('.slip-account-number').value=knownAccount?.accountNumber||'';
@@ -2837,7 +2921,7 @@
         const img = await decodeImage(originalDataUrl);
 
         // Readable for verification, but much faster to upload/download on mobile data.
-        const maxSize = 960;
+        const maxSize = 1440;
         const srcW = img.naturalWidth || img.width;
         const srcH = img.naturalHeight || img.height;
         const scale = Math.min(1, maxSize / Math.max(srcW, srcH));
@@ -2856,7 +2940,7 @@
         ctx.drawImage(img, 0, 0, width, height);
 
         let output = "";
-        try { output = canvas.toDataURL("image/jpeg", 0.62); } catch (_) {}
+        try { output = canvas.toDataURL("image/jpeg", 0.82); } catch (_) {}
         // Never silently save an empty image if canvas conversion fails.
         if (!output || output === "data:,") output = originalDataUrl;
         slipImageDataCache.set(file, output);
@@ -3129,6 +3213,7 @@
           if (account) { account.readOnly = false; account.value = s.accountName || ""; }
           if (date) { date.readOnly = false; date.value = s.depositDate || ""; }
           if (amt) { amt.readOnly = false; amt.value = formatBD(s.amt || 0); }
+          const transactionInput=row.querySelector('.slip-transaction-id');if(transactionInput)transactionInput.value=s.transactionId||'';
           const ocrAmt = row.querySelector(".slip-ocr-val"); if (ocrAmt) ocrAmt.value = s.ocrAmt || s.amt || 0;
           const ocrBank = row.querySelector('[id^="slipOcrBank_"]'); if (ocrBank) ocrBank.value = s.ocrBankName || s.bankName || "";
           const ocrDate = row.querySelector('[id^="slipOcrDate_"]'); if (ocrDate) ocrDate.value = s.ocrDate || s.depositDate || "";
@@ -3242,7 +3327,7 @@
           // OCR-only mode: no secondary slip validation.
           if (bankName && !bankNamesCollected.includes(bankName)) bankNamesCollected.push(bankName);
           if (imgBase64 || amt > 0 || bankName) {
-            slipsData.push({img:imgBase64,amt,bankName,accountName,accountNumber:row.querySelector('.slip-account-number').value,depositDate,ocrBankName,ocrAmt,ocrDate,ocrStatus:status});
+            slipsData.push({img:imgBase64,amt,bankName,accountName,accountNumber:row.querySelector('.slip-account-number').value,depositDate,transactionId:normalizeSlipTransactionId(row.querySelector('.slip-transaction-id')?.value),ocrBankName,ocrAmt,ocrDate,ocrStatus:status});
           }
         }
 
@@ -3351,7 +3436,9 @@
       try {
         const slipSnap=await database.ref('bankSlipRequests').orderByChild('userId').equalTo(String(currentUser)).once('value');
         todaySlipRequests=Object.fromEntries(Object.entries(slipSnap.val()||{}).filter(([_,r])=>r.date===dateStr && (r.status==='pending'||r.status==='approved')));
-        submittedBankAmount=Object.values(todaySlipRequests).reduce((sum,r)=>sum+(Number(r.amount)||0),0);
+        const verifiedSlips=uniqueSlipAmounts(todaySlipRequests);
+        if(verifiedSlips.duplicate)throw new Error('একই Bank Slip একাধিকবার জমা আছে। Admin-কে অতিরিক্ত স্লিপ Reject করতে বলুন।');
+        submittedBankAmount=verifiedSlips.total;
         document.getElementById('bankDeposit').value=formatBD(submittedBankAmount);
         calcFormTotals();
       } catch(err) {
@@ -3676,6 +3763,9 @@
     }
 
     function onAdminDateFilterChange() {
+      if(activeAdminTab==='slipApproval'){
+        slipApprovalViewMode='date';renderSlipApprovalFilters();return;
+      }
       if (currentUser === 'admin') {
         const dateValue = document.getElementById('filterDate')?.value || getLocalDateString();
         loadMasterAdminData('date', dateValue);
@@ -4010,6 +4100,7 @@
     }
 
     function applyAdminFilters(immediate=false, fromRealtime=false) {
+      if(activeAdminTab==='slipApproval'){renderSlipApprovalFilters();return;}
       if (currentUser === 'admin' && masterAdminDataLoading) return;
       if (!globalAllData) {
         if (activeAdminTab === 'report') {
@@ -4044,6 +4135,9 @@
     }
 
     function filterThisMonth() {
+      if(activeAdminTab==='slipApproval'){
+        document.getElementById('filterDate').value='';slipApprovalViewMode='month';renderSlipApprovalFilters();return;
+      }
       if (currentUser === 'admin') {
         document.getElementById("filterDate").value = "";
         loadMasterAdminData('month');
@@ -4071,6 +4165,9 @@
     }
 
     function filterAllData() {
+      if(activeAdminTab==='slipApproval'){
+        document.getElementById('filterDate').value='';slipApprovalViewMode='all';renderSlipApprovalFilters();return;
+      }
       if (currentUser === 'admin') {
         document.getElementById("filterDate").value = "";
         loadMasterAdminData('all');
@@ -4126,6 +4223,10 @@
       if (adminFilter) adminFilter.value = "";
       document.querySelectorAll(".dso-chk").forEach(chk => chk.checked = false);
       updateDsoDropdownText();
+      if(activeAdminTab==='slipApproval'){
+        document.getElementById('slipApprovalStatus').value='';
+        slipApprovalViewMode='date';renderSlipApprovalFilters();return;
+      }
       if (currentUser === 'admin') {
         loadMasterAdminData('date', today);
       } else {
@@ -4826,27 +4927,67 @@
       document.getElementById("detailsModal").style.display = "none";
     }
 
+    let slipZoomLevel=1,slipFitWidth=0;
+    function changeSlipZoom(direction){
+      const img=document.getElementById('zoomedImageSrc'),container=img.closest('.image-zoom-container');
+      if(!img.naturalWidth)return;
+      slipFitWidth=Math.min(img.naturalWidth,Math.max(240,container.clientWidth-24));
+      slipZoomLevel=direction===0?1:Math.max(0.5,Math.min(4,Math.round((slipZoomLevel+(direction>0?0.5:-0.5))*10)/10));
+      img.style.width=Math.round(slipFitWidth*slipZoomLevel)+'px';
+    }
     function zoomImage(src, dsoId, bankName, amt, depositDate) {
       if (!src) return;
-      document.getElementById("zoomedImageSrc").src = src;
+      const img=document.getElementById('zoomedImageSrc');
+      img.onload=()=>changeSlipZoom(0);
+      img.onerror=()=>{document.getElementById('zoomImageDetails').textContent='ছবি পড়া যাচ্ছে না; আসল স্লিপটি পুনরায় যাচাই করুন।';};
+      img.src = src;
       document.getElementById("zoomImageDetails").innerHTML = `
-        <span>DSO: ${dsoId}</span>
-        <span>Bank: ${bankName || "-"}</span>
+        <span>DSO: ${escapeHtml(dsoId)}</span>
+        <span>Bank: ${escapeHtml(bankName || "-")}</span>
         <span>Amount: ৳ ${formatBD(amt)}</span>
         ${depositDate ? `<span>Deposit Date: ${escapeHtml(depositDate)}</span>` : ""}
       `;
       document.getElementById("imageZoomModal").style.display = "flex";
+      if(img.complete&&img.naturalWidth)changeSlipZoom(0);
     }
 
     function closeImageZoomModal() {
       document.getElementById("imageZoomModal").style.display = "none";
+      document.getElementById('zoomedImageSrc').removeAttribute('src');
     }
 
     async function exportToExcel() {
       try {
+        const tabName = activeAdminTab || 'report';
+        if(!['report','bank','notes','slipApproval'].includes(tabName)){
+          alert('এই পেজে Excel Export নেই।');return;
+        }
         await ensureXlsxLoaded();
         if (!window.XLSX) {
           alert("Excel library load হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।");
+          return;
+        }
+        if(tabName==='slipApproval'){
+          if(currentUser!=='admin'){alert('শুধু Admin Bank Slip Approval export করতে পারবেন।');return;}
+          const slips=Object.values(slipStatusItems).filter(item=>item&&slipMatchesApprovalFilters(item))
+            .sort((a,b)=>(Number(b.submittedAt)||0)-(Number(a.submittedAt)||0));
+          if(!slips.length){alert('এই পেজের ফিল্টারে কোনো Bank Slip নেই।');return;}
+          const rows=slips.map(item=>({
+            'Date':item.date||'',
+            'Upload Time (Bangladesh)':Number(item.submittedAt)>0?new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dhaka',dateStyle:'short',timeStyle:'short'}).format(new Date(Number(item.submittedAt))):'',
+            'DSO ID':String(item.userId||''),
+            'Bank Name / Account':[...new Set((item.slips||[]).map(s=>`${s.bankName||''} ${s.accountNumber||''}`.trim()).filter(Boolean))].join(', '),
+            'Transaction ID / Ref':[...new Set((item.slips||[]).map(s=>s.transactionId).filter(Boolean))].join(', '),
+            'Amount':Number(item.amount)||0,
+            'Status':item.status||'pending',
+            'Reject Reason':item.rejectReason||'',
+            'Slip Count':(item.slips||[]).length
+          }));
+          const book=XLSX.utils.book_new(),sheet=XLSX.utils.json_to_sheet(rows);
+          sheet['!cols']=[{wch:15},{wch:27},{wch:12},{wch:32},{wch:30},{wch:17},{wch:16},{wch:35},{wch:13}];
+          XLSX.utils.book_append_sheet(book,sheet,'Bank Slip Approval');
+          const suffix=slipApprovalViewMode==='date'?(document.getElementById('filterDate')?.value||getLocalDateString()):slipApprovalViewMode==='month'?getLocalMonthString():'All_Dates';
+          XLSX.writeFile(book,`Bank_Slip_Approval_${suffix}.xlsx`);
           return;
         }
         if (!globalAllData) {
@@ -4862,7 +5003,6 @@
         }
 
         const { filteredData } = result;
-        const tabName = activeAdminTab || "report";
         const rows = [];
 
         if (tabName === "report") {
