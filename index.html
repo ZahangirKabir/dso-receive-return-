@@ -868,16 +868,16 @@
         : [...(SUB_ADMIN_GROUPS[currentUser] || [])],
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
-    // Change this string in every deployed release, then publish it at appConfig/releaseVersion.
-    const APP_RELEASE_VERSION = '2026.09.25.11';
+    // Increment on every index.html deployment. Open pages compare against this value.
+    const APP_RELEASE_VERSION = '2026.09.27.2';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentSource = null;
-    let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
-    function updateReleaseGate(message){const blocked=firebaseReleaseMismatch||hostedReleaseMismatch;const gate=document.getElementById('releaseGate');gate.style.display=blocked?'flex':'none';
+    let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, releaseSignalMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
+    function updateReleaseGate(message){const blocked=firebaseReleaseMismatch||hostedReleaseMismatch||releaseSignalMismatch;const gate=document.getElementById('releaseGate');gate.style.display=blocked?'flex':'none';
       if(blocked)document.getElementById('releaseGateMessage').textContent=message||'অ্যাপের নতুন ফাইল যাচাই হচ্ছে। আপডেট না করে Login করা যাবে না।';
       const login=document.getElementById('loginBtn');if(login&&!loginInProgress)login.disabled=blocked;
     }
-    let releaseVersionRef = null;
+    let releaseVersionRef = null, releaseSignalRef = null, seenReleaseSignal = null;
     function startReleaseWatcher() {
       if (releaseVersionRef) return;
       releaseVersionRef = database.ref('appConfig/releaseVersion');
@@ -886,36 +886,54 @@
         firebaseReleaseMismatch=!!required&&required.localeCompare(APP_RELEASE_VERSION,undefined,{numeric:true})>0;
         updateReleaseGate(firebaseReleaseMismatch?`নতুন ভার্সন ${required} এসেছে। অ্যাপ ব্যবহার করতে আপডেট করুন।`:null);
       }, err => console.error('Version check failed:',err));
+      // Supports Investment.html-only releases: the admin broadcasts after publishing.
+      // The initial value is the current baseline for a newly loaded page.
+      releaseSignalRef=database.ref('appConfig/releaseSignal');
+      releaseSignalRef.on('value', snap=>{
+        const token=String(snap.val()||'');
+        if(seenReleaseSignal===null){seenReleaseSignal=token;return;}
+        if(token && token!==seenReleaseSignal){releaseSignalMismatch=true;updateReleaseGate('নতুন আপডেট প্রকাশিত হয়েছে। অ্যাপ ব্যবহার করতে এখনই আপডেট করুন।');}
+      },err=>console.error('Release notification failed:',err));
     }
     async function publishCurrentRelease(){
       if(currentUser !== 'admin') return;
       if(!confirm('নতুন HTML ফাইল সার্ভারে প্রকাশ করেছেন? এখন সকল ব্যবহারকারীকে এই ভার্সনের আপডেট পাঠাবেন?')) return;
-      try {await database.ref('appConfig/releaseVersion').set(APP_RELEASE_VERSION);
+      try {await database.ref('appConfig/releaseVersion').transaction(current=>{
+          const previous=String(current||'');return !previous||APP_RELEASE_VERSION.localeCompare(previous,undefined,{numeric:true})>0?APP_RELEASE_VERSION:undefined;
+        },undefined,false);
+        await database.ref('appConfig/releaseSignal').set(String(Date.now())+'-'+Math.random().toString(36).slice(2));
         alert('আপডেট নোটিশ সকল খোলা অ্যাপে পাঠানো হয়েছে।');
       }catch(err){alert('Update notification পাঠানো যায়নি: '+err.message);}
     }
     // index.html has its own release; Investment.html is compared independently.
     async function checkHostedRelease(force=false) {
       if(releaseCheckPromise)return releaseCheckPromise;
-      if(!force&&Date.now()-hostedReleaseCheckedAt<15000)return !hostedReleaseMismatch;
+      if(!force&&Date.now()-hostedReleaseCheckedAt<15000)return !hostedReleaseMismatch&&!releaseSignalMismatch;
       releaseCheckPromise=(async()=>{
-        if(location.protocol!=='http:'&&location.protocol!=='https:')return !hostedReleaseMismatch;
+        if(location.protocol!=='http:'&&location.protocol!=='https:')return !hostedReleaseMismatch&&!releaseSignalMismatch;
         const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
         try{
           const fetchAsset=async url=>{url.searchParams.set('_release_check',Date.now());const response=await fetch(url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('HTTP '+response.status+' '+url.pathname);return response.text();};
-          const indexHtml=await fetchAsset(new URL(location.pathname,location.origin));
+          const [indexHtml,investmentResult]=await Promise.all([
+            fetchAsset(new URL(location.pathname,location.origin)),
+            fetchAsset(new URL('Investment.html',location.href)).then(html=>({html}),error=>({error}))
+          ]);
           const index=indexHtml.match(/const APP_RELEASE_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1];
           if(!index)throw Error('সার্ভারের index.html ভার্সন পড়া যায়নি');
           let investmentChanged=false;
-          try{const investmentHtml=await fetchAsset(new URL('Investment.html',location.href));
+          try{if(investmentResult.error)throw investmentResult.error;
+            const investmentHtml=investmentResult.html;
+            const investmentVersion=investmentHtml.match(/<meta\s+name=["']investment-release-version["']\s+content=["']([^"']+)["']/i)?.[1];
+            if(!investmentVersion)throw Error('Investment.html ভার্সন পড়া যায়নি');
             if(loadedInvestmentSource===null)loadedInvestmentSource=investmentHtml;
             else investmentChanged=investmentHtml!==loadedInvestmentSource;
+            // The baseline is refreshed on reload, so Investment.html remains independent.
           }catch(error){console.warn('Investment update check will retry:',error);}
           hostedReleaseMismatch=index!==APP_RELEASE_VERSION||investmentChanged;
           hostedReleaseCheckedAt=Date.now();
           updateReleaseGate(hostedReleaseMismatch?'নতুন index.html অথবা Investment.html এসেছে। আপডেট না করলে Login বা অ্যাপ ব্যবহার করা যাবে না।':null);
-          return !hostedReleaseMismatch;
-        }catch(err){console.warn('Hosted update check will retry without locking the app:',err);hostedReleaseCheckedAt=Date.now();return !hostedReleaseMismatch;}
+          return !hostedReleaseMismatch && !releaseSignalMismatch;
+        }catch(err){console.warn('Hosted update check will retry without locking the app:',err);hostedReleaseCheckedAt=Date.now();return !hostedReleaseMismatch && !releaseSignalMismatch;}
         finally{clearTimeout(timeout);}
       })();
       try{return await releaseCheckPromise;}finally{releaseCheckPromise=null;}
@@ -1029,7 +1047,7 @@
       if (adminRenderTimer) clearTimeout(adminRenderTimer);
       const run = () => {
         adminRenderTimer = null;
-        applyAdminFilters(false, true);
+        applyAdminFilters(true);
       };
       if (immediate) run(); else adminRenderTimer = setTimeout(run, 50);
     }
@@ -1049,6 +1067,7 @@
         document.getElementById("tabDsoReportBtn")?.classList.add("active");
         document.getElementById("dsoPageReport").style.display = "block";
         renderDsoHistory(globalAllData);
+        startDsoFullHistoryListener();
       } else if (tab === 'settings') {
         document.getElementById("tabDsoSettingsBtn")?.classList.add("active");
         document.getElementById("dsoPageSettings").style.display = "block";
@@ -1125,6 +1144,7 @@
         document.getElementById("tabAdminNotesBtn").style.display = isGroupAdmin(currentUser) ? "none" : "inline-block";
         document.getElementById("dsoView").style.display = "none";
         document.getElementById("dsoTabNav").style.display = "none";
+        slipApprovalViewMode='date';
         switchAdminTab('report');
         document.getElementById("filterDate").value = getLocalDateString();
         document.getElementById("adminFilterPanel").style.display = "flex";
@@ -1160,9 +1180,10 @@
       loginInProgress = true;
       if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Checking…';}
       try {
-        if(!(await checkHostedRelease(true))||firebaseReleaseMismatch)return;
+        if(!(await checkHostedRelease(true))||firebaseReleaseMismatch||releaseSignalMismatch)return;
         let dbPass;
         const snap = await database.ref('users/' + id + '/password').once('value');
+        if(firebaseReleaseMismatch||hostedReleaseMismatch||releaseSignalMismatch)return;
         dbPass = snap.val();
         if (dbPass === null || dbPass === undefined) dbPass = isGroupAdmin(id) ? SUB_ADMIN_PASSWORD : '123456';
         if (pass !== String(dbPass).trim()) { alert("ভুল পাসওয়ার্ড! দয়া করে সঠিক পাসওয়ার্ড দিন।"); return; }
@@ -1251,6 +1272,7 @@
       if(investmentFrame) investmentFrame.removeAttribute('src');
       detachRealtimeDataListeners();
       if(slipStatusRef){slipStatusRef.off('value',slipStatusHandler);slipStatusRef=null;}
+      slipStatusScope='';slipStatusItems={};slipStatusLoading=false;slipStatusLoadError='';
       if(dsoNotificationRef){dsoNotificationRef.off('value',dsoNotificationHandler);dsoNotificationRef=null;}
       try { sessionStorage.removeItem(PORTAL_SESSION_KEY); } catch (_) {}
       currentUser = null;
@@ -1449,8 +1471,8 @@
       submittedBankAmount=uniqueSlipAmounts(Object.fromEntries(Object.entries(slipStatusItems).filter(([_,r])=>r && r.date===getLocalDateString() && ['pending','approved','approving'].includes(r.status)))).total;
       recalculateBankDepositFromSlips();
     }
-    let slipStatusRef = null, slipStatusHandler = null;
-    let slipStatusItems = {};
+    let slipStatusRef = null, slipStatusHandler = null, slipStatusScope = '';
+    let slipStatusItems = {}, slipStatusLoading = false, slipStatusLoadError = '';
     let slipApprovalViewMode='date';
     function slipMatchesApprovalFilters(item){
       const date=document.getElementById('filterDate')?.value||getLocalDateString();
@@ -1462,12 +1484,12 @@
       const matchDso=!chosenDsos.length||chosenDsos.includes(String(item.userId));
       return matchDate&&matchAdmin&&matchDso&&(!status||actual===status);
     }
-    function renderSlipApprovalFilters(){renderBankSlipStatus('admin');}
+    function renderSlipApprovalFilters(){if(currentUser==='admin')listenBankSlipStatuses();renderBankSlipStatus('admin');}
     function renderBankSlipStatus(user){const body=document.getElementById(user==='admin'?'adminBankSlipStatusBody':'dsoBankSlipStatusBody');if(!body)return;
       const all=Object.entries(slipStatusItems).sort((a,b)=>(b[1].submittedAt||0)-(a[1].submittedAt||0));
       const entries=user==='admin'?all.filter(([_,item])=>slipMatchesApprovalFilters(item)):all;
       body.replaceChildren();
-      if(!entries.length){const tr=body.insertRow();const td=tr.insertCell();td.colSpan=user==='admin'?10:8;td.textContent='কোনো Bank Slip নেই।';return;}
+      if(!entries.length){const tr=body.insertRow();const td=tr.insertCell();td.colSpan=user==='admin'?10:8;td.textContent=slipStatusLoadError|| (slipStatusLoading?'⏳ Bank Slip ডাটা লোড হচ্ছে...':'কোনো Bank Slip নেই।');return;}
       entries.forEach(([key,item])=>{const tr=body.insertRow();const banks=[...new Set((item.slips||[]).map(s=>`${s.bankName||''} ${s.accountNumber||''}`).filter(Boolean))].join(', ');
         const transactionIds=[...new Set((item.slips||[]).map(s=>s.transactionId).filter(Boolean))].join(', ')||'—';
         const uploaded=Number(item.submittedAt)>0?new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dhaka',hour:'2-digit',minute:'2-digit',hour12:true}).format(new Date(Number(item.submittedAt))):'—';
@@ -1487,19 +1509,29 @@
       });
     }
     function listenBankSlipStatuses(){
-      if(slipStatusRef){slipStatusRef.off('value',slipStatusHandler);slipStatusRef=null;}
       if(!currentUser || isGroupAdmin(currentUser)) return;
       const user=String(currentUser);
-      slipStatusRef=user==='admin' ? database.ref('bankSlipRequests') :
-        database.ref('bankSlipRequests').orderByChild('userId').equalTo(user);
+      const mode=user==='admin'?slipApprovalViewMode:'user';
+      const scope=user==='admin'?(mode==='date'?'date:'+(document.getElementById('filterDate')?.value||getLocalDateString()):mode==='month'?'month:'+getLocalMonthString():'all'):'user:'+user;
+      if(slipStatusRef&&slipStatusScope===scope)return;
+      if(slipStatusRef){slipStatusRef.off('value',slipStatusHandler);slipStatusRef=null;}
+      slipStatusScope=scope;slipStatusItems={};slipStatusLoading=true;slipStatusLoadError='';
+      const root=database.ref('bankSlipRequests');
+      slipStatusRef=user==='admin' ? (mode==='date'?root.orderByChild('date').equalTo(scope.slice(5)):
+        mode==='month'?root.orderByChild('date').startAt(getLocalMonthString()+'-01').endAt(getLocalMonthString()+'-31'):root) :
+        root.orderByChild('userId').equalTo(user);
       slipStatusHandler=snap=>{
-        if(String(currentUser)!==user)return;
+        if(String(currentUser)!==user||slipStatusScope!==scope)return;
+        slipStatusLoading=false;slipStatusLoadError='';
         slipStatusItems=snap.val()||{};renderBankSlipStatus(user);
         if(user!=='admin'){
           refreshSubmittedBankAmount();
         }
       };
-      slipStatusRef.on('value',slipStatusHandler,err=>console.error('Bank Slip status load failed:',err));
+      slipStatusRef.on('value',slipStatusHandler,err=>{
+        if(slipStatusScope===scope){slipStatusLoading=false;slipStatusLoadError='Bank Slip ডাটা লোড হয়নি: '+(err?.message||'সংযোগ সমস্যা');renderBankSlipStatus(user);}
+        console.error('Bank Slip status load failed:',err);
+      });
     }
     function slipStatusLabel(status){return ({approved:'✅ Approved',rejected:'❌ Rejected',rejecting:'⏳ Rejecting',approving:'⏳ Approving',pending:'⏳ Pending'})[status]||String(status||'Pending');}
     async function submitBankSlips() {
@@ -1594,7 +1626,7 @@
       if(currentUser!=='admin') return;
       if(item.status!=='approving' && !confirm(`DSO ${item.userId} এর ৳${formatBD(item.amount)} Bank Slip অনুমোদন করবেন?`)) return;
       try{
-        const allToday=await database.ref('bankSlipRequests').once('value');
+        const allToday=await database.ref('bankSlipRequests').orderByChild('date').equalTo(item.date).once('value');
         let duplicateId=false;
         allToday.forEach(child=>{const other=child.val();if(child.key!==key&&other?.date===item.date&&other.status!=='rejected'&&(item.slips||[]).some(s=>(other.slips||[]).some(old=>sameSlipIdentity(s,old))))duplicateId=true;});
         if(duplicateId)throw new Error('একই ছবি অথবা একই ব্যাংকের Transaction ID অন্য সক্রিয় Bank Slip-এ আছে। অতিরিক্ত request যাচাই করে Reject করুন।');
@@ -3611,6 +3643,8 @@
     let realtimeListenerAttached = false;
     let groupQueryData = {};
     let realtimeInitialDataReady = false;
+    let dsoFullHistoryRef = null, dsoFullHistoryReady = false, dsoFullHistoryError = '';
+    let adminDsoOptionsSignature = '';
 
     function detachRealtimeDataListeners() {
       realtimeListenerRefs.forEach(refInfo => {
@@ -3625,6 +3659,10 @@
       realtimeListenerAttached = false;
       realtimeListenerUser = null;
       realtimeInitialDataReady = false;
+      dsoFullHistoryRef = null;
+      dsoFullHistoryReady = false;
+      dsoFullHistoryError = '';
+      adminDsoOptionsSignature = '';
       groupQueryData = {};
     }
 
@@ -3635,12 +3673,41 @@
 
     function scheduleDataUiUpdate() {
       if (currentUser === "admin" || isGroupAdmin(currentUser)) {
-        populateDsoDropdown(globalAllData);
-        populateAdminFilter();
+        const ids=[...new Set(Object.values(globalAllData||{}).map(r=>String(r?.userId||'')).filter(Boolean))].sort().join('|');
+        const signature=String(currentUser)+'|'+ids;
+        if(signature!==adminDsoOptionsSignature){populateDsoDropdown(globalAllData);populateAdminFilter();adminDsoOptionsSignature=signature;}
         scheduleAdminRender();
       } else {
-        renderDsoHistory(globalAllData);
+        if(document.getElementById('dsoPageReport')?.style.display==='block')renderDsoHistory(globalAllData);
       }
+    }
+
+    function startDsoFullHistoryListener(){
+      if(dsoFullHistoryRef||!currentUser||currentUser==='admin'||isGroupAdmin(currentUser))return;
+      const user=String(currentUser);
+      const ref=database.ref('collections').orderByChild('userId').equalTo(user);
+      dsoFullHistoryError='';
+      dsoFullHistoryRef=ref;
+      const handler=snap=>{
+        if(String(currentUser)!==user||dsoFullHistoryRef!==ref)return;
+        globalAllData=snap.val()||{};
+        dsoFullHistoryReady=true;
+        realtimeInitialDataReady=true;
+        scheduleDataUiUpdate();
+        // Once the full stream is ready, the fast 60-record stream is redundant.
+        for(const entry of [...realtimeListenerRefs])if(entry.ref!==ref){
+          try{entry.ref.off('value',entry.handler);}catch(_){}
+          realtimeListenerRefs=realtimeListenerRefs.filter(x=>x!==entry);
+        }
+      };
+      ref.on('value',handler,err=>{
+        if(dsoFullHistoryRef===ref)dsoFullHistoryRef=null;
+        realtimeListenerRefs=realtimeListenerRefs.filter(entry=>entry.ref!==ref);
+        dsoFullHistoryError='সম্পূর্ণ ইতিহাস লোড হয়নি: '+(err?.message||'সংযোগ সমস্যা')+'। Refresh চাপুন।';
+        if(document.getElementById('dsoPageReport')?.style.display==='block')renderDsoHistory(globalAllData);
+        console.error('Complete DSO history failed:',err);
+      });
+      realtimeListenerRefs.push({ref,handler});
     }
 
     function listenRealtimeData() {
@@ -3653,6 +3720,7 @@
       if (currentUser && !isGroupAdmin(currentUser) && currentUser !== "admin") {
         const ref = database.ref('collections').orderByChild('userId').equalTo(String(currentUser)).limitToLast(60);
         const handler = snapshot => {
+          if(dsoFullHistoryReady)return;
           globalAllData = snapshot.val() || {};
           realtimeInitialDataReady = true;
           scheduleDataUiUpdate();
@@ -3661,35 +3729,11 @@
           console.warn('Fast DSO report query failed; using compatible fallback:', err);
           try { ref.off('value', handler); } catch (_) {}
           realtimeListenerRefs = realtimeListenerRefs.filter(x => x.ref !== ref);
-          const fallbackRef = database.ref('collections').orderByChild('userId').equalTo(String(currentUser));
-          const fallbackHandler = snapshot => {
-            globalAllData = snapshot.val() || {};
-            realtimeInitialDataReady = true;
-            scheduleDataUiUpdate();
-          };
-          fallbackRef.on('value', fallbackHandler, fallbackErr => {
-            realtimeInitialDataReady = true;
-            globalAllData = {};
-            scheduleDataUiUpdate();
-            console.error('DSO report fallback failed:', fallbackErr);
-          });
-          realtimeListenerRefs.push({ref:fallbackRef, handler:fallbackHandler});
+          startDsoFullHistoryListener();
         };
         ref.on('value', handler, errorHandler);
         realtimeListenerRefs.push({ref, handler});
-        // Load the complete DSO history in the background and keep it live.
-        const allRef=database.ref('collections').orderByChild('userId').equalTo(String(currentUser));
-        const allHandler=snap=>{
-          if (realtimeListenerUser !== currentUser) return;
-          globalAllData=snap.val()||{};
-          realtimeInitialDataReady=true;
-          scheduleDataUiUpdate();
-          // The complete stream includes the last 60; avoid two UI renders thereafter.
-          try {ref.off('value',handler);}catch(_){}
-          realtimeListenerRefs=realtimeListenerRefs.filter(x=>x.ref!==ref);
-        };
-        allRef.on('value',allHandler,err=>console.error('Complete DSO history failed:',err));
-        realtimeListenerRefs.push({ref:allRef,handler:allHandler});
+        if(document.getElementById('dsoPageReport')?.style.display==='block')startDsoFullHistoryListener();
         return;
       }
 
@@ -3859,6 +3903,11 @@
       }
 
       const dateFilter = document.getElementById("dsoHistoryDateFilter").value;
+      if((dsoFullHistoryRef&&!dsoFullHistoryReady)||dsoFullHistoryError){
+        const status=tbody.insertRow();const cell=status.insertCell();cell.colSpan=9;
+        cell.textContent=dsoFullHistoryError||'⏳ সম্পূর্ণ ইতিহাস লোড হচ্ছে; নিচের সাম্প্রতিক রিপোর্টগুলো ইতিমধ্যে live।';
+        cell.style.cssText='padding:10px;color:'+(dsoFullHistoryError?'#b71c1c':'#00695c')+';background:'+(dsoFullHistoryError?'#ffebee':'#e0f2f1')+';font-weight:700;';
+      }
 
       let userEntries = Object.keys(data)
         .map(key => ({ key, ...data[key] }))
@@ -3874,7 +3923,7 @@
       userEntries.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
       if (userEntries.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:15px; color:#c62828;">কোনো রিপোর্ট ডাটা পাওয়া যায়নি।</td></tr>`;
+        const row=tbody.insertRow(),cell=row.insertCell();cell.colSpan=9;cell.style.cssText='text-align:center;padding:15px;color:#c62828;';cell.textContent=(dsoFullHistoryRef&&!dsoFullHistoryReady)?'সম্পূর্ণ ইতিহাস লোড হচ্ছে...':'কোনো রিপোর্ট ডাটা পাওয়া যায়নি।';
         return;
       }
 
@@ -5202,6 +5251,9 @@
     checkHostedRelease(true);
     setInterval(()=>checkHostedRelease(),15000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkHostedRelease(true);});
+    window.addEventListener('focus',()=>checkHostedRelease(true));
+    window.addEventListener('online',()=>checkHostedRelease(true));
+    window.addEventListener('pageshow',()=>checkHostedRelease(true));
     document.getElementById('loginPass')?.addEventListener('keydown',e=>{if(e.key==='Enter')handleLogin();});
     document.getElementById('loginId')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass')?.focus();});
   </script>
