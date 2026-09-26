@@ -874,7 +874,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.3';
+    const APP_RELEASE_VERSION = '2026.09.27.4';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentSource = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, releaseSignalMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1931,6 +1931,36 @@
       return out;
     }
 
+    // Financial safety: read only the value attached to Transfer Amount / Amount.
+    // An unlabeled currency sign, balance, account number or total is never a deposit.
+    function slipLabeledAmountCandidates(text) {
+      const lines=String(text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
+      const results=[];
+      const transfer=/(?:\btransfer(?:red)?\s*[-–:]?\s*amount\b|\bamount\s*transferred\b)/i;
+      const amount=/^\s*amount\b/i;
+      const disallowed=/\b(?:total|balance|debit|credit|fee|charge|vat|tax|reference|ref|account|a\/c|mobile|phone|date|time|cheque|check|transaction\s*(?:id|no)|amount\s*(?:in\s*words|words))\b/i;
+      for(let i=0;i<lines.length;i++){
+        const line=lines[i];
+        if(disallowed.test(line)||isExcludedAmountLine(line))continue;
+        const match=transfer.exec(line)||amount.exec(line);
+        if(!match)continue;
+        const priority=transfer.test(match[0])?2:1;
+        // Read after the label only: numbers to its left may be account IDs.
+        const tail=line.slice(match.index+match[0].length)
+          .replace(/^\s*(?:in\s*(?:taka|bdt))?\s*[:：=\-–]?\s*/i,'')
+          .replace(/^(?:৳|tk\.?|taka|bdt)\s*/i,'')
+          .replace(/\s*(?:৳|tk\.?|taka|bdt)\s*$/i,'');
+        let tokens=moneyTokensFromLine(tail);
+        if(!tokens.length && i+1<lines.length){
+          const next=lines[i+1];
+          // Adjacent OCR line must contain just the number and optional currency.
+          if(/^\s*(?:৳|tk\.?|taka|bdt)?\s*[০-৯0-9][০-৯0-9,.\s]*(?:৳|tk\.?|taka|bdt)?\s*$/i.test(next))tokens=moneyTokensFromLine(next.replace(/^\s*(?:৳|tk\.?|taka|bdt)\s*/i,'').replace(/\s*(?:৳|tk\.?|taka|bdt)\s*$/i,''));
+        }
+        if(tokens.length===1)results.push({value:tokens[0].value,priority,line,source:priority===2?'transfer-amount':'amount'});
+      }
+      return results;
+    }
+
     function isExcludedAmountLine(line) {
       const s = compactOCRText(line);
       return /(total\s*(debit|credit|amount|balance|payable)?|debit\s*amount|credit\s*amount|available\s*balance|avail\s*balance|closing\s*balance|opening\s*balance|fee|charge|vat|tax|service\s*charge|transaction\s*fee|reference|ref\.?\s*no|transaction\s*(id|no)|trx|account\s*(no|number)|a\/c\s*(no|number)?|mobile|phone|routing|card\s*(no|number)|terminal\s*(id|no)|trace\s*no|auth\.?\s*code|date|time|cheque|check\s*(no|number))/i.test(s);
@@ -2346,7 +2376,7 @@
       const text=String(r?.text||'');
       const compact=compactOCRText(text);
       const hasBank=!!detectBankFromOCR(text) && detectBankFromOCR(text)!=='AMBIGUOUS';
-      const hasMoney=extractAmountCandidates(text).length>0;
+      const hasMoney=slipLabeledAmountCandidates(text).length>0;
       const hasDate=extractDateCandidatesFromText(text).length>0;
       const hasAccount=!!extractAccountName(text);
       const digits=(text.match(/[0-9০-৯]/g)||[]).length;
@@ -2364,7 +2394,7 @@
 
       // Pass 2 only when the first pass is incomplete. PSM 11 is stronger for
       // scattered/thermal bank-slip text and broken line layouts.
-      if(ocrNeedsRecovery(first)||!extractSlipTransactionId([first])){
+      if(ocrNeedsRecovery(first)||!extractSlipTransactionId([first])||slipLabeledAmountCandidates(first.text).length){
         const enhanced=await preprocessImage(file,4,0);
         results.push(await recognizeSlipPass(worker,enhanced,'11'));
       }
@@ -2372,7 +2402,7 @@
       // Numeric recovery only when amount/date evidence is still weak. It uses
       // a character whitelist, making amount/date extraction both faster and cleaner.
       const mergedText=results.map(r=>r.text||'').join('\n');
-      const hasMoney=extractAmountCandidates(mergedText).length>0;
+      const hasMoney=slipLabeledAmountCandidates(mergedText).length>0;
       const hasDate=extractDateCandidatesFromText(mergedText).length>0;
       if(!hasMoney || !hasDate){
         const numeric=await preprocessImage(file,2,0);
@@ -2404,39 +2434,14 @@
     }
 
     function chooseConsensusAmount(ocrResults) {
-      const aggregate={};
-      ocrResults.forEach(r=>{
-        const bank=detectBankFromOCR(r.text);
-        const list=(bank && bank!=="AMBIGUOUS") ? targetedAmountCandidates(r.text,bank) : extractAmountCandidates(r.text);
-        list.slice(0,10).forEach(c=>{
-          const key=Number(c.value).toFixed(2);
-          if(!aggregate[key]) aggregate[key]={value:c.value,score:0,passes:0,bestScore:0,labelPasses:0,lines:[],sources:[]};
-          const item=aggregate[key];
-          item.score += c.score + Math.max(0,Math.round((r.confidence||0)/30));
-          item.passes += 1;
-          item.bestScore=Math.max(item.bestScore,c.score);
-          if(c.score>=14) item.labelPasses += 1;
-          if(item.lines.length<6) item.lines.push(c.line);
-          c.source && !item.sources.includes(c.source) && item.sources.push(c.source);
-        });
-      });
-
-      const ranked=Object.values(aggregate).sort((a,b)=>
-        (b.labelPasses-a.labelPasses)||(b.passes-a.passes)||(b.score-a.score)||(b.bestScore-a.bestScore)
-      );
-      if(!ranked.length) return null;
-      const top=ranked[0], second=ranked[1];
-
-      // Multiple passes + a labelled amount is the preferred proof.
-      if(top.passes>=2 && top.labelPasses>=1){
-        if(!second || top.labelPasses>second.labelPasses || top.passes>second.passes || top.score>second.score) return top;
-      }
-      if(top.labelPasses>=2) return top;
-      if(top.bestScore>=16 && top.passes>=1) return top;
-      // A single strong bank-label/currency hit is safer than leaving a valid
-      // deposit amount blank merely because a recovery pass missed the same line.
-      if(top.bestScore>=24 && (!second || top.score >= second.score + 6)) return top;
-      return null;
+      const candidates=(ocrResults||[]).flatMap(r=>slipLabeledAmountCandidates(r.text));
+      if(!candidates.length)return null;
+      // Different OCR passes or the two printed fields must agree. Never guess
+      // which financial amount is correct when their numbers conflict.
+      const values=new Set(candidates.map(x=>x.value.toFixed(2)));
+      if(values.size!==1)return null;
+      const chosen=candidates.find(x=>x.priority===2)||candidates[0];
+      return {value:chosen.value,source:chosen.source,lines:[chosen.line]};
     }
 
     function chooseConsensusAccount(ocrResults) {
