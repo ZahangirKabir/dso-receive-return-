@@ -190,6 +190,12 @@
     .table-container { 
       max-height: 70vh; overflow-y: auto; overflow-x: auto; margin-top: 10px; border: 1px solid #ccc; border-radius: 6px; position: relative; -webkit-overflow-scrolling: touch;
     }
+    /* Bank Slip Approval: header stays visible vertically; DSO stays visible horizontally. */
+    #adminPageSlipApproval .table-container { isolation:isolate; }
+    #adminSlipApprovalTable thead th { position:sticky; top:0; z-index:12; background:#00695c; color:#fff; }
+    #adminSlipApprovalTable tbody td:nth-child(3) { position:sticky; left:0; z-index:6; background:#fff; min-width:64px; font-weight:700; box-shadow:3px 0 7px rgba(0,0,0,.12); }
+    #adminSlipApprovalTable tbody tr:nth-child(even) td:nth-child(3) { background:#f9f9f9; }
+    #adminSlipApprovalTable thead th:nth-child(3) { left:0; z-index:18; box-shadow:3px 0 7px rgba(0,0,0,.16); }
     table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 11px; text-align: center; white-space: nowrap; }
     table th, table td { border-bottom: 1px solid #ccc; border-right: 1px solid #ccc; vertical-align: middle; padding: 6px; }
     table th:first-child, table td:first-child { border-left: 1px solid #ccc; }
@@ -199,8 +205,11 @@
     #dataTable thead tr:nth-child(2) th { position: sticky; top: 28px; z-index: 9; }
     #bankDetailsTable thead tr:nth-child(1) th, #notesSummaryTable thead tr:nth-child(1) th, #dsoHistoryTable thead tr:nth-child(1) th { position: sticky; top: 0; z-index: 10; }
 
+    #dataTable { --report-date-width: 112px; }
+    #dataTable thead tr:nth-child(2) th.sticky-col-1,
+    #dataTable tbody td.sticky-col-1 { box-sizing:border-box; width:var(--report-date-width); min-width:var(--report-date-width); max-width:var(--report-date-width); }
     #dataTable th.sticky-col-1, #dataTable td.sticky-col-1 { position: sticky; left: 0; z-index: 5; background-color: #37474f; color: white; }
-    #dataTable th.sticky-col-2, #dataTable td.sticky-col-2 { position: sticky; left: 75px; z-index: 5; background-color: #37474f; color: white; border-right: 2px solid #00695c; }
+    #dataTable th.sticky-col-2, #dataTable td.sticky-col-2 { position: sticky; left: var(--report-date-width); z-index: 5; background-color: #37474f; color: white; border-right: 2px solid #00695c; min-width:90px; box-shadow:3px 0 7px rgba(0,0,0,.12); }
 
     #dataTable thead tr:nth-child(1) th.sticky-col-1, #dataTable thead tr:nth-child(1) th.sticky-col-2 { z-index: 20; }
     #dataTable thead tr:nth-child(2) th.sticky-col-1, #dataTable thead tr:nth-child(2) th.sticky-col-2 { z-index: 19; }
@@ -424,7 +433,7 @@
 
       <!-- ADMIN PANEL NAVIGATION -->
       <div id="adminTabNav" class="tab-nav" style="display:none;">
-        <button class="tab-btn active" id="tabAdminReportBtn" onclick="switchAdminTab('report')">📊 Main Report</button>
+        <button class="tab-btn active" id="tabAdminReportBtn" onclick="switchAdminTab('report')">📊 DSO দের দিনের হিসাব</button>
         <button class="tab-btn" id="tabAdminBankBtn" onclick="switchAdminTab('bank')">🏦 Bank Details</button>
         <button class="tab-btn" id="tabAdminSlipApprovalBtn" onclick="switchAdminTab('slipApproval')">🧾 Bank Slip Approval</button>
         <button class="tab-btn" id="tabAdminNotesBtn" onclick="switchAdminTab('notes')">💵 Note Summary</button>
@@ -524,7 +533,7 @@
               </tr>
               <tr>
                 <th class="th-info sticky-col-1">Date</th>
-                <th class="th-info sticky-col-2">DSO ID (A-Z)</th>
+                <th class="th-info sticky-col-2">DSO ID</th>
                 <th class="th-received">Cash Rec</th>
                 <th class="th-received">DSO Rec Breakdown</th>
                 <th class="th-received">B2B Receive</th>
@@ -571,7 +580,7 @@
         <div class="report-filter" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:end">
           <label>Status <select id="slipApprovalStatus" onchange="renderSlipApprovalFilters()"><option value="">সব Status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></label>
         </div>
-        <div class="table-container"><table><thead><tr><th>তারিখ</th><th>Upload Time</th><th>DSO</th><th>Bank Name / Account</th><th>Transaction ID / Ref</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Slip</th><th>Approval / Reject</th></tr></thead><tbody id="adminBankSlipStatusBody"></tbody></table></div>
+        <div class="table-container"><table id="adminSlipApprovalTable"><thead><tr><th>তারিখ</th><th>Upload Time</th><th>DSO</th><th>Bank Name / Account</th><th>Transaction ID / Ref</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Slip</th><th>Approval / Reject</th></tr></thead><tbody id="adminBankSlipStatusBody"></tbody></table></div>
       </div>
 
       <!-- ADMIN PAGE 3: NOTE QUANTITY & SUMMARY PAGE -->
