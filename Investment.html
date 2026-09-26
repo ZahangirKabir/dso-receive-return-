@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.09.25.29">
+<meta name="investment-release-version" content="2026.09.27.1">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -93,7 +93,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @media(max-width:560px){body{padding:8px}.card{padding:14px;margin:10px 0}.working-level{padding:10px;margin:15px 0}.finance-section{padding:10px}.fields,.repeat-row,.report-detail-grid{grid-template-columns:minmax(0,1fr)}#moduleMenu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:8px}#moduleMenu button{width:100%;padding:10px 6px;font-size:12px;white-space:normal}.clear-investment-data{grid-column:1/-1;margin-left:0}.nav-group{width:100%}.nav-group strong{width:100%}.report-filter{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.report-filter input{width:100%}.report-filter button{min-width:0}button.save{width:100%}.card h2{font-size:17px}}
 @media(max-width:360px){#moduleMenu{grid-template-columns:1fr}.report-filter{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.menu button,.field input,.field select{transition:none}}
-</style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden><button type="button" id="showWorkingCapital" class="active">💼 Working Capital</button><button type="button" id="showPettyCash">💵 Petty Cash</button><button type="button" id="showTotalInvestment">📊 Total Investment</button><button type="button" id="showBank">🏦 Bank</button><button type="button" id="clearInvestmentData" class="clear-investment-data" hidden>🗑 পরীক্ষার ডাটা পরিষ্কার</button></nav><main id="app" hidden><nav id="menu" class="menu" aria-label="Investment submenu"></nav><section id="content"></section></main><p id="bankAccess" hidden></p><main id="bankApp" hidden><nav id="bankMenu" class="menu"></nav><section id="bankContent"></section></main>
+.investment-footer{margin:24px auto 6px;padding:14px 8px;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:12px;line-height:1.5}.investment-footer strong{color:var(--deep)}
+</style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden><button type="button" id="showWorkingCapital" class="active">💼 Working Capital</button><button type="button" id="showPettyCash">💵 Petty Cash</button><button type="button" id="showTotalInvestment">📊 Total Investment</button><button type="button" id="showBank">🏦 Bank</button><button type="button" id="clearInvestmentData" class="clear-investment-data" hidden>🗑 পরীক্ষার ডাটা পরিষ্কার</button></nav><main id="app" hidden><nav id="menu" class="menu" aria-label="Investment submenu"></nav><section id="content"></section></main><p id="bankAccess" hidden></p><main id="bankApp" hidden><nav id="bankMenu" class="menu"></nav><section id="bankContent"></section></main><footer id="investmentCopyright" class="investment-footer" hidden>Copyright © 2026 <strong>Zahangir Kabir</strong>. All rights reserved.</footer>
 <script>
 // All Investment form, Working Capital reports and Petty Cash accounting live here.
 (()=>{'use strict';
@@ -356,6 +357,7 @@ window.addEventListener('pagehide',stop);show('cheque');
 </script><script>
 (()=>{
  const investment=document.getElementById('app'),bank=document.getElementById('bankApp'),tabs=document.getElementById('moduleMenu');
+ if(parent===window)document.getElementById('investmentCopyright').hidden=false;
  if(investment.hidden&&bank.hidden)return;
  tabs.hidden=false;
  const clear=document.getElementById('clearInvestmentData');let bridge=null;
