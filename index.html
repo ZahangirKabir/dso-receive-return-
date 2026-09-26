@@ -1373,6 +1373,11 @@
 
     // Independent bank slip requests; approval applies each request exactly once.
     let submittedBankAmount = 0;
+    let bankSlipSubmitInProgress = false;
+    function refreshSubmittedBankAmount(){
+      submittedBankAmount=Object.values(slipStatusItems).filter(r=>r && r.date===getLocalDateString() && ['pending','approved','approving'].includes(r.status)).reduce((sum,r)=>sum+(Number(r.amount)||0),0);
+      recalculateBankDepositFromSlips();
+    }
     let slipApprovalRef = null;
     let slipApprovalHandler = null;
     let slipStatusRef = null, slipStatusHandler = null;
@@ -1411,9 +1416,7 @@
         if(String(currentUser)!==user)return;
         slipStatusItems=snap.val()||{};renderBankSlipStatus(user);
         if(user!=='admin'){
-          const entries=Object.entries(slipStatusItems);
-          submittedBankAmount=entries.filter(([_,r])=>r.date===getLocalDateString() && (r.status==='pending'||r.status==='approved'||r.status==='approving')).reduce((sum,[_,r])=>sum+(Number(r.amount)||0),0);
-          recalculateBankDepositFromSlips();
+          refreshSubmittedBankAmount();
         }
       };
       slipStatusRef.on('value',slipStatusHandler,err=>console.error('Bank Slip status load failed:',err));
@@ -1442,6 +1445,7 @@
 
     async function submitBankSlips() {
       if (!currentUser || currentUser==='admin' || isGroupAdmin(currentUser)) return;
+      if(bankSlipSubmitInProgress)return;
       const button=document.getElementById('submitSlipBtn');
       const rows=[...document.querySelectorAll('#slipsContainer .slip-box-item')];
       const active=rows.filter(row=>row.querySelector('.slip-file-input')?.files?.[0] || row.dataset.existingImg || parseRawNumber(row.querySelector('.slip-amt-val')?.value));
@@ -1452,7 +1456,8 @@
         }
         if(!isApprovedSlipAccount(row)) {alert('শুধু অনুমোদিত Bank Account এবং তার নির্ধারিত Bank Name ব্যবহার করুন।');return;}
       }
-      button.disabled=true;button.textContent='Uploading...';
+      bankSlipSubmitInProgress=true;button.disabled=true;button.textContent='Uploading...';
+      let requestSaved=false;
       try {
         const slips=[];
         for(const row of active){
@@ -1468,6 +1473,11 @@
         slips.forEach(s=>s.requestKey=reqRef.key);
         const amount=slips.reduce((n,x)=>n+x.amt,0);
         await reqRef.set({userId:String(currentUser),date:getLocalDateString(),amount,slips,status:'pending',submittedAt:firebase.database.ServerValue.TIMESTAMP});
+        requestSaved=true;
+        // The live listener may have already counted this request. Count by request key,
+        // never add its amount a second time after the write completes.
+        slipStatusItems[reqRef.key]={userId:String(currentUser),date:getLocalDateString(),amount,slips,status:'pending'};
+        refreshSubmittedBankAmount();
         // If today's daily report exists, apply the submitted amount immediately.
         const indexSnap=await database.ref('dailySubmissionIndex/'+getLocalDateString()+'/'+String(currentUser)).once('value');
         let recordKey=indexSnap.val()||null;
@@ -1489,14 +1499,17 @@
           },undefined,false);
           if(!applied.snapshot.val()?.submittedSlipRequests?.[reqRef.key]) throw new Error('স্লিপ জমা হয়েছে, কিন্তু দিনের রিপোর্ট আপডেট হয়নি। Admin-কে জানান।');
         }
-        submittedBankAmount += amount;
-        recalculateBankDepositFromSlips();
         rows.forEach(cleanupSlipPreview);
         document.getElementById('slipsContainer').innerHTML='';slipCounter=0;addSlipRow();
         document.getElementById('slipSubmitMessage').textContent=`✅ ৳${formatBD(amount)} Bank Slip জমা হয়েছে। Admin Approval Pending।`;
         alert('Bank Slip জমা হয়েছে। Bank Deposit Amount যোগ হয়েছে; Admin Slip Approval Pending।');
-      }catch(err){alert('Bank Slip জমা হয়নি: '+err.message);}
-      finally{button.disabled=false;button.textContent='Submit Bank Slip';}
+      }catch(err){
+        if(requestSaved){
+          rows.forEach(cleanupSlipPreview);document.getElementById('slipsContainer').innerHTML='';slipCounter=0;addSlipRow();
+          alert('Bank Slip জমা হয়েছে, তবে দিনের রিপোর্ট সমন্বয় হয়নি। একই স্লিপ আবার Submit করবেন না; Admin-কে জানান। '+err.message);
+        }else alert('Bank Slip জমা হয়নি: '+err.message);
+      }
+      finally{bankSlipSubmitInProgress=false;button.disabled=false;button.textContent='Submit Bank Slip';}
     }
 
     async function approveBankSlipRequest(key,item){
@@ -1566,9 +1579,11 @@
             record.rejectedSlipRequests[key]=true;
             if(record.submittedSlipRequests?.[key]){
               delete record.submittedSlipRequests[key];
-              record.bankDeposit=Math.max(0,(Number(record.bankDeposit)||0)-(Number(item.amount)||0));
               const rejectedImages=new Set((item.slips||[]).map(s=>s.img).filter(Boolean));
               record.slips=(record.slips||[]).filter(s=>s.requestKey!==key && !(s.img && rejectedImages.has(s.img)));
+              // Rebuild the balance from slips still present. This also repairs
+              // records where a previous client displayed or saved the same amount twice.
+              record.bankDeposit=Math.max(0,Math.round(record.slips.reduce((sum,s)=>sum+(Number(s.amt??s.amount)||0),0)*100)/100);
               record.bankName=[...new Set(record.slips.map(s=>s.bankName).filter(Boolean))].join(', ');
             }
             record.approvalStatus='pending';
@@ -1648,10 +1663,7 @@
     // and converting Bangla digits to English digits.
     const KNOWN_SLIP_ACCOUNTS = {
       "1231901053446": { bank: "Pubali Bank", accountName: "M/S. Mostafa" },
-      "1732112000005711": { bank: "UCB", accountName: "M/S. Mostafa" },
-      "4506202001735": { bank: "Sonali Bank", accountName: "M/S. Mostafa" },
-      "20507770101018656": { bank: "Islami", accountName: "SUMON M.F.S" },
-      "1491100322159": { bank: "DBBL", accountName: "SUMON M.F.S" },
+      "1504397777001": { bank: "City Bank", accountName: "M/S. Mostafa" },
       "20501810100344008": { bank: "Islami", accountName: "M/S. Mostafa" }
     };
 
