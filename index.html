@@ -274,11 +274,13 @@
     .slip-card-modal img { width: 100%; height: 120px; object-fit: contain; background: #f0f0f0; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
     
     .image-zoom-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 10px; }
-    .image-zoom-container { width:min(98vw,1100px); max-width:98vw; max-height:96vh; text-align:center; background:#fff; padding:10px; border-radius:8px; position:relative; overflow:auto; }
-    #zoomedImageSrc { display:block; max-width:none; max-height:none; height:auto; margin:0 auto; border-radius:4px; }
-    .zoom-controls { position:sticky; top:0; z-index:12; display:flex; justify-content:center; flex-wrap:wrap; gap:8px; background:#fff; padding:8px 50px 8px 8px; }
+    .image-zoom-container { width:min(98vw,1100px); max-width:98vw; height:min(96vh,900px); min-height:min(300px,96vh); text-align:center; background:#fff; padding:10px; border-radius:8px; position:relative; display:flex; flex-direction:column; overflow:hidden; }
+    .slip-zoom-viewport { flex:1; min-height:0; overflow:auto; background:#eef2f1; display:flex; align-items:flex-start; border-radius:6px; }
+    #zoomedImageSrc { display:block; max-width:none; max-height:none; height:auto; flex:none; margin:auto; border-radius:4px; }
+    .zoom-controls { flex:none; z-index:12; display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:8px; background:#fff; padding:8px 50px 8px 8px; }
     .zoom-controls button { min-height:38px; border:1px solid #00897b; border-radius:7px; color:#005b50; background:#fff; font-weight:700; cursor:pointer; }
-    .zoom-details-info { margin-top: 10px; padding: 8px; background: #e0f2f1; border-radius: 4px; color: #004d40; font-weight: bold; font-size: 14px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }
+    .zoom-controls output { min-width:50px; font-weight:700; color:#005b50; }
+    .zoom-details-info { flex:none; margin-top: 8px; padding: 8px; background: #e0f2f1; border-radius: 4px; color: #004d40; font-weight: bold; font-size: 14px; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 10px; }
 
     @media screen and (max-width: 900px) {
       .slip-input-group { grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -738,7 +740,7 @@
 
         <button type="button" class="btn" id="submitSlipBtn" onclick="submitBankSlips()">Submit Bank Slip</button>
         <div id="slipSubmitMessage" style="margin:10px 0"></div>
-        <h3>আমার Bank Deposit Status</h3>
+        <h3>আমার Bank Deposit Status — আজ: <span id="dsoSlipStatusDate"></span></h3>
         <div class="table-container"><table><thead><tr><th>তারিখ</th><th>Upload Time</th><th>Bank Name / Account</th><th>Transaction ID / Ref</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Slip</th></tr></thead><tbody id="dsoBankSlipStatusBody"></tbody></table></div>
         <button type="button" class="btn-add" onclick="switchDsoTab('form')">← দিনের রিপোর্টে ফিরে যান</button>
       </div>
@@ -829,8 +831,8 @@
   <div id="imageZoomModal" class="image-zoom-overlay" onclick="closeImageZoomModal()">
     <div class="image-zoom-container" onclick="event.stopPropagation();">
       <button class="modal-close" style="position: absolute; top: 10px; right: 10px; z-index: 20;" onclick="closeImageZoomModal()">✖ Close</button>
-      <div class="zoom-controls"><button type="button" onclick="changeSlipZoom(-1)" aria-label="Zoom out">− ছোট করুন</button><button type="button" onclick="changeSlipZoom(0)" aria-label="Fit image">পুরো ছবি</button><button type="button" onclick="changeSlipZoom(1)" aria-label="Zoom in">+ বড় করুন</button></div>
-      <img id="zoomedImageSrc" src="" alt="Bank Slip Image Preview">
+      <div class="zoom-controls"><button type="button" onclick="changeSlipZoom(-1)" aria-label="ছোট করুন">🔍− ছোট</button><button type="button" onclick="changeSlipZoom(0)" aria-label="স্বাভাবিক মাপে দেখুন">পুরো ছবি</button><output id="slipZoomPercent" aria-live="polite">100%</output><button type="button" onclick="changeSlipZoom(1)" aria-label="বড় করুন">🔍+ বড়</button></div>
+      <div class="slip-zoom-viewport" id="slipZoomViewport"><img id="zoomedImageSrc" src="" alt="Bank Slip Image Preview"></div>
       <div class="zoom-details-info" id="zoomImageDetails"></div>
     </div>
   </div>
@@ -867,7 +869,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.17';
+    const APP_RELEASE_VERSION = '2026.09.27.19';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1064,6 +1066,7 @@
       if (tab === 'slip') {
         document.getElementById("tabDsoSlipBtn")?.classList.add("active");
         document.getElementById("dsoPageSlip").style.display = "block";
+        renderBankSlipStatus(String(currentUser));
         scheduleHeavyLibrariesPreload();
       } else if (tab === 'report') {
         document.getElementById("tabDsoReportBtn")?.classList.add("active");
@@ -1518,11 +1521,14 @@
     function renderBankSlipStatus(user){const body=document.getElementById(user==='admin'?'adminBankSlipStatusBody':'dsoBankSlipStatusBody');if(!body)return;
       const displayed=user==='admin'?{...slipPagedItems,...slipStatusItems}:slipStatusItems;
       if(user==='admin'){const select=document.getElementById('slipApprovalBank');if(select){const chosen=select.value;const names=[...new Set(Object.values(displayed).flatMap(r=>(r.slips||[]).map(s=>String(s.bankName||'').trim())).filter(Boolean))].sort();select.replaceChildren(new Option('সব Bank',''),...names.map(n=>new Option(n,n)));select.value=names.includes(chosen)?chosen:'';}}
-      const all=Object.entries(displayed).sort((a,b)=>String(b[1].date||'').localeCompare(String(a[1].date||''))||(Number(b[1].submittedAt)||0)-(Number(a[1].submittedAt)||0)||b[0].localeCompare(a[0]));
+      const today=getLocalDateString();
+      if(user!=='admin')document.getElementById('dsoSlipStatusDate').textContent=today;
+      const visible=user==='admin'?Object.entries(displayed):Object.entries(displayed).filter(([_,item])=>item?.date===today&&String(item.userId)===String(currentUser));
+      const all=visible.sort((a,b)=>String(b[1].date||'').localeCompare(String(a[1].date||''))||(Number(b[1].submittedAt)||0)-(Number(a[1].submittedAt)||0)||b[0].localeCompare(a[0]));
       const entries=user==='admin'?all.filter(([_,item])=>slipMatchesApprovalFilters(item)):all;
       body.replaceChildren();
       if(user==='admin'){const more=document.getElementById('loadMoreBankSlipsBtn');if(more){more.style.display=slipStatusHasMore?'inline-block':'none';more.disabled=slipStatusLoadingMore;more.textContent=slipStatusLoadingMore?'লোড হচ্ছে...':'আরও Bank Slip দেখুন';}}
-      if(!entries.length){const tr=body.insertRow();const td=tr.insertCell();td.colSpan=user==='admin'?10:8;td.textContent=slipStatusLoadError||(slipStatusLoading?'⏳ Bank Slip ডাটা লোড হচ্ছে...':slipStatusHasMore?'এই অংশে মিল পাওয়া যায়নি; আরও Bank Slip দেখতে নিচের বোতাম চাপুন।':all.length?'এই ফিল্টারে কোনো Bank Slip পাওয়া যায়নি।':'নির্বাচিত তারিখে কোনো Bank Slip নেই।');return;}
+      if(!entries.length){const tr=body.insertRow();const td=tr.insertCell();td.colSpan=user==='admin'?10:8;td.textContent=slipStatusLoadError||(slipStatusLoading?'⏳ Bank Slip ডাটা লোড হচ্ছে...':user!=='admin'?'আজ কোনো Bank Slip নেই।':slipStatusHasMore?'এই অংশে মিল পাওয়া যায়নি; আরও Bank Slip দেখতে নিচের বোতাম চাপুন।':all.length?'এই ফিল্টারে কোনো Bank Slip পাওয়া যায়নি।':'নির্বাচিত তারিখে কোনো Bank Slip নেই।');return;}
       entries.forEach(([key,item])=>{const tr=body.insertRow();const banks=[...new Set((item.slips||[]).map(s=>`${s.bankName||''} ${s.accountNumber||''}`).filter(Boolean))].join(', ');
         const transactionIds=[...new Set((item.slips||[]).map(s=>s.transactionId).filter(Boolean))].join(', ')||'—';
         const uploaded=Number(item.submittedAt)>0?new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dhaka',hour:'2-digit',minute:'2-digit',hour12:true}).format(new Date(Number(item.submittedAt))):'—';
@@ -5067,17 +5073,27 @@
 
     let slipZoomLevel=1,slipFitWidth=0;
     function changeSlipZoom(direction){
-      const img=document.getElementById('zoomedImageSrc'),container=img.closest('.image-zoom-container');
+      const img=document.getElementById('zoomedImageSrc'),viewport=document.getElementById('slipZoomViewport');
       if(!img.naturalWidth)return;
-      slipFitWidth=Math.min(img.naturalWidth,Math.max(240,container.clientWidth-24));
-      slipZoomLevel=direction===0?1:Math.max(0.5,Math.min(4,Math.round((slipZoomLevel+(direction>0?0.5:-0.5))*10)/10));
+      const previousWidth=img.getBoundingClientRect().width||img.naturalWidth;
+      slipFitWidth=Math.max(1,Math.min(img.naturalWidth,Math.max(1,viewport.clientWidth-20),
+        Math.max(1,viewport.clientHeight-20)*img.naturalWidth/img.naturalHeight));
+      slipZoomLevel=direction===0?1:Math.max(0.5,Math.min(5,Math.round((slipZoomLevel+(direction>0?0.25:-0.25))*100)/100));
       img.style.width=Math.round(slipFitWidth*slipZoomLevel)+'px';
+      document.getElementById('slipZoomPercent').textContent=Math.round(slipZoomLevel*100)+'%';
+      if(direction===0){viewport.scrollLeft=0;viewport.scrollTop=0;}
+      else if(previousWidth){
+        const ratio=(slipFitWidth*slipZoomLevel)/previousWidth;
+        viewport.scrollLeft=Math.max(0,(viewport.scrollLeft+viewport.clientWidth/2)*ratio-viewport.clientWidth/2);
+        viewport.scrollTop=Math.max(0,(viewport.scrollTop+viewport.clientHeight/2)*ratio-viewport.clientHeight/2);
+      }
     }
     function zoomImage(src, dsoId, bankName, amt, depositDate) {
       if (!src) return;
       const img=document.getElementById('zoomedImageSrc');
-      img.onload=()=>changeSlipZoom(0);
+      img.onload=()=>requestAnimationFrame(()=>changeSlipZoom(0));
       img.onerror=()=>{document.getElementById('zoomImageDetails').textContent='ছবি পড়া যাচ্ছে না; আসল স্লিপটি পুনরায় যাচাই করুন।';};
+      document.getElementById('imageZoomModal').style.display='flex';
       img.src = src;
       document.getElementById("zoomImageDetails").innerHTML = `
         <span>DSO: ${escapeHtml(dsoId)}</span>
@@ -5085,13 +5101,13 @@
         <span>Amount: ৳ ${formatBD(amt)}</span>
         ${depositDate ? `<span>Deposit Date: ${escapeHtml(depositDate)}</span>` : ""}
       `;
-      document.getElementById("imageZoomModal").style.display = "flex";
-      if(img.complete&&img.naturalWidth)changeSlipZoom(0);
+      if(img.complete&&img.naturalWidth)requestAnimationFrame(()=>changeSlipZoom(0));
     }
 
     function closeImageZoomModal() {
       document.getElementById("imageZoomModal").style.display = "none";
       document.getElementById('zoomedImageSrc').removeAttribute('src');
+      document.getElementById('slipZoomViewport').scrollTo(0,0);
     }
 
     async function exportToExcel() {
@@ -5329,7 +5345,18 @@
     updateReleaseGate();
     startReleaseWatcher();
     checkHostedRelease(true);
-    setInterval(()=>checkHostedRelease(),60000);
+    let lastDsoStatusDate=getLocalDateString();
+    setInterval(()=>{
+      checkHostedRelease();
+      const today=getLocalDateString();
+      if(today!==lastDsoStatusDate){
+        lastDsoStatusDate=today;
+        if(currentUser&&currentUser!=='admin'&&!isGroupAdmin(currentUser)){
+          renderBankSlipStatus(String(currentUser));
+          refreshSubmittedBankAmount();
+        }
+      }
+    },60000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkHostedRelease(true);});
     window.addEventListener('focus',()=>checkHostedRelease(true));
     window.addEventListener('online',()=>checkHostedRelease(true));
