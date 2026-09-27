@@ -873,7 +873,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.21';
+    const APP_RELEASE_VERSION = '2026.09.27.22';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1287,6 +1287,7 @@
       currentUser = null;
       document.getElementById('passwordGate').style.display='none';
       globalAllData = null;
+      justSubmittedSlipBaseline = null;
       dsoEditModeKey = null;
       document.getElementById("appContainer").style.display = "none";
       document.getElementById("adminView").style.display = "none";
@@ -1490,8 +1491,35 @@
       const hash=await crypto.subtle.digest('SHA-256',bytes);
       return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');
     }
+    let justSubmittedSlipBaseline=null;
+    function todaySubmittedReport(){
+      const date=getLocalDateString(),user=String(currentUser||'');
+      return Object.values(globalAllData||{}).find(record=>record?.date===date && String(record.userId)===user) || null;
+    }
+    function isAlreadyCountedAtDailySubmit(key,slip,report){
+      if(!report)return false;
+      if(report.initialSlipRequests)return !!report.initialSlipRequests[key];
+      // Existing reports predate the baseline field. The original submit time
+      // separates their initial slips from later uploads, even when the report
+      // has since been edited or had new slips attached.
+      const submitted=Number(slip?.submittedAt);
+      const reportTime=Number(report.timestamp);
+      if(!submitted)return !!report.submittedSlipRequests?.[key];
+      return !!submitted && !!reportTime && submitted<=reportTime;
+    }
     function refreshSubmittedBankAmount(){
-      submittedBankAmount=uniqueSlipAmounts(Object.fromEntries(Object.entries(slipStatusItems).filter(([_,r])=>r && r.date===getLocalDateString() && ['pending','approved','approving'].includes(r.status)))).total;
+      if(dsoEditModeKey)return;
+      const date=getLocalDateString(),user=String(currentUser||'');
+      const report=todaySubmittedReport();
+      const baseline=justSubmittedSlipBaseline?.date===date && justSubmittedSlipBaseline?.user===user ? justSubmittedSlipBaseline : null;
+      const uncounted=Object.fromEntries(Object.entries(slipStatusItems).filter(([key,slip])=>{
+        if(!slip || slip.date!==date || !['pending','approved','approving'].includes(slip.status))return false;
+        if(baseline?.keys.has(key))return false;
+        return !isAlreadyCountedAtDailySubmit(key,slip,report);
+      }));
+      // Wait until the DSO's report listener resolves: otherwise older slips
+      // briefly reappear as a new deposit during a slow login/reconnect.
+      submittedBankAmount=realtimeInitialDataReady || baseline ? uniqueSlipAmounts(uncounted).total : 0;
       recalculateBankDepositFromSlips();
     }
     let slipStatusRef = null, slipStatusHandler = null, slipStatusScope = '';
@@ -3544,6 +3572,7 @@
           bankDeposit: bankDepositVal,
           bankName: original.bankName || bankNamesCollected.join(', '),
           submittedSlipRequests: original.submittedSlipRequests || {},
+          initialSlipRequests: original.initialSlipRequests || null,
           approvedSlipRequests: original.approvedSlipRequests || {},
           dsoTransferList: getDsoTransferList(),
           cashDeposit: cashDepositAmt,
@@ -3724,6 +3753,7 @@
           bankDeposit: bankDepositVal,
           bankName: [...new Set(Object.values(todaySlipRequests).flatMap(r=>(r.slips||[]).map(x=>x.bankName).filter(Boolean)))].join(", "),
           submittedSlipRequests: Object.fromEntries(Object.keys(todaySlipRequests).map(key=>[key,true])),
+          initialSlipRequests: Object.fromEntries(Object.keys(todaySlipRequests).map(key=>[key,true])),
           approvedSlipRequests: Object.fromEntries(Object.entries(todaySlipRequests).filter(([_,r])=>r.status==='approved').map(([key])=>[key,true])),
           dsoTransferList: getDsoTransferList(),
           cashDeposit: cashDepositAmt,
@@ -3739,8 +3769,10 @@
         updates['collections/' + newCollectionRef.key] = payload;
         updates['dailySubmissionIndex/' + dateStr + '/' + String(currentUser)] = newCollectionRef.key;
         await database.ref().update(updates);
+        justSubmittedSlipBaseline={date:dateStr,user:String(currentUser),keys:new Set(Object.keys(todaySlipRequests))};
         alert('ডাটা সফলভাবে সেভ হয়েছে! দিনের রিপোর্ট Admin Approval Pending।');
         resetForm();
+        refreshSubmittedBankAmount();
       } catch (err) {
         alert("ডাটা সেভ হয়নি! কারণ: " + err.message);
       } finally {
@@ -3825,6 +3857,7 @@
         if(signature!==adminDsoOptionsSignature){populateDsoDropdown(globalAllData);populateAdminFilter();adminDsoOptionsSignature=signature;}
         scheduleAdminRender();
       } else {
+        refreshSubmittedBankAmount();
         if(document.getElementById('dsoPageReport')?.style.display==='block')renderDsoHistory(globalAllData);
       }
     }
@@ -3870,6 +3903,7 @@
           if(dsoFullHistoryReady)return;
           globalAllData = snapshot.val() || {};
           realtimeInitialDataReady = true;
+          refreshSubmittedBankAmount();
           scheduleDataUiUpdate();
         };
         const errorHandler = err => {
