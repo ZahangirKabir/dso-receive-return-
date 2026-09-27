@@ -652,12 +652,6 @@
     <!-- DSO VIEW -->
     <div id="dsoView" style="display: none;">
 
-      <!-- NOTIFICATION BANNER FOR DSO -->
-      <div id="dsoNotificationBanner" class="notification-banner" style="display: none;">
-        <p id="dsoNotificationText">🔔 আপনার হিসাবটি Admin দ্বারা আপডেট/সংশোধন করা হয়েছে।</p>
-        <button class="btn-dismiss" onclick="dismissDsoNotification()">পঠিত হয়েছে (Dismiss)</button>
-      </div>
-
       <!-- DSO TAB 1: ENTRY FORM PAGE -->
       <div id="dsoPageForm">
         <div class="form-grid">
@@ -873,11 +867,11 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.13';
+    const APP_RELEASE_VERSION = '2026.09.27.16';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
-    let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, releaseSignalMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
-    function updateReleaseGate(){const blocked=firebaseReleaseMismatch||hostedReleaseMismatch||releaseSignalMismatch;const gate=document.getElementById('releaseGate');gate.style.display=blocked?'flex':'none';
+    let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
+    function updateReleaseGate(){const blocked=firebaseReleaseMismatch||hostedReleaseMismatch;const gate=document.getElementById('releaseGate');gate.style.display=blocked?'flex':'none';
       if(blocked)document.getElementById('releaseGateMessage').textContent='আপনার অভিজ্ঞতা আরও চমৎকার করতে আমরা অ্যাপটি আপডেট করেছি।';
       const login=document.getElementById('loginBtn');if(login&&!loginInProgress)login.disabled=blocked;
     }
@@ -896,7 +890,12 @@
       releaseSignalRef.on('value', snap=>{
         const token=String(snap.val()||'');
         if(seenReleaseSignal===null){seenReleaseSignal=token;return;}
-        if(token && token!==seenReleaseSignal){releaseSignalMismatch=true;updateReleaseGate('নতুন আপডেট প্রকাশিত হয়েছে। অ্যাপ ব্যবহার করতে এখনই আপডেট করুন।');}
+        if(token && token!==seenReleaseSignal){
+          // A signal is a request to recheck the published HTML, not proof that
+          // the application changed. Financial data writes never open this gate.
+          checkHostedRelease(true).catch(err=>console.warn('Release recheck failed:',err));
+        }
+        seenReleaseSignal=token;
       },err=>console.error('Release notification failed:',err));
     }
     async function publishCurrentRelease(){
@@ -912,9 +911,9 @@
     // index.html has its own release; Investment.html is compared independently.
     async function checkHostedRelease(force=false) {
       if(releaseCheckPromise)return releaseCheckPromise;
-      if(!force&&Date.now()-hostedReleaseCheckedAt<60000)return !hostedReleaseMismatch&&!releaseSignalMismatch;
+      if(!force&&Date.now()-hostedReleaseCheckedAt<60000)return !hostedReleaseMismatch;
       releaseCheckPromise=(async()=>{
-        if(location.protocol!=='http:'&&location.protocol!=='https:')return !hostedReleaseMismatch&&!releaseSignalMismatch;
+        if(location.protocol!=='http:'&&location.protocol!=='https:')return !hostedReleaseMismatch;
         const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
         try{
           const fetchAsset=async url=>{url.searchParams.set('_release_check',Date.now());const response=await fetch(url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('HTTP '+response.status+' '+url.pathname);return response.text();};
@@ -936,8 +935,8 @@
           hostedReleaseMismatch=index!==APP_RELEASE_VERSION||investmentChanged;
           hostedReleaseCheckedAt=Date.now();
           updateReleaseGate(hostedReleaseMismatch?'নতুন index.html অথবা Investment.html এসেছে। আপডেট না করলে Login বা অ্যাপ ব্যবহার করা যাবে না।':null);
-          return !hostedReleaseMismatch && !releaseSignalMismatch;
-        }catch(err){console.warn('Hosted update check will retry without locking the app:',err);hostedReleaseCheckedAt=Date.now();return !hostedReleaseMismatch && !releaseSignalMismatch;}
+          return !hostedReleaseMismatch;
+        }catch(err){console.warn('Hosted update check will retry without locking the app:',err);hostedReleaseCheckedAt=Date.now();return !hostedReleaseMismatch;}
         finally{clearTimeout(timeout);}
       })();
       try{return await releaseCheckPromise;}finally{releaseCheckPromise=null;}
@@ -1162,7 +1161,6 @@
         document.getElementById("adminTabNav").style.display = "none";
         switchDsoTab('form');
         resetForm();
-        listenDsoNotifications();
       }
       listenRealtimeData();
       // Open the small, date-scoped Admin slip query only when its page is visited.
@@ -1185,10 +1183,10 @@
       loginInProgress = true;
       if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Checking…';}
       try {
-        if(!(await checkHostedRelease(true))||firebaseReleaseMismatch||releaseSignalMismatch)return;
+        if(!(await checkHostedRelease(true))||firebaseReleaseMismatch)return;
         let dbPass;
         const snap = await database.ref('users/' + id + '/password').once('value');
-        if(firebaseReleaseMismatch||hostedReleaseMismatch||releaseSignalMismatch)return;
+        if(firebaseReleaseMismatch||hostedReleaseMismatch)return;
         dbPass = snap.val();
         if (dbPass === null || dbPass === undefined) dbPass = isGroupAdmin(id) ? SUB_ADMIN_PASSWORD : '123456';
         if (pass !== String(dbPass).trim()) { alert("ভুল পাসওয়ার্ড! দয়া করে সঠিক পাসওয়ার্ড দিন।"); return; }
@@ -1278,7 +1276,6 @@
       detachRealtimeDataListeners();
       detachSlipStatusListeners();
       slipStatusScope='';slipStatusItems={};slipStatusLoading=false;slipStatusLoadError='';
-      if(dsoNotificationRef){dsoNotificationRef.off('value',dsoNotificationHandler);dsoNotificationRef=null;}
       try { sessionStorage.removeItem(PORTAL_SESSION_KEY); } catch (_) {}
       currentUser = null;
       document.getElementById('passwordGate').style.display='none';
@@ -1478,14 +1475,33 @@
     }
     let slipStatusRef = null, slipStatusHandler = null, slipStatusScope = '';
     let slipStatusListeners=[], slipStatusRenderTimer=null;
+    const slipPagedListeners=new Map();
     function detachSlipStatusListeners(){
       if(slipStatusRef)slipStatusListeners.forEach(([event,handler])=>slipStatusRef.off(event,handler));
       slipStatusRef=null;slipStatusListeners=[];
+      for(const {ref,handler} of slipPagedListeners.values())ref.off('value',handler);
+      slipPagedListeners.clear();
       clearTimeout(slipStatusRenderTimer);slipStatusRenderTimer=null;
     }
     let slipStatusItems = {}, slipStatusLoading = false, slipStatusLoadError = '';
     const BANK_SLIP_PAGE_SIZE=25;
     let slipPagedItems={},slipStatusHasMore=false,slipStatusLoadingMore=false;
+    function watchOlderSlip(key,value,scope){
+      if(!key||!value||slipPagedListeners.has(key))return;
+      slipPagedItems[key]=value;
+      const ref=database.ref('bankSlipRequests/'+key);
+      const handler=record=>{
+        if(scope!==slipStatusScope||currentUser!=='admin')return;
+        if(record.exists())slipPagedItems[key]=record.val();
+        else delete slipPagedItems[key];
+        if(!slipStatusRenderTimer)slipStatusRenderTimer=setTimeout(()=>{
+          slipStatusRenderTimer=null;
+          if(scope===slipStatusScope&&currentUser==='admin')renderBankSlipStatus('admin');
+        },75);
+      };
+      slipPagedListeners.set(key,{ref,handler});
+      ref.on('value',handler,err=>console.error('Older Bank Slip live sync failed:',err));
+    }
     let slipApprovalViewMode='date';
     function slipMatchesApprovalFilters(item){
       const date=document.getElementById('filterDate')?.value||getLocalDateString();
@@ -1565,7 +1581,10 @@
         console.error('Bank Slip status load failed:',err);
       };
       const add=snap=>{slipStatusItems[snap.key]=snap.val();schedule();};
-      const remove=snap=>{delete slipStatusItems[snap.key];schedule();};
+      const remove=snap=>{
+        if(user==='admin'&&slipStatusItems[snap.key])watchOlderSlip(snap.key,snap.val(),scope);
+        delete slipStatusItems[snap.key];schedule();
+      };
       [['child_added',add],['child_changed',add],['child_removed',remove]].forEach(([event,handler])=>{
         slipStatusRef.on(event,handler,error);slipStatusListeners.push([event,handler]);
       });
@@ -1598,7 +1617,7 @@
           const value=child.val();
           if(child.key!==oldest[0])page.push([child.key,value]);
         });
-        for(const [key,value] of page)slipPagedItems[key]=value;
+        for(const [key,value] of page)watchOlderSlip(key,value,scope);
         slipStatusHasMore=page.length>=BANK_SLIP_PAGE_SIZE;
       }catch(err){slipStatusLoadError='আরও Bank Slip লোড হয়নি: '+(err?.message||'সংযোগ সমস্যা');console.error('Bank Slip next page failed:',err);}
       finally{if(scope===slipStatusScope){slipStatusLoadingMore=false;renderBankSlipStatus('admin');}}
@@ -1737,7 +1756,6 @@
         if(ref&&!updated?.approvedSlipRequests?.[key]) throw new Error('Slip Approval আপডেট হয়নি; একই ছবি অন্য request-এ থাকলে সেটি যাচাই করুন।');
         await database.ref('bankSlipRequests/'+key).update({status:'approved',approvedAt:firebase.database.ServerValue.TIMESTAMP,approvedBy:currentUser,...(recordKey?{collectionKey:recordKey}:{})});
         if(slipPagedItems[key]){slipPagedItems[key]={...slipPagedItems[key],status:'approved'};renderBankSlipStatus('admin');}
-        await database.ref('notifications/'+item.userId).set({unread:true,type:'bank_slip_approved',message:`✅ ${item.date} তারিখের ৳${formatBD(item.amount)} Bank Slip Approved হয়েছে। দিনের রিপোর্ট Admin আলাদাভাবে Approve করবেন।`,timestamp:firebase.database.ServerValue.TIMESTAMP}).catch(err=>console.error('Approval notification failed:',err));
         alert(ref?'Bank Slip Approved। Bank Deposit Amount ৳'+formatBD(updated.bankDeposit)+'। দিনের রিপোর্ট Admin আলাদাভাবে Approve করবেন।':'Bank Slip Approved। DSO দিনের রিপোর্ট Submit করলে Admin সেটি আলাদাভাবে Approve করবেন।');
       }catch(err){
         try{
@@ -1794,7 +1812,6 @@
         }
         await requestRef.update({status:'rejected',rejectReason:reason,rejectedAt:firebase.database.ServerValue.TIMESTAMP,rejectedBy:currentUser,collectionKey:recordKey||null});
         if(slipPagedItems[key]){slipPagedItems[key]={...slipPagedItems[key],status:'rejected',rejectReason:reason};renderBankSlipStatus('admin');}
-        await database.ref('notifications/'+item.userId).set({unread:true,type:'bank_slip_rejected',message:`❌ ${item.date} তারিখের ৳${formatBD(item.amount)} Bank Slip Rejected। কারণ: ${reason}`,timestamp:firebase.database.ServerValue.TIMESTAMP}).catch(err=>console.error('Rejection notification failed:',err));
         alert('Bank Slip Rejected; DSO status আপডেট হয়েছে।');
       }catch(err){
         try{
@@ -2454,7 +2471,7 @@
       const bank=chooseConsensusBank([r]);
       const hasBank=!!knownAccount?.bank || (!!bank && bank!=='AMBIGUOUS');
       const hasMoney=!!chooseConsensusAmount([r]);
-      const hasDate=extractDateCandidatesFromText(text).length>0;
+      const hasDate=!!extractDepositDate(r) || extractDateCandidatesFromText(text).length===1;
       const hasAccount=!!knownAccount?.accountName || !!extractAccountName(text);
       const digits=(text.match(/[0-9০-৯]/g)||[]).length;
       return !text || r.confidence<42 || !hasBank || !hasMoney || !hasDate || !hasAccount || digits<5 || compact.length<45;
@@ -2486,8 +2503,7 @@
 
       // Numeric recovery only when amount/date evidence is still weak. It uses
       // a character whitelist, making amount/date extraction both faster and cleaner.
-      const mergedText=results.map(r=>r.text||'').join('\n');
-      const hasDate=extractDateCandidatesFromText(mergedText).length>0;
+      const hasDate=!!chooseConsensusDate(results);
       if(!hasDate){
         const numeric=await preprocessImage(file,2,0);
         results.push(await recognizeSlipPass(worker,numeric,'11',{
@@ -2725,12 +2741,9 @@
       if(!ranked.length) return "";
       if(!ranked[1]) return ranked[0][0];
       if(ranked[0][1] >= ranked[1][1] + 3) return ranked[0][0];
-      // If scores are close, prefer the date nearest to today; slips commonly contain
-      // other dates (print/value dates) that otherwise create a tie.
-      const top=ranked.slice(0,3).sort((a,b)=>
-        Math.abs(new Date(a[0]+'T00:00:00').getTime()-todayMs) - Math.abs(new Date(b[0]+'T00:00:00').getTime()-todayMs)
-      );
-      return top[0]?.[0] || "";
+      // An ambiguous printed date must be checked by the user. Proximity to
+      // today is not evidence that this was the actual deposit date.
+      return "";
     }
 
     function zoomSlipInputImage(id) {
@@ -3241,13 +3254,6 @@
           approvedAt: Date.now()
         };
         await database.ref('collections/' + key + '/editPermission').set(approval);
-        await database.ref('notifications/' + dsoId).set({
-          unread: true,
-          message: `✅ Admin অনুমতি দিয়েছেন। DSO ${dsoId} আপনার ${item.date || ''} তারিখের হিসাব Edit করে Update করতে পারবেন।`,
-          timestamp: Date.now(),
-          type: "dso_edit_permission",
-          recordKey: key
-        });
         alert(`✅ DSO ${dsoId} এর Edit Permission দেওয়া হয়েছে।`);
       } catch (err) {
         alert("❌ Edit Permission দিতে সমস্যা হয়েছে: " + err.message);
@@ -3265,16 +3271,6 @@
           deniedBy: "admin",
           deniedAt: Date.now()
         });
-        const dsoId = String(item.userId || "");
-        if (dsoId) {
-          await database.ref('notifications/' + dsoId).set({
-            unread: true,
-            message: `❌ Admin আপনার ${item.date || ''} তারিখের হিসাব Edit Request অনুমোদন করেননি।`,
-            timestamp: Date.now(),
-            type: "dso_edit_permission_denied",
-            recordKey: key
-          });
-        }
       } catch (err) {
         alert("❌ Request বাতিল করতে সমস্যা হয়েছে: " + err.message);
       }
@@ -3537,13 +3533,6 @@
 
         await database.ref("collections/" + key).update(update);
         await database.ref("notifications/admin/editRequests/" + key).remove().catch(()=>{});
-        await database.ref("notifications/" + currentUser).set({
-          unread: true,
-          message: `✅ আপনার ${original.date || ''} তারিখের হিসাব সফলভাবে Update হয়েছে। এখন আবার Admin Approval প্রয়োজন হলে Request Edit ব্যবহার করুন।`,
-          timestamp: now,
-          type: "dso_edit_completed",
-          recordKey: key
-        });
 
         dsoEditModeKey = null;
         alert("✅ Daily হিসাব সফলভাবে Update হয়েছে। Admin নতুন হিসাবটি দেখতে পাবেন।");
@@ -3955,41 +3944,6 @@
       } else {
         applyAdminFilters(true);
       }
-    }
-
-    let dsoNotificationRef=null, dsoNotificationHandler=null;
-    function listenDsoNotifications(){
-      if(dsoNotificationRef){dsoNotificationRef.off('value',dsoNotificationHandler);dsoNotificationRef=null;}
-      if(!currentUser || currentUser==='admin' || isGroupAdmin(currentUser)) return;
-      dsoNotificationRef=database.ref('notifications/'+currentUser);
-      dsoNotificationHandler=snap=>{
-        const n=snap.val();const banner=document.getElementById('dsoNotificationBanner');
-        banner.style.display=n?.unread?'block':'none';
-        if(n?.unread) document.getElementById('dsoNotificationText').textContent=n.message||'🔔 আপনার হিসাব Admin আপডেট করেছেন।';
-      };
-      dsoNotificationRef.on('value',dsoNotificationHandler,err=>console.error('Notification stream failed:',err));
-    }
-    async function checkDsoNotifications() {
-      if (!currentUser || currentUser === "admin" || isGroupAdmin(currentUser)) return;
-      try {
-        let snap = await database.ref('notifications/' + currentUser).once('value');
-        let notif = snap.val();
-        let banner = document.getElementById("dsoNotificationBanner");
-        if (notif && notif.unread) {
-          document.getElementById("dsoNotificationText").innerText = "🔔 " + (notif.message || "আপনার হিসাবটি Admin দ্বারা আপডেট করা হয়েছে।");
-          banner.style.display = "flex";
-        } else {
-          banner.style.display = "none";
-        }
-      } catch(e){}
-    }
-
-    async function dismissDsoNotification() {
-      if (!currentUser) return;
-      try {
-        await database.ref('notifications/' + currentUser).update({ unread: false });
-        document.getElementById("dsoNotificationBanner").style.display = "none";
-      } catch(e){}
     }
 
     function dsoReportDates(){
@@ -4687,12 +4641,7 @@
 
       try {
         await database.ref('collections/' + key).update(update);
-        const message = `Admin আপনার ${original.date || ''} তারিখের DSO ${original.userId || ''} হিসাব আপডেট করেছেন।\n` + changeLines.join(' | ');
-        await database.ref('notifications/' + original.userId).set({
-          unread: true, message, timestamp: Date.now(),
-          changes: changeLines, updatedBy: currentUser, recordKey: key
-        });
-        alert("✅ Amount সফলভাবে Update হয়েছে। DSO User পরিবর্তনের Update notification পাবেন।");
+        alert("✅ Amount সফলভাবে Update হয়েছে। DSO-এর রিপোর্টে পরিবর্তনটি সঙ্গে সঙ্গে দেখা যাবে।");
         closeEditModal();
       } catch (err) {
         alert("আপডেট করতে সমস্যা হয়েছে: " + err.message);
