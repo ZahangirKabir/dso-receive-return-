@@ -867,7 +867,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.16';
+    const APP_RELEASE_VERSION = '2026.09.27.17';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1256,8 +1256,8 @@
         if(currentUser==='admin'){
           const date=document.getElementById('filterDate')?.value || getLocalDateString();
           let mode=masterAdminDataMode || 'date';
-          if(mode==='date') loadMasterAdminData('date',date);
-          else loadMasterAdminData(mode);
+          if(mode==='date') loadMasterAdminData('date',date,true);
+          else loadMasterAdminData(mode,'',true);
         }else{
           // Re-attach the same scoped realtime query instead of reloading the page.
           realtimeListenerAttached=false;
@@ -3876,8 +3876,18 @@
       loadMasterAdminData('date', getLocalDateString());
     }
 
-    function loadMasterAdminData(mode = 'date', selectedDate = '') {
+    function loadMasterAdminData(mode = 'date', selectedDate = '', force = false) {
       if (currentUser !== 'admin') return;
+
+      // Tab changes must reuse the active date-scoped live query. Reattaching
+      // the same query downloads its slip images again and flashes Loading.
+      const scope=mode==='date'?'date:'+(selectedDate||getLocalDateString()):
+        mode==='month'?(()=>{const b=getCurrentMonthBounds();return 'month:'+b.start+':'+b.end;})():'all';
+      if(!force&&masterAdminRealtimeRef?.scope===scope){
+        masterAdminDataMode=mode;
+        if(!masterAdminDataLoading)applyAdminFilters(true);
+        return;
+      }
 
       const token = ++masterAdminDataToken;
       masterAdminDataMode = mode;
@@ -3927,7 +3937,7 @@
         console.error('Master Admin data load failed:', err);
       };
       queryRef.on('value', handler, errorHandler);
-      masterAdminRealtimeRef = { ref: queryRef, handler };
+      masterAdminRealtimeRef = { ref: queryRef, handler, scope };
     }
 
     function onAdminDateFilterChange() {
