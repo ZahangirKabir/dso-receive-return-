@@ -873,7 +873,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.11';
+    const APP_RELEASE_VERSION = '2026.09.27.13';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, releaseSignalMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1065,6 +1065,7 @@
       if (tab === 'slip') {
         document.getElementById("tabDsoSlipBtn")?.classList.add("active");
         document.getElementById("dsoPageSlip").style.display = "block";
+        scheduleHeavyLibrariesPreload();
       } else if (tab === 'report') {
         document.getElementById("tabDsoReportBtn")?.classList.add("active");
         document.getElementById("dsoPageReport").style.display = "block";
@@ -2221,56 +2222,61 @@
     // Fast, high-quality local image preprocessing. The decoded image is cached
     // per File so recovery OCR passes do not repeatedly read/decode the same file.
     const slipOCRImageCache = new WeakMap();
-    async function preprocessImage(file, mode=0, rotation=0) {
-      const key = `${mode}:${rotation}`;
-      let cache = slipOCRImageCache.get(file);
-      if (cache && cache[key]) return cache[key];
-      if (!cache) { cache = {}; slipOCRImageCache.set(file, cache); }
-
-      return new Promise((resolve,reject)=>{
-        const reader = new FileReader();
-        reader.onload = e => {
-          const img = new Image();
-          img.onload = () => {
-            // 2200px keeps printed digits sharp while avoiding huge canvas/OCR cost.
-            const max = 2200;
-            let iw = img.naturalWidth || img.width;
-            let ih = img.naturalHeight || img.height;
-            const r = Math.min(1, max / Math.max(iw,ih));
-            iw = Math.max(1,Math.round(iw*r)); ih = Math.max(1,Math.round(ih*r));
-
-            const swap = rotation % 180 !== 0;
-            const c = document.createElement('canvas');
-            c.width = swap ? ih : iw; c.height = swap ? iw : ih;
-            const ctx = c.getContext('2d', {willReadFrequently:true});
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-            ctx.save();
-            ctx.translate(c.width/2,c.height/2);
-            ctx.rotate(rotation*Math.PI/180);
-            ctx.drawImage(img,-iw/2,-ih/2,iw,ih);
-            ctx.restore();
-
-            const image=ctx.getImageData(0,0,c.width,c.height);
-            const d=image.data;
-            for(let i=0;i<d.length;i+=4){
-              const rr=d[i],gg=d[i+1],bb=d[i+2];
-              let gray=0.299*rr+0.587*gg+0.114*bb;
-              if(mode===1) gray=gray<150?0:255;
-              else if(mode===2) gray=Math.max(0,Math.min(255,(gray-128)*2.25+128));
-              else if(mode===3) gray=Math.max(0,Math.min(255,gray*1.22+8));
-              else if(mode===4) gray=Math.max(0,Math.min(255,(gray-118)*1.72+142));
-              d[i]=d[i+1]=d[i+2]=gray;
-            }
-            ctx.putImageData(image,0,0);
-            const out=c.toDataURL('image/jpeg',0.92);
-            cache[key]=out;
-            resolve(out);
+    const slipOCRDecodedCache = new WeakMap();
+    function loadSlipOCRSource(file){
+      let pending=slipOCRDecodedCache.get(file);
+      if(pending)return pending;
+      pending=new Promise((resolve,reject)=>{
+        let url='';
+        try{
+          url=URL.createObjectURL(file);
+          const image=new Image();
+          image.onload=()=>{
+            URL.revokeObjectURL(url);
+            if(!image.naturalWidth||!image.naturalHeight)reject(new Error('ছবি পড়া যায়নি।'));
+            else resolve(image);
           };
-          img.onerror=reject; img.src=e.target.result;
-        };
-        reader.onerror=reject; reader.readAsDataURL(file);
-      });
+          image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('ছবি decode করা যায়নি।'));};
+          image.src=url;
+        }catch(err){if(url)URL.revokeObjectURL(url);reject(err);}
+      }).catch(async()=>decodeImage(await fileToDataURL(file)))
+        .catch(err=>{slipOCRDecodedCache.delete(file);throw err;});
+      slipOCRDecodedCache.set(file,pending);
+      return pending;
+    }
+    async function preprocessImage(file, mode=0, rotation=0) {
+      const key=`${mode}:${rotation}`;
+      let cache=slipOCRImageCache.get(file);
+      if(cache?.[key])return cache[key];
+      if(!cache){cache={};slipOCRImageCache.set(file,cache);}
+      const img=await loadSlipOCRSource(file);
+      const max=2200;
+      let iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;
+      const scale=Math.min(1,max/Math.max(iw,ih));
+      iw=Math.max(1,Math.round(iw*scale));ih=Math.max(1,Math.round(ih*scale));
+      const swap=rotation%180!==0;
+      const c=document.createElement('canvas');
+      c.width=swap?ih:iw;c.height=swap?iw:ih;
+      const ctx=c.getContext('2d',{willReadFrequently:true});
+      if(!ctx)throw new Error('ছবি প্রস্তুত করার সুবিধা পাওয়া যায়নি।');
+      ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+      ctx.save();ctx.translate(c.width/2,c.height/2);
+      ctx.rotate(rotation*Math.PI/180);ctx.drawImage(img,-iw/2,-ih/2,iw,ih);ctx.restore();
+      const image=ctx.getImageData(0,0,c.width,c.height),d=image.data;
+      for(let i=0;i<d.length;i+=4){
+        const rr=d[i],gg=d[i+1],bb=d[i+2];
+        let gray=0.299*rr+0.587*gg+0.114*bb;
+        if(mode===1)gray=gray<150?0:255;
+        else if(mode===2)gray=Math.max(0,Math.min(255,(gray-128)*2.25+128));
+        else if(mode===3)gray=Math.max(0,Math.min(255,gray*1.22+8));
+        else if(mode===4)gray=Math.max(0,Math.min(255,(gray-118)*1.72+142));
+        d[i]=d[i+1]=d[i+2]=gray;
+      }
+      ctx.putImageData(image,0,0);
+      const out=c.toDataURL('image/jpeg',0.92);
+      if(!out||out==='data:,')throw new Error('OCR ছবি প্রস্তুত হয়নি।');
+      cache[key]=out;
+      return out;
     }
 
     // Bank-specific OCR rules: after one quick scan identifies the bank,
@@ -2396,7 +2402,8 @@
       if(window.Tesseract) return Promise.resolve(window.Tesseract);
       if(!tesseractLoadPromise){
         tesseractLoadPromise = loadScriptOnce('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js','Tesseract')
-          .catch(async()=>loadScriptOnce('https://unpkg.com/tesseract.js@5/dist/tesseract.min.js','Tesseract'));
+          .catch(async()=>loadScriptOnce('https://unpkg.com/tesseract.js@5/dist/tesseract.min.js','Tesseract'))
+          .catch(err=>{tesseractLoadPromise=null;throw err;});
       }
       return tesseractLoadPromise;
     }
@@ -2443,15 +2450,25 @@
     function ocrNeedsRecovery(r){
       const text=String(r?.text||'');
       const compact=compactOCRText(text);
-      const hasBank=!!detectBankFromOCR(text) && detectBankFromOCR(text)!=='AMBIGUOUS';
-      const hasMoney=slipLabeledAmountCandidates(text).length>0;
+      const knownAccount=chooseKnownSlipAccount([r]);
+      const bank=chooseConsensusBank([r]);
+      const hasBank=!!knownAccount?.bank || (!!bank && bank!=='AMBIGUOUS');
+      const hasMoney=!!chooseConsensusAmount([r]);
       const hasDate=extractDateCandidatesFromText(text).length>0;
-      const hasAccount=!!extractAccountName(text);
+      const hasAccount=!!knownAccount?.accountName || !!extractAccountName(text);
       const digits=(text.match(/[0-9০-৯]/g)||[]).length;
       return !text || r.confidence<42 || !hasBank || !hasMoney || !hasDate || !hasAccount || digits<5 || compact.length<45;
     }
 
-    async function runSlipOCR(file, statusEl, id) {
+    let slipOCRQueue=Promise.resolve();
+    function runSlipOCR(file,statusEl,id){
+      // Tesseract exposes one shared worker. Keep parameter changes and scans
+      // together when two photos are selected quickly.
+      const task=slipOCRQueue.catch(()=>{}).then(()=>runSlipOCRExclusive(file,statusEl,id));
+      slipOCRQueue=task.catch(()=>{});
+      return task;
+    }
+    async function runSlipOCRExclusive(file, statusEl, id) {
       const worker=await getSlipOCRWorker();
       const results=[];
 
@@ -2462,7 +2479,7 @@
 
       // Pass 2 only when the first pass is incomplete. PSM 11 is stronger for
       // scattered/thermal bank-slip text and broken line layouts.
-      if(ocrNeedsRecovery(first)||!extractSlipTransactionId([first])||slipLabeledAmountCandidates(first.text).length){
+      if(ocrNeedsRecovery(first)||!extractSlipTransactionId([first])){
         const enhanced=await preprocessImage(file,4,0);
         results.push(await recognizeSlipPass(worker,enhanced,'11'));
       }
@@ -2470,9 +2487,8 @@
       // Numeric recovery only when amount/date evidence is still weak. It uses
       // a character whitelist, making amount/date extraction both faster and cleaner.
       const mergedText=results.map(r=>r.text||'').join('\n');
-      const hasMoney=slipLabeledAmountCandidates(mergedText).length>0;
       const hasDate=extractDateCandidatesFromText(mergedText).length>0;
-      if(!hasMoney || !hasDate){
+      if(!hasDate){
         const numeric=await preprocessImage(file,2,0);
         results.push(await recognizeSlipPass(worker,numeric,'11',{
           tessedit_char_whitelist:'0123456789০১২৩৪৫৬৭৮৯.,/-৳TKBDT:'
@@ -2784,6 +2800,7 @@
       if(submitBtn) submitBtn.disabled=true;
       try{
         const ocrResults=await runSlipOCR(file,null,id);
+        if(!row.isConnected||row.querySelector('.slip-file-input')?.files?.[0]!==file)return;
         if(!ocrResults.length) throw new Error('OCR থেকে কোনো লেখা পাওয়া যায়নি।');
 
         const knownAccount=chooseKnownSlipAccount(ocrResults);
@@ -2807,12 +2824,16 @@
         if(ocrStatus) ocrStatus.value=ready?'ocr_ready':'failed';
         recalculateBankDepositFromSlips(); validateFormAndSubmitBtn();
       }catch(err){
+        if(!row.isConnected||row.querySelector('.slip-file-input')?.files?.[0]!==file)return;
         console.error('Bank Slip OCR failed:',err);
         if(ocrStatus) ocrStatus.value='failed';
         validateFormAndSubmitBtn();
       }finally{
         // OCR must never leave the main submit button permanently disabled.
-        if(submitBtn) submitBtn.disabled=false;
+        if(submitBtn&&row.isConnected&&row.querySelector('.slip-file-input')?.files?.[0]===file) submitBtn.disabled=false;
+        // OCR reads the original first. Prepare the smaller upload copy afterwards.
+        if(row.querySelector('.slip-file-input')?.files?.[0]===file)
+          prepareSlipImageForSave(row,file).catch(err=>console.warn('Slip image preparation failed:',err));
         validateFormAndSubmitBtn();
       }
     }
@@ -3049,37 +3070,50 @@
       if (cached) return cached;
 
       let originalDataUrl = "";
+      let objectUrl="";
       try {
-        originalDataUrl = await fileToDataURL(file);
-        if (!originalDataUrl) return "";
-        const img = await decodeImage(originalDataUrl);
+        let img;
+        try{
+          objectUrl=URL.createObjectURL(file);
+          img=await decodeImage(objectUrl);
+        }catch(decodeError){
+          originalDataUrl=await fileToDataURL(file);
+          img=await decodeImage(originalDataUrl);
+        }
 
-        // Readable for verification, but much faster to upload/download on mobile data.
-        const maxSize = 1440;
+        // OCR has already run on the original. Compress only the stored copy.
         const srcW = img.naturalWidth || img.width;
         const srcH = img.naturalHeight || img.height;
-        const scale = Math.min(1, maxSize / Math.max(srcW, srcH));
-        const width = Math.max(1, Math.round(srcW * scale));
-        const height = Math.max(1, Math.round(srcH * scale));
-
         const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
         const ctx = canvas.getContext("2d", { alpha: false });
         if (!ctx) throw new Error("Canvas is not available");
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, width, height);
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-        ctx.drawImage(img, 0, 0, width, height);
-
         let output = "";
-        try { output = canvas.toDataURL("image/jpeg", 0.82); } catch (_) {}
+        for(const [maxEdge,quality] of [[1600,0.78],[1450,0.70],[1300,0.64]]){
+          const scale=Math.min(1,maxEdge/Math.max(srcW,srcH));
+          canvas.width=Math.max(1,Math.round(srcW*scale));
+          canvas.height=Math.max(1,Math.round(srcH*scale));
+          ctx.fillStyle="#ffffff";
+          ctx.fillRect(0,0,canvas.width,canvas.height);
+          ctx.imageSmoothingEnabled=true;
+          ctx.imageSmoothingQuality="high";
+          ctx.drawImage(img,0,0,canvas.width,canvas.height);
+          let candidate="";
+          try{candidate=canvas.toDataURL("image/jpeg",quality);}catch(_){}
+          if(candidate&&candidate!=="data:,"&&(!output||candidate.length<output.length))output=candidate;
+          // About 260 KiB of JPEG; keep at least 1300px for small printed text.
+          if(output&&output.length<=355000)break;
+        }
         // Never silently save an empty image if canvas conversion fails.
-        if (!output || output === "data:,") output = originalDataUrl;
+        if (!output || output === "data:,") output = originalDataUrl || await fileToDataURL(file);
+        else if(file.size*4/3+40<output.length){
+          originalDataUrl=originalDataUrl||await fileToDataURL(file);
+          if(originalDataUrl.length<output.length)output=originalDataUrl;
+        }
+        if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl="";}
         slipImageDataCache.set(file, output);
         return output;
       } catch (err) {
+        if(objectUrl)URL.revokeObjectURL(objectUrl);
         console.warn("Bank slip conversion failed; keeping original image:", err);
         try {
           const original = originalDataUrl || await fileToDataURL(file);
@@ -3129,8 +3163,7 @@
         };
         preview.src = url;
         preview.classList.add("visible");
-        // Prepare the exact image payload now; Submit will reuse this cache instead of converting again.
-        prepareSlipImageForSave(row, file).catch(() => {});
+        // Preserve the instant original preview; image conversion starts after OCR.
       } catch (err) {
         console.warn("Slip preview object URL failed:", err);
         preview.classList.remove("visible");
