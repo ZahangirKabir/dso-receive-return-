@@ -586,6 +586,7 @@
         <h3 style="color:#00695c;margin-bottom:12px">🧾 Bank Slip Approval</h3>
         <div class="report-filter" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:end">
           <label>Status <select id="slipApprovalStatus" onchange="renderSlipApprovalFilters()"><option value="">সব Status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></label>
+          <label>Bank Name <select id="slipApprovalBank" onchange="renderBankSlipStatus('admin')"><option value="">সব Bank</option></select></label>
         </div>
         <div class="table-container"><table id="adminSlipApprovalTable"><thead><tr><th>তারিখ</th><th>Upload Time</th><th>DSO</th><th>Bank Name / Account</th><th>Transaction ID / Ref</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Bank Slip</th><th>Approval / Reject</th></tr></thead><tbody id="adminBankSlipStatusBody"></tbody></table></div>
       </div>
@@ -1481,14 +1482,16 @@
       const date=document.getElementById('filterDate')?.value||getLocalDateString();
       const adminGroup=getSelectedAdminGroup(),chosenDsos=getSelectedDsoValues();
       const status=document.getElementById('slipApprovalStatus')?.value||'';
+      const bank=document.getElementById('slipApprovalBank')?.value||'';
       const actual=['approving','rejecting'].includes(item.status)?'pending':item.status||'pending';
       const matchDate=slipApprovalViewMode==='all'||(slipApprovalViewMode==='month'?String(item.date||'').startsWith(getLocalMonthString()):item.date===date);
       const matchAdmin=!adminGroup||!SUB_ADMIN_GROUPS[adminGroup]||SUB_ADMIN_GROUPS[adminGroup].has(String(item.userId));
       const matchDso=!chosenDsos.length||chosenDsos.includes(String(item.userId));
-      return matchDate&&matchAdmin&&matchDso&&(!status||actual===status);
+      return matchDate&&matchAdmin&&matchDso&&(!status||actual===status)&&(!bank||(item.slips||[]).some(s=>String(s.bankName||'').trim()===bank));
     }
     function renderSlipApprovalFilters(){if(currentUser==='admin')listenBankSlipStatuses();renderBankSlipStatus('admin');}
     function renderBankSlipStatus(user){const body=document.getElementById(user==='admin'?'adminBankSlipStatusBody':'dsoBankSlipStatusBody');if(!body)return;
+      if(user==='admin'){const select=document.getElementById('slipApprovalBank');if(select){const chosen=select.value;const names=[...new Set(Object.values(slipStatusItems).flatMap(r=>(r.slips||[]).map(s=>String(s.bankName||'').trim())).filter(Boolean))].sort();select.replaceChildren(new Option('সব Bank',''),...names.map(n=>new Option(n,n)));select.value=names.includes(chosen)?chosen:'';}}
       const all=Object.entries(slipStatusItems).sort((a,b)=>(b[1].submittedAt||0)-(a[1].submittedAt||0));
       const entries=user==='admin'?all.filter(([_,item])=>slipMatchesApprovalFilters(item)):all;
       body.replaceChildren();
@@ -1655,9 +1658,9 @@
         },undefined,false);
         if(!claim.committed) throw new Error('এই স্লিপ ইতিমধ্যে নিষ্পত্তি করা হয়েছে।');
         item=claim.snapshot.val();
-        const snap=await database.ref('collections').orderByChild('date').equalTo(item.date).once('value');
-        let recordKey=null;
-        snap.forEach(child=>{if(String(child.val()?.userId)===String(item.userId)) recordKey=child.key;});
+        const indexSnap=await database.ref('dailySubmissionIndex/'+item.date+'/'+item.userId).once('value');
+        let recordKey=indexSnap.val()||item.collectionKey||null;
+        if(!recordKey){const snap=await database.ref('collections').orderByChild('date').equalTo(item.date).once('value');snap.forEach(child=>{if(String(child.val()?.userId)===String(item.userId))recordKey=child.key;});}
         if(!recordKey) throw new Error('এই DSO-এর ওই তারিখের দিনের রিপোর্ট পাওয়া যায়নি। আগে দিনের রিপোর্ট Submit করতে হবে।');
         const ref=database.ref('collections/'+recordKey);
         const existingRecord=(await ref.once('value')).val();
@@ -1685,7 +1688,15 @@
         await database.ref('bankSlipRequests/'+key).update({status:'approved',approvedAt:firebase.database.ServerValue.TIMESTAMP,approvedBy:currentUser,collectionKey:recordKey});
         await database.ref('notifications/'+item.userId).set({unread:true,type:'bank_slip_approved',message:`✅ ${item.date} তারিখের ৳${formatBD(item.amount)} Bank Slip Approved হয়েছে।`,timestamp:firebase.database.ServerValue.TIMESTAMP}).catch(err=>console.error('Approval notification failed:',err));
         alert('Bank Slip Approved। Bank Deposit Amount ৳'+formatBD(updated.bankDeposit));
-      }catch(err){alert('Approval ব্যর্থ: '+err.message);}
+      }catch(err){
+        try{
+          await database.ref('bankSlipRequests/'+key).transaction(request=>{
+            if(!request||request.status!=='approving')return;
+            request.status='pending';return request;
+          },undefined,false);
+        }catch(resetError){console.error('Approval status reset failed:',resetError);}
+        alert('Approval ব্যর্থ: '+err.message+'। সমস্যাটি ঠিক করে আবার Approve চাপুন।');
+      }
     }
 
     async function rejectBankSlipRequest(key,item){
@@ -1733,7 +1744,15 @@
         await requestRef.update({status:'rejected',rejectReason:reason,rejectedAt:firebase.database.ServerValue.TIMESTAMP,rejectedBy:currentUser,collectionKey:recordKey||null});
         await database.ref('notifications/'+item.userId).set({unread:true,type:'bank_slip_rejected',message:`❌ ${item.date} তারিখের ৳${formatBD(item.amount)} Bank Slip Rejected। কারণ: ${reason}`,timestamp:firebase.database.ServerValue.TIMESTAMP}).catch(err=>console.error('Rejection notification failed:',err));
         alert('Bank Slip Rejected; DSO status আপডেট হয়েছে।');
-      }catch(err){alert('Reject সম্পন্ন হয়নি: '+err.message+'। তালিকায় Retry দেখালে সেটি চাপুন।');}
+      }catch(err){
+        try{
+          await database.ref('bankSlipRequests/'+key).transaction(request=>{
+            if(!request||request.status!=='rejecting')return;
+            request.status='pending';return request;
+          },undefined,false);
+        }catch(resetError){console.error('Rejection status reset failed:',resetError);}
+        alert('Reject সম্পন্ন হয়নি: '+err.message+'। আবার চেষ্টা করুন।');
+      }
     }
 
     // ---------- STRICT BANK-SLIP OCR v3 ----------
