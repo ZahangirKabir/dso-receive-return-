@@ -872,9 +872,9 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.7';
+    const APP_RELEASE_VERSION = '2026.09.27.8';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
-    let loadedInvestmentSource = null;
+    let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, releaseSignalMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
     function updateReleaseGate(){const blocked=firebaseReleaseMismatch||hostedReleaseMismatch||releaseSignalMismatch;const gate=document.getElementById('releaseGate');gate.style.display=blocked?'flex':'none';
       if(blocked)document.getElementById('releaseGateMessage').textContent='আপনার অভিজ্ঞতা আরও চমৎকার করতে আমরা অ্যাপটি আপডেট করেছি।';
@@ -911,7 +911,7 @@
     // index.html has its own release; Investment.html is compared independently.
     async function checkHostedRelease(force=false) {
       if(releaseCheckPromise)return releaseCheckPromise;
-      if(!force&&Date.now()-hostedReleaseCheckedAt<15000)return !hostedReleaseMismatch&&!releaseSignalMismatch;
+      if(!force&&Date.now()-hostedReleaseCheckedAt<60000)return !hostedReleaseMismatch&&!releaseSignalMismatch;
       releaseCheckPromise=(async()=>{
         if(location.protocol!=='http:'&&location.protocol!=='https:')return !hostedReleaseMismatch&&!releaseSignalMismatch;
         const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
@@ -928,8 +928,8 @@
             const investmentHtml=investmentResult.html;
             const investmentVersion=investmentHtml.match(/<meta\s+name=["']investment-release-version["']\s+content=["']([^"']+)["']/i)?.[1];
             if(!investmentVersion)throw Error('Investment.html ভার্সন পড়া যায়নি');
-            if(loadedInvestmentSource===null)loadedInvestmentSource=investmentHtml;
-            else investmentChanged=investmentHtml!==loadedInvestmentSource;
+            if(loadedInvestmentVersion===null)loadedInvestmentVersion=investmentVersion;
+            else investmentChanged=investmentVersion!==loadedInvestmentVersion;
             // The baseline is refreshed on reload, so Investment.html remains independent.
           }catch(error){console.warn('Investment update check will retry:',error);}
           hostedReleaseMismatch=index!==APP_RELEASE_VERSION||investmentChanged;
@@ -1032,12 +1032,10 @@
       const filterPanel=document.getElementById('adminFilterPanel');
       filterPanel.style.display=['investment','settings'].includes(tab)?'none':'flex';
       filterPanel.classList.toggle('slip-approval-filter',tab==='slipApproval');
-      if(tab==='investment') {
-        // Reload this one file on every open: Investment.html can update without changing index.html.
+      // Keep the frame's live subscriptions and loaded data across tab changes.
+      // A published version is handled by the release gate.
+      if(tab==='investment'&&!investmentFrame.hasAttribute('src'))
         investmentFrame.src='Investment.html?updated='+Date.now();
-      } else if(investmentFrame.hasAttribute('src')) {
-        investmentFrame.removeAttribute('src');
-      }
       if (tab === 'slipApproval') {slipApprovalViewMode=masterAdminDataMode==='month'?'month':masterAdminDataMode==='all'?'all':'date';renderBankSlipStatus('admin');}
       if(previousTab==='slipApproval'&&tab!=='slipApproval'&&slipReturnState&&currentUser==='admin'){
         document.getElementById('filterDate').value=slipReturnState.date;
@@ -1275,7 +1273,7 @@
       const investmentFrame=document.getElementById('investmentFrame');
       if(investmentFrame) investmentFrame.removeAttribute('src');
       detachRealtimeDataListeners();
-      if(slipStatusRef){slipStatusRef.off('value',slipStatusHandler);slipStatusRef=null;}
+      detachSlipStatusListeners();
       slipStatusScope='';slipStatusItems={};slipStatusLoading=false;slipStatusLoadError='';
       if(dsoNotificationRef){dsoNotificationRef.off('value',dsoNotificationHandler);dsoNotificationRef=null;}
       try { sessionStorage.removeItem(PORTAL_SESSION_KEY); } catch (_) {}
@@ -1476,6 +1474,12 @@
       recalculateBankDepositFromSlips();
     }
     let slipStatusRef = null, slipStatusHandler = null, slipStatusScope = '';
+    let slipStatusListeners=[], slipStatusRenderTimer=null;
+    function detachSlipStatusListeners(){
+      if(slipStatusRef)slipStatusListeners.forEach(([event,handler])=>slipStatusRef.off(event,handler));
+      slipStatusRef=null;slipStatusListeners=[];
+      clearTimeout(slipStatusRenderTimer);slipStatusRenderTimer=null;
+    }
     let slipStatusItems = {}, slipStatusLoading = false, slipStatusLoadError = '';
     let slipApprovalViewMode='date';
     function slipMatchesApprovalFilters(item){
@@ -1535,24 +1539,32 @@
       const mode=user==='admin'?slipApprovalViewMode:'user';
       const scope=user==='admin'?(mode==='date'?'date:'+(document.getElementById('filterDate')?.value||getLocalDateString()):mode==='month'?'month:'+getLocalMonthString():'all'):'user:'+user;
       if(slipStatusRef&&slipStatusScope===scope)return;
-      if(slipStatusRef){slipStatusRef.off('value',slipStatusHandler);slipStatusRef=null;}
+      detachSlipStatusListeners();
       slipStatusScope=scope;slipStatusItems={};slipStatusLoading=true;slipStatusLoadError='';
       const root=database.ref('bankSlipRequests');
       slipStatusRef=user==='admin' ? (mode==='date'?root.orderByChild('date').equalTo(scope.slice(5)):
         mode==='month'?root.orderByChild('date').startAt(getLocalMonthString()+'-01').endAt(getLocalMonthString()+'-31'):root) :
         root.orderByChild('userId').equalTo(user);
-      slipStatusHandler=snap=>{
+      const schedule=()=>{
         if(String(currentUser)!==user||slipStatusScope!==scope)return;
         slipStatusLoading=false;slipStatusLoadError='';
-        slipStatusItems=snap.val()||{};renderBankSlipStatus(user);
-        if(user!=='admin'){
-          refreshSubmittedBankAmount();
-        }
+        if(slipStatusRenderTimer)return;
+        slipStatusRenderTimer=setTimeout(()=>{slipStatusRenderTimer=null;
+          if(String(currentUser)!==user||slipStatusScope!==scope)return;
+          renderBankSlipStatus(user);if(user!=='admin')refreshSubmittedBankAmount();
+        },75);
       };
-      slipStatusRef.on('value',slipStatusHandler,err=>{
+      const error=err=>{
         if(slipStatusScope===scope){slipStatusLoading=false;slipStatusLoadError='Bank Slip ডাটা লোড হয়নি: '+(err?.message||'সংযোগ সমস্যা');renderBankSlipStatus(user);}
         console.error('Bank Slip status load failed:',err);
+      };
+      const add=snap=>{slipStatusItems[snap.key]=snap.val();schedule();};
+      const remove=snap=>{delete slipStatusItems[snap.key];schedule();};
+      [['child_added',add],['child_changed',add],['child_removed',remove]].forEach(([event,handler])=>{
+        slipStatusRef.on(event,handler,error);slipStatusListeners.push([event,handler]);
       });
+      // An empty query does not emit child_added.
+      setTimeout(()=>{if(slipStatusScope===scope&&slipStatusLoading){slipStatusLoading=false;renderBankSlipStatus(user);}},1800);
     }
     function slipStatusLabel(status){return ({approved:'✅ Approved',rejected:'❌ Rejected',rejecting:'⏳ Rejecting',approving:'⏳ Approving',pending:'⏳ Pending'})[status]||String(status||'Pending');}
     async function submitBankSlips() {
@@ -5286,7 +5298,7 @@
     updateReleaseGate();
     startReleaseWatcher();
     checkHostedRelease(true);
-    setInterval(()=>checkHostedRelease(),15000);
+    setInterval(()=>checkHostedRelease(),60000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkHostedRelease(true);});
     window.addEventListener('focus',()=>checkHostedRelease(true));
     window.addEventListener('online',()=>checkHostedRelease(true));
