@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.09.27.2">
+<meta name="investment-release-version" content="2026.09.27.3">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -94,7 +94,33 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @media(max-width:360px){#moduleMenu{grid-template-columns:1fr}.report-filter{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.menu button,.field input,.field select{transition:none}}
 .investment-footer{margin:24px auto 6px;padding:14px 8px;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:12px;line-height:1.5}.investment-footer strong{color:var(--deep)}
-</style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden><button type="button" id="showWorkingCapital" class="active">💼 Working Capital</button><button type="button" id="showPettyCash">💵 Petty Cash</button><button type="button" id="showTotalInvestment">📊 Total Investment</button><button type="button" id="showBank">🏦 Bank</button><button type="button" id="clearInvestmentData" class="clear-investment-data" hidden>🗑 পরীক্ষার ডাটা পরিষ্কার</button></nav><main id="app" hidden><nav id="menu" class="menu" aria-label="Investment submenu"></nav><section id="content"></section></main><p id="bankAccess" hidden></p><main id="bankApp" hidden><nav id="bankMenu" class="menu"></nav><section id="bankContent"></section></main><footer id="investmentCopyright" class="investment-footer" hidden>Copyright © 2026 <strong>Zahangir Kabir</strong>. All rights reserved.</footer>
+
+/* Investment navigation: a compact, keyboard-friendly dropdown for each section. */
+#moduleMenu{display:flex;align-items:center;flex-wrap:wrap;gap:10px;overflow:visible}
+#menu,#bankMenu{display:none!important}
+.module-dropdown{position:relative;min-width:185px;flex:0 1 auto}
+.module-dropdown summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:13px;min-height:44px;border:1px solid #c7dfd9;border-radius:10px;padding:10px 14px;background:#fff;color:var(--deep);font-weight:800;cursor:pointer;user-select:none;transition:background .18s,border-color .18s,box-shadow .18s}
+.module-dropdown summary::-webkit-details-marker{display:none}
+.module-dropdown summary:hover,.module-dropdown[open] summary{background:#edf8f5;border-color:#66b6a6;box-shadow:0 5px 14px rgba(0,77,64,.10)}
+.module-dropdown.active summary{background:var(--teal);border-color:var(--teal);color:#fff}
+.module-dropdown.active[open] summary{background:var(--deep)}
+.dropdown-arrow{display:inline-block;font-size:18px;line-height:1;transition:transform .18s}
+.module-dropdown[open] .dropdown-arrow{transform:rotate(180deg)}
+.module-dropdown-panel{position:absolute;top:calc(100% + 7px);left:0;z-index:50;display:grid;gap:5px;width:max-content;min-width:240px;max-width:min(90vw,340px);padding:8px;background:#fff;border:1px solid #bedbd2;border-radius:12px;box-shadow:0 16px 35px rgba(3,57,46,.19)}
+.module-dropdown-panel button{width:100%;min-height:44px;text-align:left;white-space:normal;padding:10px 13px}
+.module-dropdown-panel button.active{box-shadow:none}
+#navBank .module-dropdown-panel{left:auto;right:0}
+.module-dropdown summary:focus-visible,.module-dropdown-panel button:focus-visible{outline:3px solid #2489b4;outline-offset:2px}
+@media(max-width:560px){#moduleMenu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.module-dropdown{min-width:0;width:100%}.module-dropdown summary{width:100%;min-height:46px;font-size:13px;padding:9px 10px}.module-dropdown-panel{min-width:min(270px,calc(100vw - 28px));max-width:calc(100vw - 28px)}#navPettyCash .module-dropdown-panel,#navBank .module-dropdown-panel{left:auto;right:0}}
+@media(max-width:360px){#moduleMenu{grid-template-columns:1fr}.module-dropdown-panel,#navPettyCash .module-dropdown-panel,#navBank .module-dropdown-panel{left:0;right:auto;width:100%}}
+@media(prefers-reduced-motion:reduce){.module-dropdown summary,.dropdown-arrow{transition:none}}
+</style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden>
+ <details id="navWorkingCapital" class="module-dropdown"><summary>💼 Working Capital <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Working Capital submenu"><button type="button" id="showWorkingCapital">Daily Working Capital</button><button type="button" id="showWorkingCapitalReport">Working Capital Report</button></div></details>
+ <details id="navPettyCash" class="module-dropdown"><summary>💵 Petty Cash <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Petty Cash submenu"><button type="button" id="showPettyCash">Daily Petty Cash</button><button type="button" id="showPettyCashReport">Daily Petty Cash Report</button></div></details>
+ <button type="button" id="showTotalInvestment">📊 Total Investment</button>
+ <details id="navBank" class="module-dropdown"><summary>🏦 Bank <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Bank submenu"><button type="button" id="showBankCheque">Bank Cheque Tracker</button><button type="button" id="showBankDebit">Bank Debit</button></div></details>
+ <button type="button" id="clearInvestmentData" class="clear-investment-data" hidden>🗑 পরীক্ষার ডাটা পরিষ্কার</button>
+</nav><main id="app" hidden><nav id="menu" class="menu" aria-label="Investment submenu"></nav><section id="content"></section></main><p id="bankAccess" hidden></p><main id="bankApp" hidden><nav id="bankMenu" class="menu"></nav><section id="bankContent"></section></main><footer id="investmentCopyright" class="investment-footer" hidden>Copyright © 2026 <strong>Zahangir Kabir</strong>. All rights reserved.</footer>
 <script>
 // All Investment form, Working Capital reports and Petty Cash accounting live here.
 (()=>{'use strict';
@@ -357,7 +383,7 @@ if(!rows.length){list.textContent='কোনো তথ্য পাওয়া য
 const table=el('table'),thead=el('thead'),tr=el('tr');['Date','Bank Name','Cheque Number','Amount','Details'].forEach(x=>tr.append(el('th',x)));thead.append(tr);table.append(thead);
 const body=el('tbody');rows.forEach(x=>{const row=el('tr');[x.date,x.bankName,x.chequeNumber||'—',`৳${fmt(x.amount)}`,x.note||'—'].forEach(v=>row.append(el('td',v)));body.append(row);});table.append(body);list.append(table);
 }
-window.addEventListener('pagehide',stop);show('cheque');
+window.addEventListener('pagehide',stop);window.bankNavigate=show;show('cheque');
 })();
 </script><script>
 (()=>{
@@ -377,11 +403,21 @@ window.addEventListener('pagehide',stop);show('cheque');
    catch(error){alert('ডাটা পরিষ্কার হয়নি: '+error.message);clear.disabled=false;clear.textContent='🗑 পরীক্ষার ডাটা পরিষ্কার';}
   };
  }
- const ids={capital:'showWorkingCapital',petty:'showPettyCash',total:'showTotalInvestment',bank:'showBank'};
+ const ids={capital:'showWorkingCapital',capitalReport:'showWorkingCapitalReport',petty:'showPettyCash',pettyReport:'showPettyCashReport',total:'showTotalInvestment',bankCheque:'showBankCheque',bankDebit:'showBankDebit'};
+ const groups=[...tabs.querySelectorAll('.module-dropdown')];
+ const closeDropdowns=except=>groups.forEach(group=>{if(group!==except)group.open=false;});
+ groups.forEach(group=>group.addEventListener('toggle',()=>{if(group.open)closeDropdowns(group);}));
+ document.addEventListener('click',event=>{if(!tabs.contains(event.target))closeDropdowns();});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'){const openGroup=groups.find(group=>group.open);closeDropdowns();openGroup?.querySelector('summary')?.focus();}});
  function open(which){
-  investment.hidden=which==='bank';bank.hidden=which!=='bank';
+  const isBank=which==='bankCheque'||which==='bankDebit';
+  investment.hidden=isBank;bank.hidden=!isBank;
   Object.entries(ids).forEach(([key,id])=>document.getElementById(id).classList.toggle('active',key===which));
-  if(which!=='bank')window.investmentNavigate(which);
+  const group=which==='capital'||which==='capitalReport'?'navWorkingCapital':which==='petty'||which==='pettyReport'?'navPettyCash':isBank?'navBank':'';
+  groups.forEach(item=>item.classList.toggle('active',item.id===group));
+  closeDropdowns();
+  if(isBank)window.bankNavigate(which==='bankDebit'?'debit':'cheque');
+  else window.investmentNavigate(which);
  }
  Object.entries(ids).forEach(([key,id])=>document.getElementById(id).onclick=()=>open(key));
  open('capital');
