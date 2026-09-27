@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.09.27.1">
+<meta name="investment-release-version" content="2026.09.27.2">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -150,7 +150,7 @@ function cashBalances(date){let deposits=0,spentBefore=0,spentToday=0;
  });
  return {opening:Math.round((deposits-spentBefore)*100)/100,available:Math.round((deposits-spentBefore-spentToday)*100)/100};
 }
-function show(key){stop();page=key;menu.replaceChildren();content.replaceChildren();
+function show(key){page=key;menu.replaceChildren();content.replaceChildren();
  const children=key==='capital'||key==='capitalReport'?
   [['capital','Daily Working Capital'],['capitalReport','Working Capital Report']]:
   key==='petty'||key==='pettyReport'?
@@ -162,9 +162,11 @@ function show(key){stop();page=key;menu.replaceChildren();content.replaceChildre
  });
  if(key==='capital')capitalForm();else if(key==='petty')pettyForm();else report(key);
  if(preview){items={};render();return;}
- stream=database.ref('investmentEntries');const expected=key;
- handler=snap=>{if(String(bridge.getUser())!==owner||page!==expected)return;items=snap.val()||{};if(page==='capital'){window.investmentSyncOpening?.();window.investmentSyncCapitalState?.();}render();};
- stream.on('value',handler,err=>{const box=document.getElementById('investList');if(box)box.textContent='ডাটা লোড হয়নি: '+err.message;});
+ if(!stream){
+  stream=database.ref('investmentEntries');
+  handler=snap=>{if(String(bridge.getUser())!==owner)return;items=snap.val()||{};if(page==='capital'){window.investmentSyncOpening?.();window.investmentSyncCapitalState?.();}render();};
+  stream.on('value',handler,err=>{const box=document.getElementById('investList');if(box)box.textContent='ডাটা লোড হয়নি: '+err.message;});
+ }else{if(page==='capital'){window.investmentSyncOpening?.();window.investmentSyncCapitalState?.();}render();}
 }
 function card(title){const div=node('div');div.className='card';div.append(node('h2',title));content.append(div);return div;}
 function listBox(){const list=node('div');list.id='investList';list.className='card scroll';content.append(list);return list;}
@@ -324,7 +326,7 @@ function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMon
 function fmt(n){return Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});}
 function field(form,label,name,type='text',required=true){const box=el('div'),i=el('input');i.name=name;i.type=type==='number'?'text':type;i.required=required;if(type==='date')i.value=today();if(type==='number'){i.inputMode='decimal';i.addEventListener('blur',()=>{const raw=i.value.trim().replace(/,/g,'');if(raw&&/^\d+(?:\.\d{0,2})?$/.test(raw))i.value=fmt(Number(raw));});}box.append(el('label',label),i);form.append(box);return i;}
 function stop(){if(ref){ref.off('value',handler);ref=null;handler=null;}}
-function show(type){stop();mode=type;menu.replaceChildren();content.replaceChildren();
+function show(type){mode=type;menu.replaceChildren();content.replaceChildren();
 [['cheque','Bank Cheque Tracker'],['debit','Bank Debit']].forEach(([name,title])=>{const b=el('button',title);b.type='button';b.classList.toggle('active',name===type);b.onclick=()=>show(name);menu.append(b);});
 const card=el('div');card.className='card';card.append(el('h2',type==='cheque'?'Bank Name - Cheque Number':'Bank Debit'));content.append(card);
 const form=el('form');form.className='fields';field(form,'Date','date','date');
@@ -344,8 +346,11 @@ form.onsubmit=async event=>{event.preventDefault();if(!form.reportValidity()||St
 const summary=el('div');summary.id='bankSummary';content.append(summary);
 const list=el('div');list.id='bankList';list.className='card scroll';content.append(list);
 if(preview){items={};render();return;}
-ref=database.ref('bankTrackerEntries');
-handler=snap=>{if(String(bridge.getUser())!==owner)return;items=snap.val()||{};render();};ref.on('value',handler,err=>{list.textContent='ডাটা লোড হয়নি: '+err.message;});
+if(!ref){
+ ref=database.ref('bankTrackerEntries');
+ handler=snap=>{if(String(bridge.getUser())!==owner)return;items=snap.val()||{};render();};
+ ref.on('value',handler,err=>{list.textContent='ডাটা লোড হয়নি: '+err.message;});
+}else render();
 }
 function render(){const list=document.getElementById('bankList');if(!list)return;list.replaceChildren();const rows=Object.values(items).filter(x=>x && x.scope==='company' && x.type===mode).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||(b.createdAt||0)-(a.createdAt||0));document.getElementById('bankSummary').textContent=`Total ৳${fmt(rows.reduce((n,x)=>n+(Number(x.amount)||0),0))} · ${rows.length} entries`;
 if(!rows.length){list.textContent='কোনো তথ্য পাওয়া যায়নি।';return;}
