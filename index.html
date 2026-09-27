@@ -316,7 +316,7 @@
       display:grid!important;
       grid-template-columns:1.35fr 1fr 1.35fr 1fr 1fr!important;
       gap:10px!important;
-      align-items:stretch!important;
+      align-items:start!important;
       margin-top:12px!important;
     }
     .slip-field{min-width:0;display:flex;flex-direction:column;gap:5px}
@@ -326,6 +326,8 @@
       font-weight:800!important;
       color:#315a56!important;
       letter-spacing:.1px;
+      min-height:30px;
+      line-height:1.3;
     }
     .slip-field input,.slip-field select{
       width:100%!important;
@@ -363,8 +365,9 @@
       display:block!important;margin-top:4px!important;color:#78909c!important;
       font-size:9px!important;white-space:nowrap!important;overflow:hidden!important;
       text-overflow:ellipsis!important;text-align:center!important;
+      position:absolute!important;top:100%!important;left:0;right:0;
     }
-    .slip-preview-wrap{margin-top:9px}
+    .slip-preview-wrap{margin-top:20px}
     .slip-clear-preview{
       width:150px!important;height:100px!important;object-fit:contain!important;
       background:#fff!important;border:2px solid #80cbc4!important;border-radius:10px!important;
@@ -383,6 +386,7 @@
     @media(max-width:760px){
       .slip-input-group{grid-template-columns:1fr!important}
       .slip-upload-field{grid-column:auto}
+      .slip-upload-field{margin-bottom:11px}
       .slip-box-item{padding:11px!important;border-radius:13px!important}
       .slip-file-label{min-height:48px!important;font-size:13px!important}
       .slip-field input,.slip-field select{min-height:45px!important;font-size:14px!important}
@@ -869,7 +873,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.20';
+    const APP_RELEASE_VERSION = '2026.09.27.21';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1435,7 +1439,7 @@
     function extractSlipTransactionId(ocrResults){
       // Each bank prints a different heading. Accept an ID only after a known
       // heading; do not treat amounts, dates or unrelated account numbers as IDs.
-      const label=/(?:\b(?:tracking|track)\s*(?:number\b|no\b\.?|id\b|#)|\b(?:transaction|trans|txn)\b\s*(?:id\b|no\b\.?|number\b|#)?|\b(?:trx|tx|tr)\s*\.?\s*(?:id\b|no\b\.?|number\b)|\b(?:reference|ref)\s*(?:id\b|no\b\.?|number\b|#)?|লেনদেন\s*(?:আইডি|নং|নম্বর)|রেফারেন্স\s*(?:আইডি|নং|নম্বর)|ট্র্যাকিং\s*(?:নং|নম্বর|আইডি))/ig;
+      const label=/(?:\b(?:tracking|track)\s*(?:number\b|no\b\.?|id\b|#)|\b(?:transaction|trans|txn)\b\s*(?:i[d1l]\b|no\b\.?|number\b|#)?|\b(?:trx|tx|tr)\s*\.?\s*(?:i[d1l]\b|no\b\.?|number\b)|\b(?:reference|ref)\s*(?:i[d1l]\b|no\b\.?|number\b|#)?|লেনদেন\s*(?:আইডি|নং|নম্বর)|রেফারেন্স\s*(?:আইডি|নং|নম্বর)|ট্র্যাকিং\s*(?:নং|নম্বর|আইডি))/ig;
       const candidates=[];
       const extract=candidate=>{
         const raw=String(candidate||'').trim().replace(/^[\s.:：#=\-–—]+/,'').replace(/^(?:no\.?|number|id)\s*[:#=\-–]*\s*/i,'');
@@ -1443,10 +1447,10 @@
         if(!first)return '';
         let value=first;
         // A printed reference may have a short prefix and a digit group.
-        if(first.length<6){
+        if(first.length<6 || (/^\d+$/.test(first) && /\d\s+\d/.test(raw))){
           const remainder=raw.slice(first.length).trim();
           const second=remainder.match(/^[A-Z0-9০-৯]{2,30}(?=\s|$|[,;|])/i)?.[0];
-          if(second && /[0-9০-৯]/.test(second))value+=second;
+          if(second && /[0-9০-৯]/.test(second) && first.length+second.length<=40)value+=second;
         }
         if(/^\d{4}[\-/]\d{1,2}[\-/]\d{1,2}$/.test(value) || /^\d{1,2}[\-/]\d{1,2}[\-/]\d{4}$/.test(value))return '';
         return normalizeSlipTransactionId(value);
@@ -2027,12 +2031,12 @@
 
     function moneyTokensFromLine(line) {
       const x = normalizeOCRDigits(String(line || ""));
-      const re = /(?:৳|tk\.?|taka|bdt)?\s*(\d{1,3}(?:[,.\s]\d{2,3})+(?:\.\d{1,2})?|\d{3,9}(?:\.\d{1,2})?)\s*(?:tk\.?|taka|bdt|৳)?/gi;
+      const re = /(?:৳|tk\.?|taka|bdt)?\s*(\d{1,3}(?:[,.\s]\d{2,3})+(?:\.\d{1,2})?|\d{1,9}(?:\.\d{1,2})?)\s*(?:tk\.?|taka|bdt|৳)?/gi;
       const out = [];
       let m;
       while ((m = re.exec(x)) !== null) {
         const v = parseMoneyCandidate(m[1]);
-        if (v >= 50) out.push({value:v, raw:m[0], index:m.index});
+        if (v > 0) out.push({value:v, raw:m[0], index:m.index});
       }
       return out;
     }
@@ -2042,8 +2046,8 @@
     function slipLabeledAmountCandidates(text) {
       const lines=String(text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
       const results=[];
-      const transfer=/(?:\btransfer(?:red)?\s*[-–:]?\s*amount\b|\bamount\s*transferred\b)/i;
-      const amount=/^\s*amount\b/i;
+      const transfer=/(?:\btransfer(?:red)?\s*[-–:]?\s*am[o0]unt\b|\bam[o0]unt\s*transferred\b)/i;
+      const amount=/^\s*(?:am[o0]unt|deposit\s*am[o0]unt|cash\s*deposit|টাকার\s*পরিমাণ|জমার?\s*পরিমাণ)/i;
       const disallowed=/\b(?:total|balance|debit|credit|fee|charge|vat|tax|reference|ref|account|a\/c|mobile|phone|date|time|cheque|check|transaction\s*(?:id|no)|amount\s*(?:in\s*words|words))\b/i;
       for(let i=0;i<lines.length;i++){
         const line=lines[i];
@@ -2556,11 +2560,18 @@
     function chooseConsensusAmount(ocrResults) {
       const candidates=(ocrResults||[]).flatMap(r=>slipLabeledAmountCandidates(r.text));
       if(!candidates.length)return null;
-      // Different OCR passes or the two printed fields must agree. Never guess
-      // which financial amount is correct when their numbers conflict.
-      const values=new Set(candidates.map(x=>x.value.toFixed(2)));
-      if(values.size!==1)return null;
-      const chosen=candidates.find(x=>x.priority===2)||candidates[0];
+      // Transfer Amount is more specific than a separate generic Amount.
+      // Resolve OCR differences by independent reads; ties require review.
+      const preferred=candidates.filter(x=>x.priority===2);
+      const relevant=preferred.length?preferred:candidates;
+      const votes=new Map();
+      for(const candidate of relevant){
+        const key=candidate.value.toFixed(2);
+        votes.set(key,(votes.get(key)||0)+1);
+      }
+      const ranked=[...votes].sort((a,b)=>b[1]-a[1]);
+      if(ranked.length>1 && ranked[0][1]===ranked[1][1])return null;
+      const chosen=relevant.find(x=>x.value.toFixed(2)===ranked[0][0]);
       return {value:chosen.value,source:chosen.source,lines:[chosen.line]};
     }
 
@@ -2829,6 +2840,9 @@
       bankSelect.value=''; bankSelect.disabled=false; bankSelect.classList.remove('ocr-locked','manual-mode','manual-confirmed');
       recalculateBankDepositFromSlips();
 
+      // Prepare a small upload copy while the worker scans the original photo.
+      // The File-keyed cache also makes Submit reuse this same conversion.
+      const uploadCopy=prepareSlipImageForSave(row,file);
       const submitBtn=document.getElementById('subBtn');
       if(submitBtn) submitBtn.disabled=true;
       try{
@@ -2864,9 +2878,7 @@
       }finally{
         // OCR must never leave the main submit button permanently disabled.
         if(submitBtn&&row.isConnected&&row.querySelector('.slip-file-input')?.files?.[0]===file) submitBtn.disabled=false;
-        // OCR reads the original first. Prepare the smaller upload copy afterwards.
-        if(row.querySelector('.slip-file-input')?.files?.[0]===file)
-          prepareSlipImageForSave(row,file).catch(err=>console.warn('Slip image preparation failed:',err));
+        await uploadCopy;
         validateFormAndSubmitBtn();
       }
     }
