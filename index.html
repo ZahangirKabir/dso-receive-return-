@@ -589,6 +589,7 @@
           <label>Bank Name <select id="slipApprovalBank" onchange="renderBankSlipStatus('admin')"><option value="">সব Bank</option></select></label>
         </div>
         <div class="table-container"><table id="adminSlipApprovalTable"><thead><tr><th>তারিখ</th><th>Upload Time</th><th>DSO</th><th>Bank Name / Account</th><th>Transaction ID / Ref</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Bank Slip</th><th>Approval / Reject</th></tr></thead><tbody id="adminBankSlipStatusBody"></tbody></table></div>
+        <div style="text-align:center;margin:12px"><button type="button" id="loadMoreBankSlipsBtn" class="btn-add" style="display:none" onclick="loadMoreBankSlips()">আরও Bank Slip দেখুন</button></div>
       </div>
 
       <!-- ADMIN PAGE 3: NOTE QUANTITY & SUMMARY PAGE -->
@@ -872,7 +873,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.8';
+    const APP_RELEASE_VERSION = '2026.09.27.11';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, releaseSignalMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1036,7 +1037,7 @@
       // A published version is handled by the release gate.
       if(tab==='investment'&&!investmentFrame.hasAttribute('src'))
         investmentFrame.src='Investment.html?updated='+Date.now();
-      if (tab === 'slipApproval') {slipApprovalViewMode=masterAdminDataMode==='month'?'month':masterAdminDataMode==='all'?'all':'date';renderBankSlipStatus('admin');}
+      if (tab === 'slipApproval') {slipApprovalViewMode='date';document.getElementById('filterDate').value=getLocalDateString();renderSlipApprovalFilters();}
       if(previousTab==='slipApproval'&&tab!=='slipApproval'&&slipReturnState&&currentUser==='admin'){
         document.getElementById('filterDate').value=slipReturnState.date;
         loadMasterAdminData(slipReturnState.mode,slipReturnState.date);
@@ -1163,7 +1164,8 @@
         listenDsoNotifications();
       }
       listenRealtimeData();
-      listenBankSlipStatuses();
+      // Open the small, date-scoped Admin slip query only when its page is visited.
+      if(currentUser!=='admin')listenBankSlipStatuses();
       // OCR assets load only when a slip is selected, keeping login light.
     }
 
@@ -1481,6 +1483,8 @@
       clearTimeout(slipStatusRenderTimer);slipStatusRenderTimer=null;
     }
     let slipStatusItems = {}, slipStatusLoading = false, slipStatusLoadError = '';
+    const BANK_SLIP_PAGE_SIZE=25;
+    let slipPagedItems={},slipStatusHasMore=false,slipStatusLoadingMore=false;
     let slipApprovalViewMode='date';
     function slipMatchesApprovalFilters(item){
       const date=document.getElementById('filterDate')?.value||getLocalDateString();
@@ -1495,11 +1499,13 @@
     }
     function renderSlipApprovalFilters(){if(currentUser==='admin')listenBankSlipStatuses();renderBankSlipStatus('admin');}
     function renderBankSlipStatus(user){const body=document.getElementById(user==='admin'?'adminBankSlipStatusBody':'dsoBankSlipStatusBody');if(!body)return;
-      if(user==='admin'){const select=document.getElementById('slipApprovalBank');if(select){const chosen=select.value;const names=[...new Set(Object.values(slipStatusItems).flatMap(r=>(r.slips||[]).map(s=>String(s.bankName||'').trim())).filter(Boolean))].sort();select.replaceChildren(new Option('সব Bank',''),...names.map(n=>new Option(n,n)));select.value=names.includes(chosen)?chosen:'';}}
-      const all=Object.entries(slipStatusItems).sort((a,b)=>(b[1].submittedAt||0)-(a[1].submittedAt||0));
+      const displayed=user==='admin'?{...slipPagedItems,...slipStatusItems}:slipStatusItems;
+      if(user==='admin'){const select=document.getElementById('slipApprovalBank');if(select){const chosen=select.value;const names=[...new Set(Object.values(displayed).flatMap(r=>(r.slips||[]).map(s=>String(s.bankName||'').trim())).filter(Boolean))].sort();select.replaceChildren(new Option('সব Bank',''),...names.map(n=>new Option(n,n)));select.value=names.includes(chosen)?chosen:'';}}
+      const all=Object.entries(displayed).sort((a,b)=>String(b[1].date||'').localeCompare(String(a[1].date||''))||(Number(b[1].submittedAt)||0)-(Number(a[1].submittedAt)||0)||b[0].localeCompare(a[0]));
       const entries=user==='admin'?all.filter(([_,item])=>slipMatchesApprovalFilters(item)):all;
       body.replaceChildren();
-      if(!entries.length){const tr=body.insertRow();const td=tr.insertCell();td.colSpan=user==='admin'?10:8;td.textContent=slipStatusLoadError|| (slipStatusLoading?'⏳ Bank Slip ডাটা লোড হচ্ছে...':'কোনো Bank Slip নেই।');return;}
+      if(user==='admin'){const more=document.getElementById('loadMoreBankSlipsBtn');if(more){more.style.display=slipStatusHasMore?'inline-block':'none';more.disabled=slipStatusLoadingMore;more.textContent=slipStatusLoadingMore?'লোড হচ্ছে...':'আরও Bank Slip দেখুন';}}
+      if(!entries.length){const tr=body.insertRow();const td=tr.insertCell();td.colSpan=user==='admin'?10:8;td.textContent=slipStatusLoadError||(slipStatusLoading?'⏳ Bank Slip ডাটা লোড হচ্ছে...':slipStatusHasMore?'এই অংশে মিল পাওয়া যায়নি; আরও Bank Slip দেখতে নিচের বোতাম চাপুন।':all.length?'এই ফিল্টারে কোনো Bank Slip পাওয়া যায়নি।':'নির্বাচিত তারিখে কোনো Bank Slip নেই।');return;}
       entries.forEach(([key,item])=>{const tr=body.insertRow();const banks=[...new Set((item.slips||[]).map(s=>`${s.bankName||''} ${s.accountNumber||''}`).filter(Boolean))].join(', ');
         const transactionIds=[...new Set((item.slips||[]).map(s=>s.transactionId).filter(Boolean))].join(', ')||'—';
         const uploaded=Number(item.submittedAt)>0?new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dhaka',hour:'2-digit',minute:'2-digit',hour12:true}).format(new Date(Number(item.submittedAt))):'—';
@@ -1524,7 +1530,7 @@
         if(!(thumbList||slipCell).childNodes.length)slipCell.textContent='—';
         if(user==='admin'){
           const actions=tr.insertCell(),status=item.status||'pending';
-          const hasDuplicate=Object.entries(slipStatusItems).some(([otherKey,other])=>otherKey!==key&&other?.date===item.date&&other.status!=='rejected'&&(item.slips||[]).some(s=>(other.slips||[]).some(old=>sameSlipIdentity(s,old))));
+          const hasDuplicate=Object.entries(displayed).some(([otherKey,other])=>otherKey!==key&&other?.date===item.date&&other.status!=='rejected'&&(item.slips||[]).some(s=>(other.slips||[]).some(old=>sameSlipIdentity(s,old))));
           if(hasDuplicate){const warning=document.createElement('div');warning.textContent='⚠ একই ছবি বা Transaction ID অন্য স্লিপেও আছে; যাচাই করুন';warning.style.color='#b71c1c';actions.append(warning);}
           const addAction=(label,handler,enabled=true)=>{const button=document.createElement('button');button.type='button';button.className='btn-add';button.textContent=label;button.disabled=!enabled;button.style.margin='2px';button.onclick=async()=>{button.disabled=true;try{await handler(key,item);}finally{button.disabled=false;}};actions.append(button);};
           if(status==='pending'||status==='approving')addAction(status==='approving'?'↻ Finish Approval':'✔ Approve',approveBankSlipRequest);
@@ -1540,14 +1546,13 @@
       const scope=user==='admin'?(mode==='date'?'date:'+(document.getElementById('filterDate')?.value||getLocalDateString()):mode==='month'?'month:'+getLocalMonthString():'all'):'user:'+user;
       if(slipStatusRef&&slipStatusScope===scope)return;
       detachSlipStatusListeners();
-      slipStatusScope=scope;slipStatusItems={};slipStatusLoading=true;slipStatusLoadError='';
+      slipStatusScope=scope;slipStatusItems={};slipPagedItems={};slipStatusHasMore=false;slipStatusLoadingMore=false;slipStatusLoading=true;slipStatusLoadError='';
       const root=database.ref('bankSlipRequests');
       slipStatusRef=user==='admin' ? (mode==='date'?root.orderByChild('date').equalTo(scope.slice(5)):
-        mode==='month'?root.orderByChild('date').startAt(getLocalMonthString()+'-01').endAt(getLocalMonthString()+'-31'):root) :
+        mode==='month'?root.orderByChild('date').startAt(getLocalMonthString()+'-01').endAt(getLocalMonthString()+'-31'):root.orderByChild('date')).limitToLast(BANK_SLIP_PAGE_SIZE) :
         root.orderByChild('userId').equalTo(user);
       const schedule=()=>{
         if(String(currentUser)!==user||slipStatusScope!==scope)return;
-        slipStatusLoading=false;slipStatusLoadError='';
         if(slipStatusRenderTimer)return;
         slipStatusRenderTimer=setTimeout(()=>{slipStatusRenderTimer=null;
           if(String(currentUser)!==user||slipStatusScope!==scope)return;
@@ -1563,8 +1568,39 @@
       [['child_added',add],['child_changed',add],['child_removed',remove]].forEach(([event,handler])=>{
         slipStatusRef.on(event,handler,error);slipStatusListeners.push([event,handler]);
       });
-      // An empty query does not emit child_added.
-      setTimeout(()=>{if(slipStatusScope===scope&&slipStatusLoading){slipStatusLoading=false;renderBankSlipStatus(user);}},1800);
+      // An empty query has no child_added event. Wait for the server's initial value,
+      // so slow connections cannot be mistaken for a day without Bank Slips.
+      const initial=snap=>{
+        if(String(currentUser)!==user||slipStatusScope!==scope)return;
+        snap.forEach(child=>{slipStatusItems[child.key]=child.val();});
+        slipStatusHasMore=user==='admin'&&snap.numChildren()===BANK_SLIP_PAGE_SIZE;
+        slipStatusLoading=false;slipStatusLoadError='';renderBankSlipStatus(user);
+        if(user!=='admin')refreshSubmittedBankAmount();
+      };
+      slipStatusRef.once('value',initial,error);
+    }
+    async function loadMoreBankSlips(){
+      if(currentUser!=='admin'||!slipStatusHasMore||slipStatusLoadingMore||slipStatusLoading)return;
+      const scope=slipStatusScope,mode=slipApprovalViewMode;
+      const loaded={...slipPagedItems,...slipStatusItems};
+      const oldest=Object.entries(loaded).sort((a,b)=>String(a[1].date||'').localeCompare(String(b[1].date||''))||a[0].localeCompare(b[0]))[0];
+      if(!oldest)return;
+      slipStatusLoadingMore=true;renderBankSlipStatus('admin');
+      try{
+        const root=database.ref('bankSlipRequests').orderByChild('date');
+        const lowerBound=mode==='date'?scope.slice(5):mode==='month'?getLocalMonthString()+'-01':null;
+        const bounded=lowerBound?root.startAt(lowerBound):root;
+        const query=bounded.endAt(oldest[1].date,oldest[0]).limitToLast(BANK_SLIP_PAGE_SIZE+1);
+        const snapshot=await query.once('value');
+        if(scope!==slipStatusScope||mode!==slipApprovalViewMode||currentUser!=='admin')return;
+        const page=[];snapshot.forEach(child=>{
+          const value=child.val();
+          if(child.key!==oldest[0])page.push([child.key,value]);
+        });
+        for(const [key,value] of page)slipPagedItems[key]=value;
+        slipStatusHasMore=page.length>=BANK_SLIP_PAGE_SIZE;
+      }catch(err){slipStatusLoadError='আরও Bank Slip লোড হয়নি: '+(err?.message||'সংযোগ সমস্যা');console.error('Bank Slip next page failed:',err);}
+      finally{if(scope===slipStatusScope){slipStatusLoadingMore=false;renderBankSlipStatus('admin');}}
     }
     function slipStatusLabel(status){return ({approved:'✅ Approved',rejected:'❌ Rejected',rejecting:'⏳ Rejecting',approving:'⏳ Approving',pending:'⏳ Pending'})[status]||String(status||'Pending');}
     async function submitBankSlips() {
@@ -1673,12 +1709,13 @@
         const indexSnap=await database.ref('dailySubmissionIndex/'+item.date+'/'+item.userId).once('value');
         let recordKey=indexSnap.val()||item.collectionKey||null;
         if(!recordKey){const snap=await database.ref('collections').orderByChild('date').equalTo(item.date).once('value');snap.forEach(child=>{if(String(child.val()?.userId)===String(item.userId))recordKey=child.key;});}
-        if(!recordKey) throw new Error('এই DSO-এর ওই তারিখের দিনের রিপোর্ট পাওয়া যায়নি। আগে দিনের রিপোর্ট Submit করতে হবে।');
-        const ref=database.ref('collections/'+recordKey);
-        const existingRecord=(await ref.once('value')).val();
+        const ref=recordKey?database.ref('collections/'+recordKey):null;
+        const existingRecord=ref?(await ref.once('value')).val():null;
+        if(recordKey && (!existingRecord||existingRecord.date!==item.date||String(existingRecord.userId)!==String(item.userId)))
+          throw new Error('এই স্লিপের DSO ও তারিখের সঙ্গে দিনের রিপোর্ট মেলেনি।');
         if((existingRecord?.slips||[]).some(s=>s.requestKey && s.requestKey!==key && (item.slips||[]).some(candidate=>sameSlipIdentity(s,candidate))))
           throw new Error('দিনের রিপোর্টে এই ছবি অথবা Transaction ID অন্য request-এর নামে জমা আছে। আগে duplicate request যাচাই ও নিষ্পত্তি করুন।');
-        const result=await ref.transaction(record=>{
+        const result=ref?await ref.transaction(record=>{
           if(!record) return;
           if(record.approvedSlipRequests?.[key]) return;
           if((record.slips||[]).some(s=>s.requestKey && s.requestKey!==key && (item.slips||[]).some(candidate=>sameSlipIdentity(s,candidate))))return;
@@ -1694,12 +1731,13 @@
           // Approval must never credit the same slip a second time.
           record.bankDeposit=Math.round((record.slips||[]).reduce((sum,s)=>sum+(Number(s.amt??s.amount)||0),0)*100)/100;
           return record;
-        },undefined,false);
-        const updated=result.snapshot.val();
-        if(!updated?.approvedSlipRequests?.[key]) throw new Error('Slip Approval আপডেট হয়নি; একই ছবি অন্য request-এ থাকলে সেটি যাচাই করুন।');
-        await database.ref('bankSlipRequests/'+key).update({status:'approved',approvedAt:firebase.database.ServerValue.TIMESTAMP,approvedBy:currentUser,collectionKey:recordKey});
-        await database.ref('notifications/'+item.userId).set({unread:true,type:'bank_slip_approved',message:`✅ ${item.date} তারিখের ৳${formatBD(item.amount)} Bank Slip Approved হয়েছে।`,timestamp:firebase.database.ServerValue.TIMESTAMP}).catch(err=>console.error('Approval notification failed:',err));
-        alert('Bank Slip Approved। Bank Deposit Amount ৳'+formatBD(updated.bankDeposit));
+        },undefined,false):null;
+        const updated=result?.snapshot.val();
+        if(ref&&!updated?.approvedSlipRequests?.[key]) throw new Error('Slip Approval আপডেট হয়নি; একই ছবি অন্য request-এ থাকলে সেটি যাচাই করুন।');
+        await database.ref('bankSlipRequests/'+key).update({status:'approved',approvedAt:firebase.database.ServerValue.TIMESTAMP,approvedBy:currentUser,...(recordKey?{collectionKey:recordKey}:{})});
+        if(slipPagedItems[key]){slipPagedItems[key]={...slipPagedItems[key],status:'approved'};renderBankSlipStatus('admin');}
+        await database.ref('notifications/'+item.userId).set({unread:true,type:'bank_slip_approved',message:`✅ ${item.date} তারিখের ৳${formatBD(item.amount)} Bank Slip Approved হয়েছে। দিনের রিপোর্ট Admin আলাদাভাবে Approve করবেন।`,timestamp:firebase.database.ServerValue.TIMESTAMP}).catch(err=>console.error('Approval notification failed:',err));
+        alert(ref?'Bank Slip Approved। Bank Deposit Amount ৳'+formatBD(updated.bankDeposit)+'। দিনের রিপোর্ট Admin আলাদাভাবে Approve করবেন।':'Bank Slip Approved। DSO দিনের রিপোর্ট Submit করলে Admin সেটি আলাদাভাবে Approve করবেন।');
       }catch(err){
         try{
           await database.ref('bankSlipRequests/'+key).transaction(request=>{
@@ -1754,6 +1792,7 @@
           if(!result.snapshot.val()?.rejectedSlipRequests?.[key])throw new Error('দিনের হিসাব আপডেট করা যায়নি। আবার Reject চাপুন।');
         }
         await requestRef.update({status:'rejected',rejectReason:reason,rejectedAt:firebase.database.ServerValue.TIMESTAMP,rejectedBy:currentUser,collectionKey:recordKey||null});
+        if(slipPagedItems[key]){slipPagedItems[key]={...slipPagedItems[key],status:'rejected',rejectReason:reason};renderBankSlipStatus('admin');}
         await database.ref('notifications/'+item.userId).set({unread:true,type:'bank_slip_rejected',message:`❌ ${item.date} তারিখের ৳${formatBD(item.amount)} Bank Slip Rejected। কারণ: ${reason}`,timestamp:firebase.database.ServerValue.TIMESTAMP}).catch(err=>console.error('Rejection notification failed:',err));
         alert('Bank Slip Rejected; DSO status আপডেট হয়েছে।');
       }catch(err){
@@ -3530,7 +3569,7 @@
       let todaySlipRequests = {};
       try {
         const slipSnap=await database.ref('bankSlipRequests').orderByChild('userId').equalTo(String(currentUser)).once('value');
-        todaySlipRequests=Object.fromEntries(Object.entries(slipSnap.val()||{}).filter(([_,r])=>r.date===dateStr && (r.status==='pending'||r.status==='approved')));
+        todaySlipRequests=Object.fromEntries(Object.entries(slipSnap.val()||{}).filter(([_,r])=>r.date===dateStr && (r.status==='pending'||r.status==='approved'||r.status==='approving')));
         const verifiedSlips=uniqueSlipAmounts(todaySlipRequests);
         if(verifiedSlips.duplicate)throw new Error('একই Bank Slip একাধিকবার জমা আছে। Admin-কে অতিরিক্ত স্লিপ Reject করতে বলুন।');
         submittedBankAmount=verifiedSlips.total;
@@ -3646,7 +3685,7 @@
         updates['collections/' + newCollectionRef.key] = payload;
         updates['dailySubmissionIndex/' + dateStr + '/' + String(currentUser)] = newCollectionRef.key;
         await database.ref().update(updates);
-        alert("ডাটা সফলভাবে সেভ হয়েছে! (Approval Pending)");
+        alert('ডাটা সফলভাবে সেভ হয়েছে! দিনের রিপোর্ট Admin Approval Pending।');
         resetForm();
       } catch (err) {
         alert("ডাটা সেভ হয়নি! কারণ: " + err.message);
@@ -5076,7 +5115,7 @@
         }
         if(tabName==='slipApproval'){
           if(currentUser!=='admin'){alert('শুধু Admin Bank Slip Approval export করতে পারবেন।');return;}
-          const slips=Object.values(slipStatusItems).filter(item=>item&&slipMatchesApprovalFilters(item))
+          const slips=Object.values({...slipPagedItems,...slipStatusItems}).filter(item=>item&&slipMatchesApprovalFilters(item))
             .sort((a,b)=>(Number(b.submittedAt)||0)-(Number(a.submittedAt)||0));
           if(!slips.length){alert('এই পেজের ফিল্টারে কোনো Bank Slip নেই।');return;}
           const rows=slips.map(item=>({
