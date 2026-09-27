@@ -873,10 +873,11 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.22';
+    const APP_RELEASE_VERSION = '2026.09.27.23';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
+    let hostedReleaseEtags = null;
     function updateReleaseGate(){const blocked=firebaseReleaseMismatch||hostedReleaseMismatch;const gate=document.getElementById('releaseGate');gate.style.display=blocked?'flex':'none';
       if(blocked)document.getElementById('releaseGateMessage').textContent='আপনার অভিজ্ঞতা আরও চমৎকার করতে আমরা অ্যাপটি আপডেট করেছি।';
       const login=document.getElementById('loginBtn');if(login&&!loginInProgress)login.disabled=blocked;
@@ -922,11 +923,24 @@
         if(location.protocol!=='http:'&&location.protocol!=='https:')return !hostedReleaseMismatch;
         const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
         try{
-          const fetchAsset=async url=>{url.searchParams.set('_release_check',Date.now());const response=await fetch(url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('HTTP '+response.status+' '+url.pathname);return response.text();};
-          const [indexHtml,investmentResult]=await Promise.all([
-            fetchAsset(new URL(location.pathname,location.origin)),
-            fetchAsset(new URL('Investment.html',location.href)).then(html=>({html}),error=>({error}))
+          const urls=[new URL(location.pathname,location.origin),new URL('Investment.html',location.href)];
+          // Once both versions are known, HEAD avoids downloading the entire
+          // portal and Investment page on every focus / scheduled check.
+          if(hostedReleaseEtags && !hostedReleaseMismatch){
+            try{
+              const heads=await Promise.all(urls.map(url=>fetch(url,{method:'HEAD',cache:'no-store',signal:controller.signal})));
+              const tags=heads.map(response=>response.ok?response.headers.get('etag'):null);
+              if(tags.every((tag,i)=>tag && tag===hostedReleaseEtags[i])){
+                hostedReleaseCheckedAt=Date.now();return true;
+              }
+            }catch(_){/* A server without HEAD support falls back to GET. */}
+          }
+          const fetchAsset=async url=>{url.searchParams.set('_release_check',Date.now());const response=await fetch(url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error('HTTP '+response.status+' '+url.pathname);return {html:await response.text(),etag:response.headers.get('etag')};};
+          const [indexResult,investmentResult]=await Promise.all([
+            fetchAsset(urls[0]),
+            fetchAsset(urls[1]).catch(error=>({error}))
           ]);
+          const indexHtml=indexResult.html;
           const index=indexHtml.match(/const APP_RELEASE_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1];
           if(!index)throw Error('সার্ভারের index.html ভার্সন পড়া যায়নি');
           let investmentChanged=false;
@@ -939,6 +953,7 @@
             // The baseline is refreshed on reload, so Investment.html remains independent.
           }catch(error){console.warn('Investment update check will retry:',error);}
           hostedReleaseMismatch=index!==APP_RELEASE_VERSION||investmentChanged;
+          hostedReleaseEtags=!investmentResult.error && indexResult.etag && investmentResult.etag ? [indexResult.etag,investmentResult.etag] : null;
           hostedReleaseCheckedAt=Date.now();
           updateReleaseGate(hostedReleaseMismatch?'নতুন index.html অথবা Investment.html এসেছে। আপডেট না করলে Login বা অ্যাপ ব্যবহার করা যাবে না।':null);
           return !hostedReleaseMismatch;
@@ -1625,7 +1640,9 @@
         if(slipStatusRenderTimer)return;
         slipStatusRenderTimer=setTimeout(()=>{slipStatusRenderTimer=null;
           if(String(currentUser)!==user||slipStatusScope!==scope)return;
-          renderBankSlipStatus(user);if(user!=='admin')refreshSubmittedBankAmount();
+          const page=document.getElementById(user==='admin'?'adminPageSlipApproval':'dsoPageSlip');
+          if(page?.style.display==='block')renderBankSlipStatus(user);
+          if(user!=='admin')refreshSubmittedBankAmount();
         },75);
       };
       const error=err=>{
@@ -1646,7 +1663,8 @@
         if(String(currentUser)!==user||slipStatusScope!==scope)return;
         snap.forEach(child=>{slipStatusItems[child.key]=child.val();});
         slipStatusHasMore=user==='admin'&&snap.numChildren()===BANK_SLIP_PAGE_SIZE;
-        slipStatusLoading=false;slipStatusLoadError='';renderBankSlipStatus(user);
+        slipStatusLoading=false;slipStatusLoadError='';
+        if(document.getElementById(user==='admin'?'adminPageSlipApproval':'dsoPageSlip')?.style.display==='block')renderBankSlipStatus(user);
         if(user!=='admin')refreshSubmittedBankAmount();
       };
       slipStatusRef.once('value',initial,error);
