@@ -590,7 +590,7 @@
           <label>Status <select id="slipApprovalStatus" onchange="renderSlipApprovalFilters()"><option value="">সব Status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></label>
           <label>Bank Name <select id="slipApprovalBank" onchange="renderBankSlipStatus('admin')"><option value="">সব Bank</option></select></label>
         </div>
-        <div class="table-container"><table id="adminSlipApprovalTable"><thead><tr><th>তারিখ</th><th>Upload Time</th><th>DSO</th><th>Bank Name / Account</th><th>Transaction ID / Ref</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Bank Slip</th><th>Approval / Reject</th></tr></thead><tbody id="adminBankSlipStatusBody"></tbody></table></div>
+        <div class="table-container"><table id="adminSlipApprovalTable"><thead><tr><th>তারিখ</th><th>Upload Time</th><th>DSO</th><th>Bank Name / Account</th><th>Transaction / Ref / Tracking</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Bank Slip</th><th>Approval / Reject</th></tr></thead><tbody id="adminBankSlipStatusBody"></tbody></table></div>
         <div style="text-align:center;margin:12px"><button type="button" id="loadMoreBankSlipsBtn" class="btn-add" style="display:none" onclick="loadMoreBankSlips()">আরও Bank Slip দেখুন</button></div>
       </div>
 
@@ -741,7 +741,7 @@
         <button type="button" class="btn" id="submitSlipBtn" onclick="submitBankSlips()">Submit Bank Slip</button>
         <div id="slipSubmitMessage" style="margin:10px 0"></div>
         <h3>আমার Bank Deposit Status — আজ: <span id="dsoSlipStatusDate"></span></h3>
-        <div class="table-container"><table><thead><tr><th>তারিখ</th><th>Upload Time</th><th>Bank Name / Account</th><th>Transaction ID / Ref</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Slip</th></tr></thead><tbody id="dsoBankSlipStatusBody"></tbody></table></div>
+        <div class="table-container"><table><thead><tr><th>তারিখ</th><th>Upload Time</th><th>Bank Name / Account</th><th>Transaction / Ref / Tracking</th><th>Amount</th><th>Status</th><th>কারণ</th><th>Slip</th></tr></thead><tbody id="dsoBankSlipStatusBody"></tbody></table></div>
         <button type="button" class="btn-add" onclick="switchDsoTab('form')">← দিনের রিপোর্টে ফিরে যান</button>
       </div>
 
@@ -869,7 +869,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.19';
+    const APP_RELEASE_VERSION = '2026.09.27.20';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1375,8 +1375,8 @@
             <input type="text" placeholder="৳ Amount" class="amt-field slip-amt-val" id="slipAmt_${slipCounter}" readonly inputmode="decimal" oninput="handleAmountInput(this); recalculateBankDepositFromSlips(); validateSlipManual(${slipCounter});">
           </div>
           <div class="slip-field">
-            <label class="slip-field-label">🔖 Transaction ID / Reference No.</label>
-            <input type="text" class="slip-transaction-id" maxlength="40" placeholder="OCR থেকে আসবে; ভুল হলে সংশোধন করুন" autocomplete="off" aria-label="Transaction ID or Reference Number">
+            <label class="slip-field-label">🔖 Transaction / Reference / Tracking ID</label>
+            <input type="text" class="slip-transaction-id" maxlength="48" placeholder="OCR থেকে আসবে; ভুল হলে সংশোধন করুন" autocomplete="off" aria-label="Transaction ID, Reference Number or Tracking Number">
           </div>
 
           <input type="hidden" id="slipOcrAmt_${slipCounter}" class="slip-ocr-val" value="0">
@@ -1423,7 +1423,7 @@
     let bankSlipSubmitInProgress = false;
     function normalizeSlipTransactionId(value){
       const normalized=String(value||'').replace(/[০-৯]/g,c=>String('০১২৩৪৫৬৭৮৯'.indexOf(c))).toUpperCase().replace(/[^A-Z0-9]/g,'');
-      return normalized.length>=6 && normalized.length<=36 && /\d/.test(normalized)?normalized:'';
+      return normalized.length>=6 && normalized.length<=40 && /\d/.test(normalized)?normalized:'';
     }
     function sameSlipTransaction(a,b){
       const left=normalizeSlipTransactionId(a.transactionId),right=normalizeSlipTransactionId(b.transactionId);
@@ -1433,19 +1433,33 @@
       return !!(a?.img && b?.img && a.img===b.img) || sameSlipTransaction(a,b);
     }
     function extractSlipTransactionId(ocrResults){
-      const label=/(?:\b(?:transaction|trans(?:action)?|txn|trx|tx)\s*(?:id|no\.?|number|#)?\b|\b(?:reference|ref)\s*(?:id|no\.?|number|#)?\b|লেনদেন\s*(?:আইডি|নং|নম্বর)|রেফারেন্স\s*(?:আইডি|নং|নম্বর))/i;
+      // Each bank prints a different heading. Accept an ID only after a known
+      // heading; do not treat amounts, dates or unrelated account numbers as IDs.
+      const label=/(?:\b(?:tracking|track)\s*(?:number\b|no\b\.?|id\b|#)|\b(?:transaction|trans|txn)\b\s*(?:id\b|no\b\.?|number\b|#)?|\b(?:trx|tx|tr)\s*\.?\s*(?:id\b|no\b\.?|number\b)|\b(?:reference|ref)\s*(?:id\b|no\b\.?|number\b|#)?|লেনদেন\s*(?:আইডি|নং|নম্বর)|রেফারেন্স\s*(?:আইডি|নং|নম্বর)|ট্র্যাকিং\s*(?:নং|নম্বর|আইডি))/ig;
       const candidates=[];
+      const extract=candidate=>{
+        const raw=String(candidate||'').trim().replace(/^[\s.:：#=\-–—]+/,'').replace(/^(?:no\.?|number|id)\s*[:#=\-–]*\s*/i,'');
+        const first=raw.match(/^[A-Z0-9০-৯][A-Z0-9০-৯\-\/]{1,44}/i)?.[0];
+        if(!first)return '';
+        let value=first;
+        // A printed reference may have a short prefix and a digit group.
+        if(first.length<6){
+          const remainder=raw.slice(first.length).trim();
+          const second=remainder.match(/^[A-Z0-9০-৯]{2,30}(?=\s|$|[,;|])/i)?.[0];
+          if(second && /[0-9০-৯]/.test(second))value+=second;
+        }
+        if(/^\d{4}[\-/]\d{1,2}[\-/]\d{1,2}$/.test(value) || /^\d{1,2}[\-/]\d{1,2}[\-/]\d{4}$/.test(value))return '';
+        return normalizeSlipTransactionId(value);
+      };
       for(const result of ocrResults||[]){
         const lines=String(result?.text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
         for(let i=0;i<lines.length;i++){
-          const match=lines[i].match(label);if(!match)continue;
-          const tail=lines[i].slice(match.index+match[0].length).replace(/^[\s.:#=\-–]+/,'');
-          const next=/^(?:no\.?|number|id)\s*[:#=\-–]*\s*/i.test(tail)?tail.replace(/^(?:no\.?|number|id)\s*[:#=\-–]*\s*/i,''):tail;
-          const adjacent=next?[]:[lines[i+1]||'', /^(?:no\.?|number|id)\s*[:#=\-–]*$/i.test(lines[i+1]||'')?lines[i+2]||'':''];
-          for(const candidate of [next,...adjacent]){
-            const token=String(candidate).match(/^[A-Z0-9০-৯][A-Z0-9০-৯\-\/]{5,40}/i)?.[0];
-            const value=normalizeSlipTransactionId(token);
-            if(value)candidates.push(value);
+          label.lastIndex=0;
+          for(const match of lines[i].matchAll(label)){
+            const tail=lines[i].slice(match.index+match[0].length);
+            const valueAfterLabel=tail.replace(/^[\s.:：#=\-–—]+/,'').trim();
+            const nearby=valueAfterLabel?[valueAfterLabel]:[lines[i+1]||'', /^(?:no\.?|number|id)\s*[:#=\-–]*$/i.test(lines[i+1]||'')?lines[i+2]||'':''];
+            for(const text of nearby){const id=extract(text);if(id){candidates.push(id);break;}}
           }
         }
       }
@@ -1653,7 +1667,7 @@
           if(!img) throw new Error('স্লিপের ছবি পড়া যায়নি। আবার নির্বাচন করুন।');
           if(!isApprovedSlipAccount(row)) throw new Error('অনুমোদিত Bank Account ছাড়া Slip জমা দেওয়া যাবে না।');
           const rawTransactionId=row.querySelector('.slip-transaction-id')?.value.trim()||'';
-          if(rawTransactionId&&!normalizeSlipTransactionId(rawTransactionId))throw new Error('Transaction ID / Reference No. কমপক্ষে ৬ অক্ষর এবং একটি সংখ্যা হতে হবে।');
+          if(rawTransactionId&&!normalizeSlipTransactionId(rawTransactionId))throw new Error('Transaction / Reference / Tracking ID কমপক্ষে ৬ অক্ষর এবং একটি সংখ্যা হতে হবে।');
           slips.push({img,amt:parseRawNumber(row.querySelector('.slip-amt-val').value),bankName:row.querySelector('.slip-bank-name').value,
             accountNumber:row.querySelector('.slip-account-number').value,
             accountName:row.querySelector('.slip-account-name')?.value||'',depositDate:row.querySelector('.slip-date-input')?.value||'',
@@ -5131,7 +5145,7 @@
             'Upload Time (Bangladesh)':Number(item.submittedAt)>0?new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dhaka',dateStyle:'short',timeStyle:'short'}).format(new Date(Number(item.submittedAt))):'',
             'DSO ID':String(item.userId||''),
             'Bank Name / Account':[...new Set((item.slips||[]).map(s=>`${s.bankName||''} ${s.accountNumber||''}`.trim()).filter(Boolean))].join(', '),
-            'Transaction ID / Ref':[...new Set((item.slips||[]).map(s=>s.transactionId).filter(Boolean))].join(', '),
+            'Transaction / Ref / Tracking':[...new Set((item.slips||[]).map(s=>s.transactionId).filter(Boolean))].join(', '),
             'Amount':Number(item.amount)||0,
             'Status':item.status||'pending',
             'Reject Reason':item.rejectReason||'',
