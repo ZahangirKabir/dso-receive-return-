@@ -873,7 +873,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.27.23';
+    const APP_RELEASE_VERSION = '2026.09.28.01';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1421,11 +1421,15 @@
 
     function removeSlipRow(id) {
       const row = document.getElementById(`slipRow_${id}`);
-      if (row) {
-        cleanupSlipPreview(row);
-        row.remove();
-        recalculateBankDepositFromSlips();
-      }
+      if (!row) return;
+      if (bankSlipSubmitInProgress) return; // A request already being saved cannot be cancelled here.
+      cleanupSlipPreview(row);
+      row.remove();
+      // Bank Slip Upload has no Add More button. Keep one empty form available
+      // after the last row is cleared, instead of leaving a blank bordered box.
+      if (!document.querySelector('#slipsContainer .slip-box-item')) addSlipRow();
+      recalculateBankDepositFromSlips();
+      validateFormAndSubmitBtn();
     }
 
     function recalculateBankDepositFromSlips() {
