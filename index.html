@@ -873,7 +873,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.28.01';
+    const APP_RELEASE_VERSION = '2026.09.28.02';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -3438,52 +3438,13 @@
       (recList.length ? recList : [{dsoId:"", amount:0}]).forEach(addRec);
       (transList.length ? transList : [{dsoId:"", amount:0}]).forEach(addTrans);
 
-      const slips = Array.isArray(item.slips) ? item.slips : [];
+      // Bank slips are handled by their separate upload/approval page. Editing
+      // the daily cash/e-money figures must never reload or resubmit old slips.
       const slipsBox = document.getElementById("slipsContainer");
-      slipsBox.innerHTML = "";
+      slipsBox.querySelectorAll('.slip-box-item').forEach(cleanupSlipPreview);
+      slipsBox.replaceChildren();
       slipCounter = 0;
-
-      if (slips.length) {
-        slips.forEach(s => {
-          addSlipRow();
-          const row = document.getElementById("slipRow_" + slipCounter);
-          if (!row) return;
-          row.dataset.existingImg = s.img || s.image || s.imageUrl || s.imgUrl || "";
-          row.querySelector('.slip-account-number').value=s.accountNumber ||
-            Object.keys(KNOWN_SLIP_ACCOUNTS).find(n=>KNOWN_SLIP_ACCOUNTS[n].bank===s.bankName && KNOWN_SLIP_ACCOUNTS[n].accountName===s.accountName) || '';
-          setSelectValueSafe(row.querySelector(".slip-bank-name"), s.bankName || "");
-          const account = row.querySelector(".slip-account-name");
-          const date = row.querySelector(".slip-date-input");
-          const amt = row.querySelector(".slip-amt-val");
-          if (account) { account.readOnly = false; account.value = s.accountName || ""; }
-          if (date) { date.readOnly = false; date.value = s.depositDate || ""; }
-          if (amt) { amt.readOnly = false; amt.value = formatBD(s.amt || 0); }
-          const transactionInput=row.querySelector('.slip-transaction-id');if(transactionInput)transactionInput.value=s.transactionId||'';
-          const ocrAmt = row.querySelector(".slip-ocr-val"); if (ocrAmt) ocrAmt.value = s.ocrAmt || s.amt || 0;
-          const ocrBank = row.querySelector('[id^="slipOcrBank_"]'); if (ocrBank) ocrBank.value = s.ocrBankName || s.bankName || "";
-          const ocrDate = row.querySelector('[id^="slipOcrDate_"]'); if (ocrDate) ocrDate.value = s.ocrDate || s.depositDate || "";
-          const status = row.querySelector('[id^="slipOcrStatus_"]'); if (status) status.value = s.ocrStatus || "verified_manual";
-          const manual = row.querySelector('[id^="slipManualConfirm_"]');
-          if (manual) { manual.checked = true; }
-          const preview = row.querySelector(".slip-clear-preview");
-          const existingSlipImage = s.img || s.image || s.imageUrl || s.imgUrl || "";
-          if (preview && existingSlipImage) {
-            cleanupSlipPreview(row);
-            preview.src = existingSlipImage;
-            preview.classList.add("visible");
-          }
-          const name = row.querySelector(".slip-file-name");
-          if (name) name.textContent = existingSlipImage ? "Existing slip — নতুন ছবি দিলে replace হবে" : "ছবি নির্বাচন করুন";
-        });
-      } else {
-        addSlipRow();
-      }
-
-      // In edit mode, existing OCR fields may be changed manually. Admin has already
-      // granted permission, so the user can correct the daily report and resubmit.
-      document.querySelectorAll("#slipsContainer .slip-box-item .slip-file-input").forEach(input => {
-        input.dataset.editMode = "1";
-      });
+      addSlipRow();
 
       const subBtn = document.getElementById("subBtn");
       subBtn.innerText = "🔄 Update Daily Report";
@@ -3546,75 +3507,39 @@
       subBtn.innerText = "Processing Update...";
 
       try {
-        const slipRows = document.querySelectorAll("#slipsContainer .slip-box-item");
-
-      // Final safety check: Bank Deposit থাকলে সম্পূর্ণ Bank Slip ছাড়া
-      // কোনোভাবেই submit হতে দেবে না—even if submitData() is triggered programmatically.
-        const slipsData = [];
-        const bankNamesCollected = [];
-
-        for (let i=0;i<slipRows.length;i++) {
-          const row = slipRows[i];
-          if(!isApprovedSlipAccount(row)) throw new Error('অনুমোদিত Bank Account এবং Bank Name নির্বাচন করুন।');
-          const file = row.querySelector(".slip-file-input")?.files?.[0] || null;
-          const existingImg = row.dataset.existingImg || "";
-          let imgBase64 = file ? await prepareSlipImageForSave(row, file) : existingImg;
-          if (file && !imgBase64) { try { imgBase64 = await fileToDataURL(file); } catch (_) {} }
-          if (file && !imgBase64) throw new Error('Bank slip image read/convert করা যায়নি। ছবিটি আবার নির্বাচন করুন।');
-          const amt = parseRawNumber(row.querySelector(".slip-amt-val")?.value);
-          const bankName = row.querySelector(".slip-bank-name")?.value || "";
-          const accountName = row.querySelector(".slip-account-name")?.value || "";
-          const depositDate = row.querySelector(".slip-date-input")?.value || "";
-          const ocrAmt = parseRawNumber(row.querySelector(".slip-ocr-val")?.value);
-          const ocrBankName = row.querySelector('[id^="slipOcrBank_"]')?.value || "";
-          const ocrDate = row.querySelector('[id^="slipOcrDate_"]')?.value || "";
-          const status = row.querySelector('[id^="slipOcrStatus_"]')?.value || "verified_manual";
-          // OCR-only mode: no secondary slip validation.
-          if (bankName && !bankNamesCollected.includes(bankName)) bankNamesCollected.push(bankName);
-          if (imgBase64 || amt > 0 || bankName) {
-            slipsData.push({img:imgBase64,amt,bankName,accountName,accountNumber:row.querySelector('.slip-account-number').value,depositDate,transactionId:normalizeSlipTransactionId(row.querySelector('.slip-transaction-id')?.value),ocrBankName,ocrAmt,ocrDate,ocrStatus:status});
-          }
-        }
-
+        // Existing bank slips are already saved. Do not validate a blank slip
+        // row or rewrite stored images/account details during a Daily edit.
         const now = Date.now();
-        const editHistory = Array.isArray(original.dsoEditHistory) ? original.dsoEditHistory.slice(-19) : [];
-        editHistory.push({
-          by: String(currentUser),
-          at: now,
-          previousUpdatedAt: original.updatedAt || original.timestamp || null
-        });
-
-        const update = {
-          date: original.date,
-          userId: original.userId,
+        const dailyChanges = {
           emReceived: parseRawNumber(document.getElementById("emReceived").value),
           cashReceived: parseRawNumber(document.getElementById("cashReceived").value),
           dsoReceivedList: getDsoReceivedList(),
           emReturn: parseRawNumber(document.getElementById("emReturn").value),
-          bankDeposit: bankDepositVal,
-          bankName: original.bankName || bankNamesCollected.join(', '),
-          submittedSlipRequests: original.submittedSlipRequests || {},
-          initialSlipRequests: original.initialSlipRequests || null,
-          approvedSlipRequests: original.approvedSlipRequests || {},
           dsoTransferList: getDsoTransferList(),
           cashDeposit: cashDepositAmt,
           notes: {n1000,n500,n200,n100,n50},
           totalCash: totalCashVal,
-          slips: slipsData.length ? slipsData : (original.slips || []),
           approvalStatus: "pending",
-          editPermission: {
-            status: "none",
-            lastEditedBy: String(currentUser),
-            lastEditedAt: now,
-            previousApprovedAt: original.editPermission?.approvedAt || null
-          },
-          dsoEditHistory: editHistory,
           updatedAt: now,
-          updatedBy: String(currentUser),
-          timestamp: original.timestamp || now
+          updatedBy: String(currentUser)
         };
-
-        await database.ref("collections/" + key).update(update);
+        let editFailure='Daily হিসাব পরিবর্তিত হয়েছে। পুনরায় খুলে চেষ্টা করুন।';
+        const result=await database.ref("collections/" + key).transaction(record=>{
+          if(!record || String(record.userId)!==String(currentUser) || record.editPermission?.status!=='approved'){
+            editFailure='Admin Edit Permission আর সক্রিয় নেই।';return;
+          }
+          // A new or rejected slip may have changed this amount while the form
+          // was open. Never save a cash edit against a stale bank total.
+          if(Math.abs((Number(record.bankDeposit)||0)-bankDepositVal)>0.01){
+            editFailure='Bank Deposit পরিবর্তিত হয়েছে। রিপোর্টটি আবার খুলে নতুন হিসাব মিলিয়ে Update করুন।';return;
+          }
+          const history=Array.isArray(record.dsoEditHistory)?record.dsoEditHistory.slice(-19):[];
+          history.push({by:String(currentUser),at:now,previousUpdatedAt:record.updatedAt||record.timestamp||null});
+          return {...record,...dailyChanges,
+            editPermission:{status:'none',lastEditedBy:String(currentUser),lastEditedAt:now,previousApprovedAt:record.editPermission?.approvedAt||null},
+            dsoEditHistory:history};
+        },undefined,false);
+        if(!result.committed)throw new Error(editFailure);
         await database.ref("notifications/admin/editRequests/" + key).remove().catch(()=>{});
 
         dsoEditModeKey = null;
@@ -3652,6 +3577,7 @@
           await submitDsoEdit();
         } finally {
           isSubmittingData = false;
+          validateFormAndSubmitBtn();
         }
         return;
       }
