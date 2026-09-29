@@ -116,15 +116,28 @@ const firebaseConfig={
       appId: "1:351312003148:web:825db3df14f3c3453a34e9",
       measurementId: "G-FM0HDGQT0T"
     };firebase.initializeApp(firebaseConfig);const raw=firebase.database(),ledger=PortalLedger.create(raw);const $=id=>document.getElementById(id);let groups=null,working=false,source=null;
+$('backup').addEventListener('change',()=>{groups=null;$('migrate').disabled=true;$('confirm').checked=false;});
 const show=t=>$('status').textContent=t;const clone=x=>JSON.parse(JSON.stringify(x));
 async function hash(x){const bytes=new TextEncoder().encode(JSON.stringify(x));const digest=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');}
 function canonical(x){if(Array.isArray(x))return x.map(canonical);if(x&&typeof x==='object')return Object.fromEntries(Object.keys(x).sort().map(k=>[k,canonical(x[k])]));return x;}
 async function login(){const pass=(await raw.ref('users/admin/password').once('value')).val()??'123456';if(!$('password').value||$('password').value!==String(pass))throw Error('Admin Password সঠিক নয়।');if((await raw.ref('appConfig/ledgerSchemaVersion').once('value')).val()===1)throw Error('স্থানান্তর আগেই হয়েছে। নতুন হিসাব overwrite করা যাবে না।');}
-function makeGroups(data){const out={};const get=(date,user)=>{const key=ledger.accountKey(date,String(user));return out[key]||(out[key]={date,userId:String(user),requests:{},originalReports:{},originalRequests:{}});};
+function makeGroups(data){
+const problems=[];
+for(const root of ['collections','bankSlipRequests']){
+ const entries=data[root];if(entries!=null&&(typeof entries!=='object'||Array.isArray(entries)))throw Error(root+' একটি সঠিক record তালিকা নয়। পুরো Database root Export JSON নির্বাচন করুন।');
+ for(const [key,r] of Object.entries(entries||{})){
+  if(r===null)continue;
+  if(typeof r!=='object'||Array.isArray(r)){problems.push(root+'/'+key+': record-এর গঠন সঠিক নয়।');continue;}
+  const date=String(r.date??''),user=String(r.userId??'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d+$/.test(user))problems.push(root+'/'+key+' | date: '+(date||'(নেই)')+' | userId: '+(user||'(নেই)'));
+ }
+}
+if(problems.length)throw Error('তারিখ/DSO ID বা গঠনে সমস্যা পাওয়া গেছে ('+problems.length+'টি):\n'+problems.slice(0,30).join('\n')+(problems.length>30?'\nআরও '+(problems.length-30)+'টি রেকর্ড আছে।':'')+'\nকোনো হিসাব মুছে বা বাদ দেওয়া হয়নি। নিচের তালিকার screenshot দিন; password/backup পাঠানোর প্রয়োজন নেই।');
+const out={};const get=(date,user)=>{const key=ledger.accountKey(date,String(user));return out[key]||(out[key]={date,userId:String(user),requests:{},originalReports:{},originalRequests:{}});};
 for(const [key,r] of Object.entries(data.collections||{})){if(!r)continue;const a=get(r.date,r.userId);if(a.report)throw Error(`একই DSO ${r.userId}, ${r.date}-তে একাধিক রিপোর্ট আছে (${a.reportKey}, ${key})। আগে পুরোনো সিস্টেমে যাচাই করে একটি সঠিক রিপোর্ট রাখুন।`);a.reportKey=key;a.report=clone(r);a.originalReports[key]=clone(r);}
 for(const [key,r] of Object.entries(data.bankSlipRequests||{})){if(!r)continue;if(Number(r.amount)>0&&!(r.slips||[]).length)throw Error('Slip request '+key+'-এ Amount আছে কিন্তু Slip details নেই। আগে যাচাই করুন।');const a=get(r.date,r.userId);a.requests[key]=clone(r);a.originalRequests[key]=clone(r);}
 return out;}
-$('check').onclick=async()=>{if(working)return;working=true;$('check').disabled=true;$('migrate').disabled=true;groups=null;try{await login();const file=$('backup').files[0];if(!file)throw Error('Export JSON নির্বাচন করুন।');source=JSON.parse(await file.text());if(!source||typeof source!=='object'||Array.isArray(source))throw Error('Backup সঠিক নয়।');groups=makeGroups(source);if(!Object.keys(groups).length&&!confirm('Backup-এ পুরোনো Report/Slip নেই। নতুন খালি হিসাব চালু করবেন?'))throw Error('বাতিল হয়েছে।');
+$('check').onclick=async()=>{if(working)return;working=true;$('check').disabled=true;$('migrate').disabled=true;$('confirm').checked=false;groups=null;try{await login();const file=$('backup').files[0];if(!file)throw Error('Export JSON নির্বাচন করুন।');source=JSON.parse(await file.text());if(!source||typeof source!=='object'||Array.isArray(source))throw Error('Backup সঠিক নয়।');groups=makeGroups(source);if(!Object.keys(groups).length&&!confirm('Backup-এ পুরোনো Report/Slip নেই। নতুন খালি হিসাব চালু করবেন?'))throw Error('বাতিল হয়েছে।');
 let reports=0,requests=0,images=0;const changes=[];for(const [key,a] of Object.entries(groups)){if(a.report)reports++;requests+=Object.keys(a.requests).length;images+=(a.report?.slips||[]).filter(s=>/^data:image\//.test(s.img||s.image||s.imageUrl||s.imgUrl||'')).length;images+=Object.values(a.requests).reduce((n,r)=>n+(r.slips||[]).filter(s=>/^data:image\//.test(s.img||s.image||s.imageUrl||s.imgUrl||'')).length,0);
 const test=clone(a);for(const r of Object.values(test.requests))if(r.status==='approving'||r.status==='rejecting')r.status='pending';const before=a.report?.bankDeposit;PortalLedger.sync(test);if(a.report&&Math.round(Number(before||0)*100)!==Math.round(Number(test.report.bankDeposit||0)*100))changes.push(`${key}: Bank Deposit ${before||0} → ${test.report.bankDeposit||0} (Slip অনুযায়ী পুনর্মিলন; রিপোর্ট Pending হবে)`);}
 show(`${reports} রিপোর্ট, ${requests} Slip request, ${Object.keys(groups).length} DSO/day হিসাব। ছবির ${images} references আলাদা হবে।\n`+(changes.length?changes.join('\n'):'Bank Deposit-এ কোনো অমিল ধরা পড়েনি।')+'\nApproving/Rejecting অসম্পূর্ণ status Pending হবে।');$('migrate').disabled=false;
@@ -147,5 +160,5 @@ const updates={};if(a.reportKey)updates['ledgerLocations/collections/'+a.reportK
 // Ensure the backup contains every record in the frozen database, without downloading photos again.
 const base=firebaseConfig.databaseURL.replace(/\/$/,'');for(const name of ['collections','bankSlipRequests']){const response=await fetch(base+'/'+name+'.json?shallow=true',{cache:'no-store'});if(!response.ok)throw Error('পুরোনো record count যাচাই করা যায়নি।');const keys=Object.keys(await response.json()||{}).sort();const backupKeys=Object.keys(source[name]||{}).sort();if(JSON.stringify(keys)!==JSON.stringify(backupKeys))throw Error(name+': live record তালিকা backup-এর সঙ্গে মেলেনি। নতুন backup নিয়ে আবার চেষ্টা করুন।');}
 await raw.ref().update({'appConfig/ledgerSchemaVersion':1,'appConfig/ledgerMigration':{status:'complete',accounts:total,completedAt:firebase.database.ServerValue.TIMESTAMP},'appConfig/releaseVersion':'2026.09.30.03','appConfig/releaseSignal':String(Date.now())});show('✅ স্থানান্তর সম্পন্ন। পুরোনো হিসাব ও ছবি backup হিসেবে অক্ষত আছে। index.html খুলে নতুন করে Login করুন।');groups=null;
-}catch(e){show('স্থানান্তর সম্পূর্ণ হয়নি: '+e.message+'\nপুরোনো হিসাব মুছে যায়নি। সমস্যা ঠিক করে আবার যাচাই ও স্থানান্তর করুন।');$('migrate').disabled=false;}finally{working=false;$('check').disabled=false;$('backup').disabled=false;}};
+}catch(e){show('স্থানান্তর সম্পূর্ণ হয়নি: '+e.message+'\nপুরোনো হিসাব মুছে যায়নি। সমস্যা ঠিক করে আবার যাচাই ও স্থানান্তর করুন।');$('migrate').disabled=true;groups=null;$('confirm').checked=false;}finally{working=false;$('check').disabled=false;$('backup').disabled=false;}};
 </script></html>
