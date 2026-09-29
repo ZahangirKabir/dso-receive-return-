@@ -707,11 +707,11 @@
           <!-- DENOMINATION SECTION -->
           <div class="section-box" id="cashNoteBox">
             <div class="section-title" style="color: #37474f;">💵 ৩. ক্যাশ নোট গণনার হিসাব <span id="noteMandatoryBadge" style="color:red; font-size:11px;">(Cash Deposit থাকলে বাধ্যবাধক)</span></div>
-            <div class="form-group"><label>৳ 1000 ×</label><input type="number" id="note1000" class="denom" data-value="1000" placeholder="টি" oninput="calcCash()"></div>
-            <div class="form-group"><label>৳ 500 ×</label><input type="number" id="note500" class="denom" data-value="500" placeholder="টি" oninput="calcCash()"></div>
-            <div class="form-group"><label>৳ 200 ×</label><input type="number" id="note200" class="denom" data-value="200" placeholder="টি" oninput="calcCash()"></div>
-            <div class="form-group"><label>৳ 100 ×</label><input type="number" id="note100" class="denom" data-value="100" placeholder="টি" oninput="calcCash()"></div>
-            <div class="form-group"><label>৳ 50 ×</label><input type="number" id="note50" class="denom" data-value="50" placeholder="টি" oninput="calcCash()"></div>
+            <div class="form-group"><label>৳ 1000 ×</label><input type="text" inputmode="numeric" id="note1000" class="denom" data-value="1000" placeholder="টি" oninput="calcCash()"></div>
+            <div class="form-group"><label>৳ 500 ×</label><input type="text" inputmode="numeric" id="note500" class="denom" data-value="500" placeholder="টি" oninput="calcCash()"></div>
+            <div class="form-group"><label>৳ 200 ×</label><input type="text" inputmode="numeric" id="note200" class="denom" data-value="200" placeholder="টি" oninput="calcCash()"></div>
+            <div class="form-group"><label>৳ 100 ×</label><input type="text" inputmode="numeric" id="note100" class="denom" data-value="100" placeholder="টি" oninput="calcCash()"></div>
+            <div class="form-group"><label>৳ 50 ×</label><input type="text" inputmode="numeric" id="note50" class="denom" data-value="50" placeholder="টি" oninput="calcCash()"></div>
             
             <p style="margin-top: 10px; font-size: 13px;"><strong>Total Calculated Cash: ৳ <span id="totalCashDisplay">0</span></strong></p>
             <div id="cashNoteValidationMsg"></div>
@@ -873,7 +873,7 @@
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.28.02';
+    const APP_RELEASE_VERSION = '2026.09.30.01';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -991,6 +991,73 @@
     let pendingOptimisticDeletes = new Set();
     let masterAdminRealtimeRef = null;
     let isSubmittingData = false;
+    let databaseConnected=false,databaseConnectionEpoch=0,userSlipReadyEpoch=-1;
+    database.ref('.info/connected').on('value',snapshot=>{
+      const connected=snapshot.val()===true;
+      if(connected&&!databaseConnected)databaseConnectionEpoch++;
+      databaseConnected=connected;
+    },error=>console.warn('Firebase connection status:',error));
+
+    function waitForDatabaseConnection(timeoutMs=12000){
+      if(databaseConnected)return Promise.resolve();
+      return new Promise((resolve,reject)=>{
+        const ref=database.ref('.info/connected');let timer=null,settled=false;
+        const finish=error=>{if(settled)return;settled=true;clearTimeout(timer);ref.off('value',handler);error?reject(error):resolve();};
+        const handler=snapshot=>{if(snapshot.val()===true)finish();};
+        timer=setTimeout(()=>finish(new Error('Firebase সার্ভারের সংযোগ এখনও প্রস্তুত হয়নি। তথ্য ফর্মে আছে; কিছুক্ষণ পরে আবার Submit করুন।')),timeoutMs);
+        ref.on('value',handler,error=>finish(error));
+      });
+    }
+    function readDatabaseOnce(query,label,timeoutMs=25000){
+      return new Promise((resolve,reject)=>{
+        let timer=null,settled=false;
+        const finish=(error,snapshot)=>{if(settled)return;settled=true;clearTimeout(timer);query.off('value',handler);error?reject(error):resolve(snapshot);};
+        const handler=snapshot=>finish(null,snapshot);
+        timer=setTimeout(()=>finish(new Error(label+' লোড হতে সময় বেশি লাগছে। ফর্মের তথ্য রেখে আবার চেষ্টা করুন।')),timeoutMs);
+        query.on('value',handler,error=>finish(error));
+      });
+    }
+    function lockSubmissionInputs(selector){
+      const elements=[...document.querySelectorAll(selector)];
+      const states=elements.map(element=>[element,element.disabled]);
+      elements.forEach(element=>element.disabled=true);
+      return ()=>states.forEach(([element,disabled])=>{if(element.isConnected)element.disabled=disabled;});
+    }
+    async function confirmDatabaseWrite(promise,button){
+      // A write cannot be cancelled by timing out its Promise: it may still
+      // commit later. Keep the lock until Firebase acknowledges or rejects it.
+      const timer=setTimeout(()=>{if(button?.isConnected)button.textContent='সার্ভারের নিশ্চিতকরণের অপেক্ষা…';},12000);
+      try{return await promise;}finally{clearTimeout(timer);}
+    }
+    async function readUserSlipRequests(user){
+      const scope='user:'+user;
+      if(databaseConnected && userSlipReadyEpoch===databaseConnectionEpoch && slipStatusScope===scope && !slipStatusLoading && !slipStatusLoadError)
+        return {...slipStatusItems};
+      const snapshot=await readDatabaseOnce(database.ref('bankSlipRequests').orderByChild('userId').equalTo(user),'Bank Slip');
+      const requests=snapshot.val()||{};
+      if(slipStatusScope===scope && String(currentUser)===user){
+        slipStatusItems=requests;slipStatusLoading=false;slipStatusLoadError='';
+        userSlipReadyEpoch=databaseConnected?databaseConnectionEpoch:-1;
+        refreshSubmittedBankAmount();
+      }
+      return requests;
+    }
+    async function findDailyCollectionKey(date,user){
+      const local=Object.entries(globalAllData||{}).find(([_,record])=>record?.date===date && String(record.userId)===user);
+      if(local)return local[0];
+      const index=await readDatabaseOnce(database.ref('dailySubmissionIndex/'+date+'/'+user),'দিনের রিপোর্ট');
+      if(index.val())return String(index.val());
+      if(realtimeInitialDataReady && String(currentUser)===user)return null;
+      const snapshot=await readDatabaseOnce(database.ref('collections').orderByChild('date').equalTo(date),'দিনের রিপোর্ট');
+      let key=null;snapshot.forEach(child=>{if(String(child.val()?.userId)===user)key=child.key;});
+      return key;
+    }
+    function describeSubmitError(error){
+      const message=String(error?.message||error||'অজানা সমস্যা');
+      if(/permission.?denied/i.test(message))return 'Firebase Rules এই জমা অনুমোদন করেনি। Admin-কে Rules যাচাই করতে বলুন।';
+      return message;
+    }
+
 
     function getLocalDateString(d = new Date()) {
       const y = d.getFullYear();
@@ -1016,19 +1083,27 @@
       return Number(num).toLocaleString('en-IN');
     }
 
-    function parseRawNumber(valStr) {
-      if (!valStr) return 0;
-      let cleaned = String(valStr).replace(/,/g, '');
-      let num = parseFloat(cleaned);
-      return isNaN(num) ? 0 : num;
+    function normalizeMoneyText(value) {
+      return String(value ?? '').replace(/[০-৯]/g,c=>String('০১২৩৪৫৬৭৮৯'.indexOf(c))).replace(/[,৳\s]/g,'');
+    }
+    function parseRawNumber(value) {
+      const normalized=normalizeMoneyText(value);
+      const amount=Number(normalized);
+      return Number.isFinite(amount)?amount:0;
+    }
+    function roundMoney(amount) { return Math.round((Number(amount)||0)*100)/100; }
+    function moneyMatches(left,right) { return Math.round(left*100)===Math.round(right*100); }
+    function parseNoteCount(value) {
+      const number=Number(normalizeMoneyText(value));
+      return Number.isSafeInteger(number)&&number>=0?number:0;
     }
 
     function handleAmountInput(inputEl) {
-      let rawVal = inputEl.value.replace(/[^0-9.]/g, ''); 
+      let rawVal = normalizeMoneyText(inputEl.value).replace(/[^0-9.]/g, ''); 
       if (rawVal === '') { inputEl.value = ''; return; }
       let parts = rawVal.split('.');
       let integerPart = parts[0];
-      let decimalPart = parts.length > 1 ? '.' + parts[1] : '';
+      let decimalPart = parts.length > 1 ? '.' + parts[1].slice(0,2) : '';
 
       if (integerPart) {
         let num = parseInt(integerPart, 10);
@@ -1433,10 +1508,7 @@
     }
 
     function recalculateBankDepositFromSlips() {
-      let totalBankAmt = 0;
-      document.querySelectorAll(".slip-amt-val").forEach(input => {
-        totalBankAmt += parseRawNumber(input.value);
-      });
+      if(dsoEditModeKey){calcFormTotals();return;}
       const bankInput = document.getElementById("bankDeposit");
       bankInput.value = formatBD(submittedBankAmount || 0); // Only submitted slips count.
       calcFormTotals();
@@ -1517,7 +1589,7 @@
     }
     function isAlreadyCountedAtDailySubmit(key,slip,report){
       if(!report)return false;
-      if(report.initialSlipRequests)return !!report.initialSlipRequests[key];
+      if(report.initialSlipRequestsKnown || report.initialSlipRequests)return !!report.initialSlipRequests?.[key];
       // Existing reports predate the baseline field. The original submit time
       // separates their initial slips from later uploads, even when the report
       // has since been edited or had new slips attached.
@@ -1634,7 +1706,7 @@
       const scope=user==='admin'?(mode==='date'?'date:'+(document.getElementById('filterDate')?.value||getLocalDateString()):mode==='month'?'month:'+getLocalMonthString():'all'):'user:'+user;
       if(slipStatusRef&&slipStatusScope===scope)return;
       detachSlipStatusListeners();
-      slipStatusScope=scope;slipStatusItems={};slipPagedItems={};slipStatusHasMore=false;slipStatusLoadingMore=false;slipStatusLoading=true;slipStatusLoadError='';
+      userSlipReadyEpoch=-1;slipStatusScope=scope;slipStatusItems={};slipPagedItems={};slipStatusHasMore=false;slipStatusLoadingMore=false;slipStatusLoading=true;slipStatusLoadError='';
       const root=database.ref('bankSlipRequests');
       slipStatusRef=user==='admin' ? (mode==='date'?root.orderByChild('date').equalTo(scope.slice(5)):
         mode==='month'?root.orderByChild('date').startAt(getLocalMonthString()+'-01').endAt(getLocalMonthString()+'-31'):root.orderByChild('date')).limitToLast(BANK_SLIP_PAGE_SIZE) :
@@ -1668,6 +1740,7 @@
         snap.forEach(child=>{slipStatusItems[child.key]=child.val();});
         slipStatusHasMore=user==='admin'&&snap.numChildren()===BANK_SLIP_PAGE_SIZE;
         slipStatusLoading=false;slipStatusLoadError='';
+        if(user!=='admin')userSlipReadyEpoch=databaseConnected?databaseConnectionEpoch:-1;
         if(document.getElementById(user==='admin'?'adminPageSlipApproval':'dsoPageSlip')?.style.display==='block')renderBankSlipStatus(user);
         if(user!=='admin')refreshSubmittedBankAmount();
       };
@@ -1698,91 +1771,94 @@
     }
     function slipStatusLabel(status){return ({approved:'✅ Approved',rejected:'❌ Rejected',rejecting:'⏳ Rejecting',approving:'⏳ Approving',pending:'⏳ Pending'})[status]||String(status||'Pending');}
     async function submitBankSlips() {
-      if (!currentUser || currentUser==='admin' || isGroupAdmin(currentUser)) return;
+      if(!currentUser || currentUser==='admin'||isGroupAdmin(currentUser))return;
       if(bankSlipSubmitInProgress)return;
-      const button=document.getElementById('submitSlipBtn');
+      if(isSubmittingData){alert('দিনের হিসাব জমা শেষ হলে Bank Slip Submit করুন।');return;}
+      const user=String(currentUser),date=getLocalDateString(),button=document.getElementById('submitSlipBtn');
       const rows=[...document.querySelectorAll('#slipsContainer .slip-box-item')];
-      const active=rows.filter(row=>row.querySelector('.slip-file-input')?.files?.[0] || row.dataset.existingImg || parseRawNumber(row.querySelector('.slip-amt-val')?.value));
-      if(!active.length){alert('প্রথমে Bank Slip যোগ করুন।');return;}
-      for(const row of active){
-        if(!(row.querySelector('.slip-file-input')?.files?.[0] || row.dataset.existingImg) || !row.querySelector('.slip-bank-name')?.value || parseRawNumber(row.querySelector('.slip-amt-val')?.value)<=0){
-          alert('প্রতিটি স্লিপের ছবি, Bank Name ও Amount দিন।');return;
-        }
-        if(!isApprovedSlipAccount(row)) {alert('শুধু অনুমোদিত Bank Account এবং তার নির্ধারিত Bank Name ব্যবহার করুন।');return;}
-      }
-      bankSlipSubmitInProgress=true;button.disabled=true;button.textContent='Uploading...';
-      let requestSaved=false;
-      try {
-        const uploadDate=getLocalDateString(),uploadUser=String(currentUser);
-        const slips=[];
-        for(const row of active){
+      const active=rows.filter(row=>row.querySelector('.slip-file-input')?.files?.[0]||row.dataset.existingImg||parseRawNumber(row.querySelector('.slip-amt-val')?.value));
+      let saved=false,restore=()=>{};
+      try{
+        if(!active.length)throw new Error('প্রথমে Bank Slip নির্বাচন করুন।');
+        const drafts=active.map(row=>{
           const file=row.querySelector('.slip-file-input')?.files?.[0];
-          const img=file ? await prepareSlipImageForSave(row,file) : row.dataset.existingImg;
-          if(!img) throw new Error('স্লিপের ছবি পড়া যায়নি। আবার নির্বাচন করুন।');
-          if(!isApprovedSlipAccount(row)) throw new Error('অনুমোদিত Bank Account ছাড়া Slip জমা দেওয়া যাবে না।');
-          const rawTransactionId=row.querySelector('.slip-transaction-id')?.value.trim()||'';
-          if(rawTransactionId&&!normalizeSlipTransactionId(rawTransactionId))throw new Error('Transaction / Reference / Tracking ID কমপক্ষে ৬ অক্ষর এবং একটি সংখ্যা হতে হবে।');
-          slips.push({img,amt:parseRawNumber(row.querySelector('.slip-amt-val').value),bankName:row.querySelector('.slip-bank-name').value,
-            accountNumber:row.querySelector('.slip-account-number').value,
-            accountName:row.querySelector('.slip-account-name')?.value||'',depositDate:row.querySelector('.slip-date-input')?.value||'',
-            transactionId:normalizeSlipTransactionId(rawTransactionId)});
-        }
-        // Use image hashes to reject the same slip in this batch and older requests.
-        const fingerprints=await Promise.all(slips.map(s=>slipFingerprint(s.img)));
-        if(new Set(fingerprints).size!==fingerprints.length)throw new Error('একই ছবি একাধিকবার নির্বাচন করা হয়েছে।');
-        if(slips.some((slip,i)=>slips.slice(0,i).some(previous=>sameSlipTransaction(slip,previous))))throw new Error('একই ব্যাংকের একই Transaction ID / Reference No. এই Submit-এ দুবার আছে।');
-        const existingSnap=await database.ref('bankSlipRequests').orderByChild('userId').equalTo(uploadUser).once('value');
-        const oldImages=new Set(),todayOldSlips=[];
-        existingSnap.forEach(child=>{const r=child.val();if(r?.status!=='rejected')for(const s of r?.slips||[]){if(s.img)oldImages.add(s.img);if(r.date===uploadDate)todayOldSlips.push(s);}});
-        if(slips.some(s=>oldImages.has(s.img)))throw new Error('এই Bank Slip আগে জমা হয়েছে। একই ছবি আবার Submit করা যাবে না।');
-        if(slips.some(s=>todayOldSlips.some(old=>sameSlipTransaction(s,old))))throw new Error('আজ এই ব্যাংকের একই Transaction ID / Reference No. আগে Submit হয়েছে।');
-        const identities=slips.map((s,i)=>s.transactionId?'ID:'+s.bankName.toUpperCase()+':'+s.transactionId:'IMAGE:'+fingerprints[i]);
-        const batchHash=await slipFingerprint(uploadUser+'|'+uploadDate+'|'+identities.sort().join('|'));
-        const baseKey=uploadUser+'_'+uploadDate+'_'+batchHash;
-        const rejectedBefore=existingSnap.val()?.[baseKey]?.status==='rejected';
-        const reqRef=database.ref('bankSlipRequests/'+(rejectedBefore?baseKey+'_retry_'+Date.now().toString(36):baseKey));
-        slips.forEach(s=>s.requestKey=reqRef.key);
-        const amount=slips.reduce((n,x)=>n+x.amt,0);
-        const created=await reqRef.transaction(existing=>existing===null?{userId:uploadUser,date:uploadDate,amount,slips,status:'pending',submittedAt:firebase.database.ServerValue.TIMESTAMP}:undefined,undefined,false);
-        if(!created.committed)throw new Error('এই Bank Slip আগে জমা হয়েছে। আবার Submit করবেন না।');
-        requestSaved=true;
-        // The live listener may have already counted this request. Count by request key,
-        // never add its amount a second time after the write completes.
-        slipStatusItems[reqRef.key]={userId:uploadUser,date:uploadDate,amount,slips,status:'pending'};
-        refreshSubmittedBankAmount();
-        // If today's daily report exists, apply the submitted amount immediately.
-        const indexSnap=await database.ref('dailySubmissionIndex/'+uploadDate+'/'+uploadUser).once('value');
-        let recordKey=indexSnap.val()||null;
-        if(!recordKey){ // Compatibility with records created before the day index.
-          const daySnap=await database.ref('collections').orderByChild('date').equalTo(uploadDate).once('value');
-          daySnap.forEach(child=>{if(String(child.val()?.userId)===uploadUser) recordKey=child.key;});
-        }
+          const image=row.dataset.existingImg||'';
+          const amount=parseRawNumber(row.querySelector('.slip-amt-val')?.value);
+          if(row.querySelector('[id^="slipOcrStatus_"]')?.value==='processing')throw new Error('OCR চলছে। Amount ও Account আসার পরে Submit করুন।');
+          if(!(file||image)||amount<=0||!row.querySelector('.slip-bank-name')?.value)throw new Error('স্লিপের ছবি, Bank Name ও Amount দিন।');
+          if(!isApprovedSlipAccount(row))throw new Error('শুধু অনুমোদিত Bank Account ও তার নির্ধারিত Bank Name ব্যবহার করুন।');
+          const rawId=row.querySelector('.slip-transaction-id')?.value.trim()||'';
+          const transactionId=normalizeSlipTransactionId(rawId);
+          if(rawId&&!transactionId)throw new Error('Transaction / Reference ID-তে অন্তত ৬ অক্ষর এবং একটি সংখ্যা দিন।');
+          return {row,file,image,slip:{amt:amount,bankName:row.querySelector('.slip-bank-name').value,
+            accountNumber:row.querySelector('.slip-account-number').value,accountName:row.querySelector('.slip-account-name')?.value||'',
+            depositDate:row.querySelector('.slip-date-input')?.value||'',transactionId}};
+        });
+        bankSlipSubmitInProgress=true;
+        restore=lockSubmissionInputs('#dsoPageSlip input, #dsoPageSlip select, #dsoPageSlip button:not(#submitSlipBtn)');
+        button.disabled=true;button.textContent='সংযোগ ও ছবি প্রস্তুত হচ্ছে…';validateFormAndSubmitBtn();
+        await waitForDatabaseConnection();
+        // Independent lookups run while the original image's small upload copy
+        // is prepared. The live snapshot avoids downloading all old photos again.
+        const [existingRequests,knownKey,slips]=await Promise.all([
+          readUserSlipRequests(user),findDailyCollectionKey(date,user),
+          (async()=>{const prepared=[];for(const draft of drafts){
+            const image=draft.file?await prepareSlipImageForSave(draft.row,draft.file):draft.image;
+            if(!image)throw new Error('ছবি পড়া যায়নি। আবার স্লিপ নির্বাচন করুন।');
+            prepared.push({...draft.slip,img:image});
+          }return prepared;})()
+        ]);
+        if(String(currentUser)!==user)throw new Error('Login পরিবর্তিত হয়েছে। আবার নিজের ID-তে Login করুন।');
+        const fingerprints=await Promise.all(slips.map(slip=>slipFingerprint(slip.img)));
+        if(new Set(fingerprints).size!==fingerprints.length || slips.some((slip,i)=>slips.slice(0,i).some(other=>sameSlipTransaction(slip,other))))
+          throw new Error('একই ছবি বা একই Transaction ID দুইবার নির্বাচন করা হয়েছে।');
+        const previous=Object.values(existingRequests).filter(request=>request?.status!=='rejected');
+        if(slips.some(slip=>previous.some(request=>(request.slips||[]).some(old=>slip.img===old.img || (request.date===date&&sameSlipTransaction(slip,old))))))
+          throw new Error('এই ছবি বা আজকের একই ব্যাংকের এই Transaction ID আগে Submit হয়েছে।');
+        const identities=slips.map((slip,i)=>slip.transactionId?'ID:'+slip.bankName.toUpperCase()+':'+slip.transactionId:'IMAGE:'+fingerprints[i]);
+        const hash=await slipFingerprint(user+'|'+date+'|'+identities.sort().join('|'));
+        const baseKey=user+'_'+date+'_'+hash;
+        const rejected=existingRequests[baseKey]?.status==='rejected';
+        const requestRef=database.ref('bankSlipRequests/'+(rejected?baseKey+'_retry_'+Date.now().toString(36):baseKey));
+        slips.forEach(slip=>slip.requestKey=requestRef.key);
+        const amount=roundMoney(slips.reduce((sum,slip)=>sum+slip.amt,0));
+        button.textContent='Bank Slip সেভ হচ্ছে…';
+        const result=await confirmDatabaseWrite(requestRef.transaction(existing=>existing===null?
+          {userId:user,date,amount,slips,status:'pending',submittedAt:firebase.database.ServerValue.TIMESTAMP}:undefined,undefined,false),button);
+        if(!result.committed)throw new Error('এই Bank Slip আগেই Submit হয়েছে। আবার জমা দেওয়া যাবে না।');
+        saved=true;
+        if(String(currentUser)===user){slipStatusItems[requestRef.key]=result.snapshot.val();refreshSubmittedBankAmount();}
+        const recordKey=knownKey || await findDailyCollectionKey(date,user);
         if(recordKey){
-          const applied=await database.ref('collections/'+recordKey).transaction(record=>{
-            if(!record) return;
-            if(record.submittedSlipRequests?.[reqRef.key]) return;
-            if((record.slips||[]).some(old=>slips.some(s=>(old.img&&old.img===s.img)||sameSlipTransaction(old,s))))return;
+          button.textContent='দিনের হিসাবের সঙ্গে মিলানো হচ্ছে…';
+          const applied=await confirmDatabaseWrite(database.ref('collections/'+recordKey).transaction(record=>{
+            if(!record || String(record.userId)!==user || record.date!==date)return;
+            if(record.submittedSlipRequests?.[requestRef.key])return;
+            if((record.slips||[]).some(old=>slips.some(slip=>sameSlipIdentity(old,slip))))return;
             record.submittedSlipRequests=record.submittedSlipRequests||{};
-            record.submittedSlipRequests[reqRef.key]=true;
+            record.submittedSlipRequests[requestRef.key]=true;
             record.slips=[...(record.slips||[]),...slips];
-            record.bankDeposit=Math.round(record.slips.reduce((sum,s)=>sum+(Number(s.amt??s.amount)||0),0)*100)/100;
-            record.bankName=[...new Set([...(record.bankName||'').split(', ').filter(Boolean),...slips.map(x=>x.bankName)])].join(', ');
-            record.approvalStatus='pending';
-            return record;
-          },undefined,false);
-          if(!applied.snapshot.val()?.submittedSlipRequests?.[reqRef.key]) throw new Error('স্লিপ জমা হয়েছে, কিন্তু দিনের রিপোর্টে duplicate বা সমন্বয়ের সমস্যা আছে। Admin-কে জানান।');
+            record.bankDeposit=roundMoney(record.slips.reduce((sum,slip)=>sum+Number(slip.amt??slip.amount??0),0));
+            record.bankName=[...new Set([...(record.bankName||'').split(', ').filter(Boolean),...slips.map(slip=>slip.bankName)])].join(', ');
+            record.approvalStatus='pending';return record;
+          },undefined,false),button);
+          if(!applied.snapshot.val()?.submittedSlipRequests?.[requestRef.key])throw new Error('স্লিপ জমা হয়েছে; দিনের রিপোর্টে সমন্বয় Admin-কে যাচাই করতে হবে।');
+          if(String(currentUser)===user){globalAllData=globalAllData||{};globalAllData[recordKey]=applied.snapshot.val();}
         }
-        rows.forEach(cleanupSlipPreview);
-        document.getElementById('slipsContainer').innerHTML='';slipCounter=0;addSlipRow();
-        document.getElementById('slipSubmitMessage').textContent=`✅ ৳${formatBD(amount)} Bank Slip জমা হয়েছে। Admin Approval Pending।`;
-        alert('Bank Slip জমা হয়েছে। Bank Deposit Amount যোগ হয়েছে; Admin Slip Approval Pending।');
-      }catch(err){
-        if(requestSaved){
-          rows.forEach(cleanupSlipPreview);document.getElementById('slipsContainer').innerHTML='';slipCounter=0;addSlipRow();
-          alert('Bank Slip জমা হয়েছে, তবে দিনের রিপোর্ট সমন্বয় হয়নি। একই স্লিপ আবার Submit করবেন না; Admin-কে জানান। '+err.message);
-        }else alert('Bank Slip জমা হয়নি: '+err.message);
+        if(String(currentUser)===user){
+          active.forEach(cleanupSlipPreview);document.getElementById('slipsContainer').replaceChildren();addSlipRow();
+          document.getElementById('slipSubmitMessage').textContent='✅ ৳'+formatBD(amount)+' Bank Slip জমা হয়েছে। Admin Approval Pending।';
+          refreshSubmittedBankAmount();renderBankSlipStatus(user);
+          alert('Bank Slip জমা হয়েছে। Admin Approval Pending।');
+        }
+      }catch(error){
+        if(saved){
+          if(String(currentUser)===user){active.forEach(cleanupSlipPreview);document.getElementById('slipsContainer').replaceChildren();addSlipRow();}
+          alert('Bank Slip সেভ হয়েছে। একই স্লিপ আবার Submit করবেন না। দিনের রিপোর্ট সমন্বয়ের জন্য Admin-কে জানান: '+describeSubmitError(error));
+        }else alert('Bank Slip Submit হয়নি: '+describeSubmitError(error));
+      }finally{
+        restore();bankSlipSubmitInProgress=false;button.disabled=false;button.textContent='Submit Bank Slip';validateFormAndSubmitBtn();
       }
-      finally{bankSlipSubmitInProgress=false;button.disabled=false;button.textContent='Submit Bank Slip';}
     }
 
     async function approveBankSlipRequest(key,item){
@@ -2480,13 +2556,32 @@
 
     function loadScriptOnce(src, globalName) {
       return new Promise((resolve,reject)=>{
-        if(window[globalName]) return resolve(window[globalName]);
-        const sc=document.createElement('script');
-        sc.src=src; sc.async=true;
-        sc.onload=()=>window[globalName] ? resolve(window[globalName]) : reject(new Error(globalName+' unavailable'));
-        sc.onerror=()=>reject(new Error('Library load failed: '+src));
-        document.head.appendChild(sc);
+        if(window[globalName])return resolve(window[globalName]);
+        const script=document.createElement('script');let done=false;
+        const finish=error=>{if(done)return;done=true;clearTimeout(timer);script.onload=null;script.onerror=null;
+          if(error){script.remove();reject(error);}else resolve(window[globalName]);};
+        const timer=setTimeout(()=>finish(new Error('OCR library লোড হতে সময় বেশি লাগছে। ছবি দেখে Manual Correction ব্যবহার করুন।')),25000);
+        script.src=src;script.async=true;
+        script.onload=()=>finish(window[globalName]?null:new Error(globalName+' unavailable'));
+        script.onerror=()=>finish(new Error('Library load failed: '+src));
+        document.head.appendChild(script);
       });
+    }
+    async function initializeSlipWorker(){
+      let expired=false,timer;
+      const creating=Tesseract.createWorker('eng+ben',1,{logger:()=>{}});
+      const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{expired=true;reject(new Error('OCR প্রস্তুত হতে সময় বেশি লাগছে। Manual Correction দিয়ে ছবি দেখে তথ্য নিশ্চিত করুন।'));},60000);});
+      creating.then(worker=>{if(expired)worker.terminate().catch(()=>{});},()=>{});
+      try{return await Promise.race([creating,deadline]);}finally{clearTimeout(timer);}
+    }
+    async function recognizeSlipWithDeadline(worker,image){
+      let timer;
+      const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{
+        if(slipOCRWorker===worker)slipOCRWorker=null;
+        worker.terminate().catch(()=>{});
+        reject(new Error('এই ছবির OCR শেষ হতে সময় বেশি লাগছে। Manual Correction ব্যবহার করুন।'));
+      },45000);});
+      try{return await Promise.race([worker.recognize(image),deadline]);}finally{clearTimeout(timer);}
     }
 
     function ensureTesseractLoaded(){
@@ -2514,7 +2609,7 @@
       if(!slipOCRWorkerPromise){
         slipOCRWorkerPromise = (async()=>{
           await ensureTesseractLoaded();
-          const w = await Tesseract.createWorker('eng+ben', 1, { logger:()=>{} });
+          const w = await initializeSlipWorker();
           slipOCRWorker = w;
           return w;
         })().catch(err=>{ slipOCRWorker=null; throw err; })
@@ -2526,11 +2621,12 @@
     async function recognizeSlipPass(worker, image, psm, extra={}){
       await worker.setParameters({
         tessedit_pageseg_mode:String(psm),
+        tessedit_char_whitelist:'',
         preserve_interword_spaces:'1',
         user_defined_dpi:'300',
         ...extra
       });
-      const result=await worker.recognize(image);
+      const result=await recognizeSlipWithDeadline(worker,image);
       return {
         text:result?.data?.text||'',
         confidence:Number(result?.data?.confidence||0),
@@ -2560,13 +2656,18 @@
       return task;
     }
     async function runSlipOCRExclusive(file, statusEl, id) {
+      const current=()=>document.getElementById(`slipRow_${id}`)?.querySelector('.slip-file-input')?.files?.[0]===file;
+      if(!current())return [];
       const worker=await getSlipOCRWorker();
+      if(!current())return [];
       const results=[];
 
       // Pass 1: structured receipt/slip layout. This is the fastest useful scan.
       const base=await preprocessImage(file,3,0);
+      if(!current())return [];
       const first=await recognizeSlipPass(worker,base,'6');
       results.push(first);
+      if(!current())return [];
 
       // Pass 2 only when the first pass is incomplete. PSM 11 is stronger for
       // scattered/thermal bank-slip text and broken line layouts.
@@ -2574,6 +2675,7 @@
         const enhanced=await preprocessImage(file,4,0);
         results.push(await recognizeSlipPass(worker,enhanced,'11'));
       }
+      if(!current())return [];
 
       // Numeric recovery only when amount/date evidence is still weak. It uses
       // a character whitelist, making amount/date extraction both faster and cleaner.
@@ -2872,6 +2974,7 @@
       if(file.size>15*1024*1024){alert('স্লিপ ইমেজ 15MB-এর মধ্যে রাখুন।');event.target.value='';return;}
 
       if(ocrStatus) ocrStatus.value='processing';
+      document.getElementById('slipSubmitMessage').textContent='';
       delete row.dataset.ocrAccountNumber;
       row.querySelector('.slip-account-number').value='';
       if(ocrAmt) ocrAmt.value='0';
@@ -2924,6 +3027,8 @@
         if(!row.isConnected||row.querySelector('.slip-file-input')?.files?.[0]!==file)return;
         console.error('Bank Slip OCR failed:',err);
         if(ocrStatus) ocrStatus.value='failed';
+        enableManualSlipEdit(id);
+        document.getElementById('slipSubmitMessage').textContent='OCR সম্পূর্ণ হয়নি। ছবি দেখে Amount ও অনুমোদিত Account নিশ্চিত করে Manual Correction / Confirm ব্যবহার করুন।';
         validateFormAndSubmitBtn();
       }finally{
         // OCR must never leave the main submit button permanently disabled.
@@ -2986,7 +3091,7 @@
       let cashDep = parseRawNumber(document.getElementById("cashDeposit").value);
       let totalRet = emRet + bankDep + dsoTransSum + cashDep;
 
-      let diff = totalRec - totalRet;
+      let diff = roundMoney(totalRec - totalRet);
 
       document.getElementById("formTotalReceived").innerText = formatBD(totalRec);
       document.getElementById("formTotalReturn").innerText = formatBD(totalRet);
@@ -3059,7 +3164,7 @@
       let cashDep = parseRawNumber(document.getElementById("cashDeposit").value);
       let totalRet = emRet + bankDep + dsoTransSum + cashDep;
 
-      let diff = totalRec - totalRet;
+      let diff = roundMoney(totalRec - totalRet);
 
       document.getElementById('formTotalReceived').innerText=formatBD(totalRec);
       document.getElementById('formTotalReturn').innerText=formatBD(totalRet);
@@ -3067,7 +3172,7 @@
 
       let totalCashCalculated = 0;
       document.querySelectorAll(".denom").forEach(input => {
-        let count = parseInt(input.value, 10) || 0;
+        let count = parseNoteCount(input.value);
         let noteValue = parseInt(input.getAttribute("data-value"), 10) || 0;
         totalCashCalculated += count * noteValue;
       });
@@ -3101,7 +3206,7 @@
         if (totalCashCalculated === 0) {
           msgBox.innerHTML = `<p class="note-warning">⚠️ Cash Deposit ৳${formatBD(cashDepositAmt)} করা হয়েছে। ক্যাশ নোটের বিবরণ প্রদান করা বাধ্যতামূলক!</p>`;
           isCashValid = false;
-        } else if (totalCashCalculated !== cashDepositAmt) {
+        } else if (!moneyMatches(totalCashCalculated,cashDepositAmt)) {
           msgBox.innerHTML = `<p class="note-warning">❌ ক্যাশ নোটের মোট পরিমাণ (৳${formatBD(totalCashCalculated)}) এবং Cash Deposit (৳${formatBD(cashDepositAmt)}) সমান নয়! Submit বন্ধ রয়েছে।</p>`;
           isCashValid = false;
         } else {
@@ -3116,7 +3221,11 @@
       isBankValid = true; // Bank slips use their own submission and approval flow.
       bankMsgBox.innerHTML = "";
 
-      subBtn.disabled = isSubmittingData || !(isCashValid && isBankValid && isDiffValid);
+      const inputError=financialInputError();
+      if(inputError){diffMsgBox.textContent=inputError;isDiffValid=false;}
+      subBtn.disabled = isSubmittingData || bankSlipSubmitInProgress || !(isCashValid && isBankValid && isDiffValid);
+      const slipButton=document.getElementById('submitSlipBtn');
+      if(slipButton)slipButton.disabled=isSubmittingData||bankSlipSubmitInProgress;
       subBtn.title = diff !== 0 ? `Received - Return ব্যবধান ৳${formatBD(diff)}; হিসাব মিললে Submit চালু হবে` : '';
     }
 
@@ -3167,14 +3276,7 @@
       let originalDataUrl = "";
       let objectUrl="";
       try {
-        let img;
-        try{
-          objectUrl=URL.createObjectURL(file);
-          img=await decodeImage(objectUrl);
-        }catch(decodeError){
-          originalDataUrl=await fileToDataURL(file);
-          img=await decodeImage(originalDataUrl);
-        }
+        const img=await loadSlipOCRSource(file);
 
         // OCR has already run on the original. Compress only the stored copy.
         const srcW = img.naturalWidth || img.width;
@@ -3205,6 +3307,7 @@
           if(originalDataUrl.length<output.length)output=originalDataUrl;
         }
         if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl="";}
+        if(output.length>1400000)throw new Error('ছবির upload copy বড় রয়ে গেছে। একটু ছোট বা পরিষ্কার ছবি নির্বাচন করুন।');
         slipImageDataCache.set(file, output);
         return output;
       } catch (err) {
@@ -3212,8 +3315,9 @@
         console.warn("Bank slip conversion failed; keeping original image:", err);
         try {
           const original = originalDataUrl || await fileToDataURL(file);
-          slipImageDataCache.set(file, original || "");
-          return original || "";
+          if(!original || original.length>1400000)return '';
+          slipImageDataCache.set(file, original);
+          return original;
         } catch (_) {
           return "";
         }
@@ -3479,14 +3583,14 @@
 
       const bankDepositVal = parseRawNumber(document.getElementById("bankDeposit").value);
       const cashDepositAmt = parseRawNumber(document.getElementById("cashDeposit").value);
-      const n1000 = parseInt(document.getElementById("note1000").value,10)||0;
-      const n500 = parseInt(document.getElementById("note500").value,10)||0;
-      const n200 = parseInt(document.getElementById("note200").value,10)||0;
-      const n100 = parseInt(document.getElementById("note100").value,10)||0;
-      const n50 = parseInt(document.getElementById("note50").value,10)||0;
+      const n1000 = parseNoteCount(document.getElementById("note1000").value);
+      const n500 = parseNoteCount(document.getElementById("note500").value);
+      const n200 = parseNoteCount(document.getElementById("note200").value);
+      const n100 = parseNoteCount(document.getElementById("note100").value);
+      const n50 = parseNoteCount(document.getElementById("note50").value);
       const totalCashVal = n1000*1000+n500*500+n200*200+n100*100+n50*50;
 
-      if (cashDepositAmt > 0 && totalCashVal !== cashDepositAmt) {
+      if (cashDepositAmt > 0 && !moneyMatches(totalCashVal,cashDepositAmt)) {
         alert("⚠️ Cash Deposit এবং Cash Note total সমান নয়।");
         return;
       }
@@ -3497,7 +3601,7 @@
       const totalRet = parseRawNumber(document.getElementById("emReturn").value)
         + bankDepositVal + cashDepositAmt
         + getDsoTransferList().reduce((s,x)=>s+(Number(x.amount)||0),0);
-      if (totalRec !== totalRet) {
+      if (!moneyMatches(totalRec,totalRet)) {
         alert(`❌ Receive ৳${formatBD(totalRec)} এবং Return/Deposit ৳${formatBD(totalRet)} সমান নয়।`);
         return;
       }
@@ -3524,7 +3628,7 @@
           updatedBy: String(currentUser)
         };
         let editFailure='Daily হিসাব পরিবর্তিত হয়েছে। পুনরায় খুলে চেষ্টা করুন।';
-        const result=await database.ref("collections/" + key).transaction(record=>{
+        const result=await confirmDatabaseWrite(database.ref("collections/" + key).transaction(record=>{
           if(!record || String(record.userId)!==String(currentUser) || record.editPermission?.status!=='approved'){
             editFailure='Admin Edit Permission আর সক্রিয় নেই।';return;
           }
@@ -3538,7 +3642,7 @@
           return {...record,...dailyChanges,
             editPermission:{status:'none',lastEditedBy:String(currentUser),lastEditedAt:now,previousApprovedAt:record.editPermission?.approvedAt||null},
             dsoEditHistory:history};
-        },undefined,false);
+        },undefined,false),subBtn);
         if(!result.committed)throw new Error(editFailure);
         await database.ref("notifications/admin/editRequests/" + key).remove().catch(()=>{});
 
@@ -3547,7 +3651,7 @@
         resetForm();
         switchDsoTab('report');
       } catch (err) {
-        alert("❌ Daily হিসাব Update করা যায়নি: " + err.message);
+        alert("❌ Daily হিসাব Update করা যায়নি: " + describeSubmitError(err));
       } finally {
         subBtn.disabled = false;
         if (dsoEditModeKey) subBtn.innerText = "🔄 Update Daily Report";
@@ -3556,179 +3660,103 @@
       }
     }
 
+    function financialInputError(){
+      for(const input of document.querySelectorAll('#dsoPageForm .amt-field')){
+        const raw=normalizeMoneyText(input.value);
+        if(raw && (!/^\d+(?:\.\d{0,2})?$/.test(raw) || !Number.isFinite(Number(raw))))
+          return 'Amount-এ শুধু সঠিক অঙ্ক এবং সর্বোচ্চ দুই দশমিক দিন।';
+      }
+      for(const input of document.querySelectorAll('#dsoPageForm .denom')){
+        const raw=normalizeMoneyText(input.value),count=Number(raw);
+        if(raw && (!/^\d+$/.test(raw)||!Number.isSafeInteger(count)||count<0))
+          return 'ক্যাশ নোটের সংখ্যা পূর্ণসংখ্যা হতে হবে; ঋণাত্মক বা দশমিক সংখ্যা নয়।';
+      }
+      return '';
+    }
+    function captureDailyFields(){
+      const error=financialInputError();if(error)throw new Error(error);
+      const notes={};for(const value of [1000,500,200,100,50])notes['n'+value]=parseNoteCount(document.getElementById('note'+value).value);
+      const fields={
+        emReceived:parseRawNumber(document.getElementById('emReceived').value),
+        cashReceived:parseRawNumber(document.getElementById('cashReceived').value),
+        emReturn:parseRawNumber(document.getElementById('emReturn').value),
+        cashDeposit:parseRawNumber(document.getElementById('cashDeposit').value),
+        dsoReceivedList:getDsoReceivedList(),dsoTransferList:getDsoTransferList(),notes,
+        totalCash:Object.entries(notes).reduce((sum,[key,count])=>sum+Number(key.slice(1))*count,0)
+      };
+      for(const rows of [fields.dsoReceivedList,fields.dsoTransferList]){
+        if(rows.some(row=>Number(row.amount)>0&&!/^8(?:0[1-9]|[1-3][0-9]|4[0-5])$/.test(String(row.dsoId))))
+          throw new Error('DSO Amount-এর পাশে সঠিক DSO নির্বাচন করুন।');
+      }
+      return fields;
+    }
+    function assertDailyBalance(fields,bankAmount){
+      if([fields.emReceived,fields.cashReceived,bankAmount].some(value=>value>0&&value<1000))
+        throw new Error('B2B Received, Cash Received ও Bank Amount ন্যূনতম ৳1,000 হতে হবে।');
+      if(fields.cashDeposit>0 && !moneyMatches(fields.totalCash,fields.cashDeposit))
+        throw new Error('Cash Deposit ও ক্যাশ নোটের মোট পরিমাণ মিলিয়ে দিন।');
+      const received=roundMoney(fields.emReceived+fields.cashReceived+fields.dsoReceivedList.reduce((sum,row)=>sum+Number(row.amount||0),0));
+      const returned=roundMoney(fields.emReturn+fields.cashDeposit+bankAmount+fields.dsoTransferList.reduce((sum,row)=>sum+Number(row.amount||0),0));
+      if(!moneyMatches(received,returned))throw new Error('Receive ৳'+formatBD(received)+' এবং Return/Deposit ৳'+formatBD(returned)+' সমান নয়।');
+    }
     async function submitData() {
-      // Lock immediately: prevents double-clicks and concurrent async submissions.
-      if (isSubmittingData) return;
-      // Recheck the live fields before any upload or edit, including direct calls.
-      calcFormTotals();
-      if (parseRawNumber(document.getElementById('formDifference').textContent) !== 0) {
-        alert('❌ Received - Return ব্যবধান আছে। হিসাব সমান হলে Submit চালু হবে।');
-        return;
-      }
-      isSubmittingData = true;
-      const subBtn = document.getElementById("subBtn");
-      if (subBtn) {
-        subBtn.disabled = true;
-        subBtn.innerText = "Processing...";
-      }
-
-      if (dsoEditModeKey) {
-        try {
-          await submitDsoEdit();
-        } finally {
-          isSubmittingData = false;
-          validateFormAndSubmitBtn();
+      if(isSubmittingData)return;
+      if(bankSlipSubmitInProgress){alert('Bank Slip জমা শেষ হলে দিনের হিসাব Submit করুন।');return;}
+      if(!currentUser || currentUser==='admin'||isGroupAdmin(currentUser)){alert('DSO Login করে রিপোর্ট Submit করুন।');return;}
+      const user=String(currentUser),date=getLocalDateString(),button=document.getElementById('subBtn');
+      let restore=()=>{},saved=false;
+      try{
+        const fields=captureDailyFields();
+        assertDailyBalance(fields,parseRawNumber(document.getElementById('bankDeposit').value));
+        isSubmittingData=true;
+        restore=lockSubmissionInputs('#dsoPageForm input, #dsoPageForm select, #dsoPageForm button:not(#subBtn)');
+        if(button){button.disabled=true;button.textContent='সার্ভারের সঙ্গে সংযোগ হচ্ছে…';}
+        await waitForDatabaseConnection();
+        if(String(currentUser)!==user)throw new Error('Login পরিবর্তিত হয়েছে। আবার নিজের ID-তে Login করুন।');
+        if(dsoEditModeKey){await submitDsoEdit();return;}
+        if(button)button.textContent='জমা হিসাব যাচাই হচ্ছে…';
+        const [requests,existingKey]=await Promise.all([readUserSlipRequests(user),findDailyCollectionKey(date,user)]);
+        if(String(currentUser)!==user)throw new Error('Login পরিবর্তিত হয়েছে। আবার নিজের ID-তে Login করুন।');
+        if(existingKey){
+          const local=globalAllData?.[existingKey];
+          const existing=local||((await readDatabaseOnce(database.ref('collections/'+existingKey),'দিনের রিপোর্ট')).val());
+          if(existing)throw new Error('আজকের হিসাব ইতিমধ্যে Submit হয়েছে। পরিবর্তনের জন্য Admin Edit Permission নিন।');
         }
-        return;
-      }
-      const dateStr = getLocalDateString();
-
-      // The scoped listener already contains today's DSO entry. Avoid downloading
-      // every DSO's records for the date again on each Submit.
-      const alreadySubmitted = Object.values(globalAllData || {}).some(item =>
-        String(item?.userId || '') === String(currentUser) && item?.date === dateStr
-      );
-      if (alreadySubmitted) {
-        alert("⚠️ আপনি আজকের (" + dateStr + ") হিসাব ইতিমধ্যে সাবমিট করেছেন। একই দিনে একাধিকবার হিসাব সাবমিট করা যাবে না।");
-        isSubmittingData = false;
-        if (subBtn) subBtn.innerText = "Submit Data";
-        validateFormAndSubmitBtn();
-        return;
-      }
-
-      // Reconcile submitted slips on every submit, including after page reload.
-      let todaySlipRequests = {};
-      try {
-        const slipSnap=await database.ref('bankSlipRequests').orderByChild('userId').equalTo(String(currentUser)).once('value');
-        todaySlipRequests=Object.fromEntries(Object.entries(slipSnap.val()||{}).filter(([_,r])=>r.date===dateStr && (r.status==='pending'||r.status==='approved'||r.status==='approving')));
-        const verifiedSlips=uniqueSlipAmounts(todaySlipRequests);
-        if(verifiedSlips.duplicate)throw new Error('একই Bank Slip একাধিকবার জমা আছে। Admin-কে অতিরিক্ত স্লিপ Reject করতে বলুন।');
-        submittedBankAmount=verifiedSlips.total;
-        document.getElementById('bankDeposit').value=formatBD(submittedBankAmount);
-        calcFormTotals();
-      } catch(err) {
-        alert('Bank Slip যাচাই করা যায়নি: '+err.message);
-        isSubmittingData=false;subBtn.innerText='Submit Data';validateFormAndSubmitBtn();return;
-      }
-
-      // Final programmatic safety checks. These also protect against submitData() being called
-      // directly while the visible button is disabled.
-      const totalRecSafety = parseRawNumber(document.getElementById("emReceived").value)
-        + parseRawNumber(document.getElementById("cashReceived").value)
-        + getDsoReceivedList().reduce((s,x)=>s+(Number(x.amount)||0),0);
-      const totalRetSafety = parseRawNumber(document.getElementById("emReturn").value)
-        + parseRawNumber(document.getElementById("bankDeposit").value)
-        + parseRawNumber(document.getElementById("cashDeposit").value)
-        + getDsoTransferList().reduce((s,x)=>s+(Number(x.amount)||0),0);
-      if (totalRecSafety !== totalRetSafety) {
-        alert(`❌ Receive ৳${formatBD(totalRecSafety)} এবং Return/Deposit ৳${formatBD(totalRetSafety)} সমান নয়।`);
-        isSubmittingData = false;
-        if (subBtn) subBtn.innerText = "Submit Data";
-        validateFormAndSubmitBtn();
-        return;
-      }
-      const minimumBad = validateMainAmountMinimums();
-      if(minimumBad.length){ alert("❌ B2B Received, Cash Received ও Bank Amount-এ ৩ digit amount গ্রহণযোগ্য নয়। ন্যূনতম ৳1,000 দিন।"); validateFormAndSubmitBtn(); isSubmittingData = false; if(subBtn) subBtn.innerText="Submit Data"; return; }
-
-      let bankDepositVal = parseRawNumber(document.getElementById("bankDeposit").value);
-      if (bankDepositVal < 0) {
-        alert("❌ Bank Deposit amount সঠিক নয়।");
-        validateFormAndSubmitBtn();
-        isSubmittingData = false;
-        return;
-      }
-      const slipRows = []; // Bank slips are submitted in the separate menu.
-
-      // OCR-only slip mode: no secondary slip validation, mismatch checking, or popup.
-      // The values currently populated by OCR are submitted as-is.
-
-      let cashDepositAmt = parseRawNumber(document.getElementById("cashDeposit").value);
-      let n1000 = parseInt(document.getElementById("note1000").value, 10) || 0;
-      let n500 = parseInt(document.getElementById("note500").value, 10) || 0;
-      let n200 = parseInt(document.getElementById("note200").value, 10) || 0;
-      let n100 = parseInt(document.getElementById("note100").value, 10) || 0;
-      let n50 = parseInt(document.getElementById("note50").value, 10) || 0;
-      let totalCashVal = (n1000*1000) + (n500*500) + (n200*200) + (n100*100) + (n50*50);
-
-      if (cashDepositAmt > 0 && totalCashVal !== cashDepositAmt) {
-        alert("⚠️ Cash Deposit থাকার পরও ক্যাশ নোটের বিবরণ সঠিকভাবে দেওয়া হয়নি অথবা পরিমাণ মিলে নি!");
-        isSubmittingData = false;
-        if (subBtn) subBtn.innerText = "Submit Data";
-        validateFormAndSubmitBtn();
-        return;
-      }
-
-      if (subBtn) subBtn.innerText = "Processing Slips...";
-
-      try {
-        let slipsData = [];
-        let bankNamesCollected = [];
-
-        // Convert slips sequentially on mobile. Promise.all can spike memory and
-        // occasionally produce an empty/blank image on low-memory browsers.
-        for (const row of Array.from(slipRows)) {
-          const fileInput = row.querySelector('.slip-file-input');
-          const amtInput = row.querySelector('.slip-amt-val');
-          const bankSelect = row.querySelector('.slip-bank-name');
-          const file = fileInput ? fileInput.files[0] : null;
-          const existingImg = row.dataset.existingImg || '';
-          const imgBase64 = file ? await prepareSlipImageForSave(row, file) : existingImg;
-          const amt = parseRawNumber(amtInput?.value);
-          const bankName = bankSelect?.value || '';
-          const accountName = row.querySelector('.slip-account-name')?.value || '';
-          const depositDate = row.querySelector('.slip-date-input')?.value || '';
-          const ocrAmt = parseRawNumber(row.querySelector('.slip-ocr-val')?.value);
-          const ocrBankName = row.querySelector('[id^="slipOcrBank_"]')?.value || '';
-          const status = row.querySelector('[id^="slipOcrStatus_"]')?.value || 'ocr_ready';
-          const ocrDateFinal = row.querySelector('[id^="slipOcrDate_"]')?.value || '';
-          const hasSlipData = !!file || !!existingImg || amt>0 || !!bankName || !!accountName || !!depositDate;
-          if (!hasSlipData) continue;
-          if (!isApprovedSlipAccount(row)) throw new Error('অনুমোদিত Bank Account এবং Bank Name নির্বাচন করুন।');
-          if (!imgBase64) throw new Error('Bank slip image read/convert করা যায়নি। ছবিটি আবার নির্বাচন করুন।');
-          slipsData.push({img:imgBase64,amt,bankName,accountName,accountNumber:row.querySelector('.slip-account-number').value,depositDate,ocrBankName,ocrAmt,ocrDate:ocrDateFinal,ocrStatus:status});
+        const todayRequests=Object.fromEntries(Object.entries(requests).filter(([_,request])=>request?.date===date && ['pending','approved','approving'].includes(request.status)));
+        const totals=uniqueSlipAmounts(todayRequests);
+        if(totals.duplicate)throw new Error('একই Bank Slip একাধিকবার আছে। Admin-কে অতিরিক্ত Slip Reject করতে বলুন।');
+        submittedBankAmount=totals.total;
+        document.getElementById('bankDeposit').value=formatBD(totals.total);
+        assertDailyBalance(fields,totals.total);
+        // One deterministic key per DSO/date: retries and simultaneous devices
+        // cannot create a second report with a new push ID.
+        const key='daily_'+date+'_'+user;
+        const payload={...fields,date,userId:user,bankDeposit:totals.total,
+          bankName:[...new Set(Object.values(todayRequests).flatMap(request=>(request.slips||[]).map(slip=>slip.bankName).filter(Boolean)))].join(', '),
+          submittedSlipRequests:Object.fromEntries(Object.keys(todayRequests).map(key=>[key,true])),
+          initialSlipRequests:Object.fromEntries(Object.keys(todayRequests).map(key=>[key,true])),
+          initialSlipRequestsKnown:true,
+          approvedSlipRequests:Object.fromEntries(Object.entries(todayRequests).filter(([_,request])=>request.status==='approved').map(([key])=>[key,true])),
+          slips:Object.values(todayRequests).flatMap(request=>request.slips||[]),approvalStatus:'pending',timestamp:Date.now()};
+        if(button)button.textContent='রিপোর্ট সেভ হচ্ছে…';
+        const result=await confirmDatabaseWrite(database.ref('collections/'+key).transaction(existing=>existing===null?payload:undefined,undefined,false),button);
+        if(!result.committed)throw new Error('আজকের রিপোর্ট ইতিমধ্যে Submit হয়েছে। একই দিনের দ্বিতীয় রিপোর্ট গ্রহণযোগ্য নয়।');
+        saved=true;
+        // The report itself is acknowledged before showing success. The small
+        // optional lookup index repairs in the background; failure cannot turn
+        // a successfully saved report into a misleading "Submit failed" message.
+        database.ref('dailySubmissionIndex/'+date+'/'+user).set(key).catch(error=>console.warn('Daily index repair:',error));
+        if(String(currentUser)===user){
+          globalAllData=globalAllData||{};globalAllData[key]=result.snapshot.val()||payload;
+          justSubmittedSlipBaseline={date,user,keys:new Set(Object.keys(todayRequests))};
+          resetForm();refreshSubmittedBankAmount();
+          alert('ডাটা সফলভাবে সেভ হয়েছে! দিনের রিপোর্ট Admin Approval Pending।');
         }
-        slipsData.forEach(slip=>{ if(slip.bankName && !bankNamesCollected.includes(slip.bankName)) bankNamesCollected.push(slip.bankName); });
-
-        subBtn.innerText = "Saving Data...";
-
-        const payload = {
-          date: dateStr,
-          userId: currentUser,
-          emReceived: parseRawNumber(document.getElementById("emReceived").value),
-          cashReceived: parseRawNumber(document.getElementById("cashReceived").value),
-          dsoReceivedList: getDsoReceivedList(),
-          emReturn: parseRawNumber(document.getElementById("emReturn").value),
-          bankDeposit: bankDepositVal,
-          bankName: [...new Set(Object.values(todaySlipRequests).flatMap(r=>(r.slips||[]).map(x=>x.bankName).filter(Boolean)))].join(", "),
-          submittedSlipRequests: Object.fromEntries(Object.keys(todaySlipRequests).map(key=>[key,true])),
-          initialSlipRequests: Object.fromEntries(Object.keys(todaySlipRequests).map(key=>[key,true])),
-          approvedSlipRequests: Object.fromEntries(Object.entries(todaySlipRequests).filter(([_,r])=>r.status==='approved').map(([key])=>[key,true])),
-          dsoTransferList: getDsoTransferList(),
-          cashDeposit: cashDepositAmt,
-          notes: { n1000, n500, n200, n100, n50 },
-          totalCash: totalCashVal,
-          slips: Object.values(todaySlipRequests).flatMap(r=>r.slips||[]),
-          approvalStatus: "pending",
-          timestamp: Date.now()
-        };
-
-        const newCollectionRef = database.ref('collections').push();
-        const updates = {};
-        updates['collections/' + newCollectionRef.key] = payload;
-        updates['dailySubmissionIndex/' + dateStr + '/' + String(currentUser)] = newCollectionRef.key;
-        await database.ref().update(updates);
-        justSubmittedSlipBaseline={date:dateStr,user:String(currentUser),keys:new Set(Object.keys(todaySlipRequests))};
-        alert('ডাটা সফলভাবে সেভ হয়েছে! দিনের রিপোর্ট Admin Approval Pending।');
-        resetForm();
-        refreshSubmittedBankAmount();
-      } catch (err) {
-        alert("ডাটা সেভ হয়নি! কারণ: " + err.message);
-      } finally {
-        isSubmittingData = false;
-        subBtn.innerText = "Submit Data";
-        // Re-run the full validation instead of blindly enabling Submit.
-        // This prevents a successful reset or any validation error from
-        // accidentally leaving the button enabled.
+      }catch(error){
+        if(!saved)alert('রিপোর্ট Submit হয়নি: '+describeSubmitError(error));
+      }finally{
+        restore();isSubmittingData=false;
+        if(button)button.textContent=dsoEditModeKey?'🔄 Update Daily Report':'Submit Data';
         validateFormAndSubmitBtn();
       }
     }
@@ -4038,7 +4066,7 @@
         let dsoTransSum = Array.isArray(item.dsoTransferList) ? item.dsoTransferList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoTransfer || 0);
         let totalRet = emRet + bankDep + cashDep + dsoTransSum;
 
-        let diff = totalRec - totalRet;
+        let diff = roundMoney(totalRec - totalRet);
 
         let bankInfoText = item.bankName ? `${item.bankName} (৳${formatBD(bankDep)})` : (bankDep > 0 ? `৳${formatBD(bankDep)}` : 'N/A');
          if (Array.isArray(item.slips) && item.slips.length) { bankInfoText += '<br>' + item.slips.map(s => `${escapeHtml(s.bankName || '')}: ৳${formatBD(s.amt || 0)} — ${escapeHtml(s.accountName || 'Account Name N/A')}`).join('<br>'); }
@@ -4460,7 +4488,7 @@
         sumCashDep += cashDep;
 
         let totalRet = emRet + bankDep + dsoTransSum + cashDep;
-        let diff = totalRec - totalRet;
+        let diff = roundMoney(totalRec - totalRet);
         let dsoDiff = dsoRecSum - dsoTransSum;
 
         let slipsList = item.slips || [];
@@ -4962,7 +4990,7 @@
       let dsoTransSum = Array.isArray(item.dsoTransferList) ? item.dsoTransferList.reduce((a, b) => a + (b.amount || 0), 0) : (item.dsoTransfer || 0);
       let totalRet = emRet + bankDep + cashDep + dsoTransSum;
 
-      let diff = totalRec - totalRet;
+      let diff = roundMoney(totalRec - totalRet);
       let n = item.notes || {};
 
       let dsoRecHtml = "";
