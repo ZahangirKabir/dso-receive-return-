@@ -18,7 +18,7 @@ function sync(account){
   for(const slip of q.slips||[])if(!slips.some(old=>same(old,slip)))slips.push({...slip,requestKey:key});
  }
  r.slips=slips;r.submittedSlipRequests=submitted;r.approvedSlipRequests=approved;
- r.bankDeposit=slips.reduce((n,s)=>n+cents(s.amt??s.amount),0)/100;
+ r.bankDeposit=(slips.reduce((n,s)=>n+cents(s.amt??s.amount),0)+(account.legacyBankOffsetCents||0))/100;
  r.bankName=[...new Set(slips.map(s=>s.bankName).filter(Boolean))].join(', ');
  return account;
 }
