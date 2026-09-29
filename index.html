@@ -1102,8 +1102,10 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     let databaseConnected=false,databaseConnectionEpoch=0,userSlipReadyEpoch=-1;
     database.ref('.info/connected').on('value',snapshot=>{
       const connected=snapshot.val()===true;
-      if(connected&&!databaseConnected)databaseConnectionEpoch++;
+      const reconnected=connected&&!databaseConnected;
+      if(reconnected)databaseConnectionEpoch++;
       databaseConnected=connected;
+      if(reconnected)setTimeout(()=>recoverActiveDataSync(true),0);
     },error=>console.warn('Firebase connection status:',error));
 
     function waitForDatabaseConnection(timeoutMs=12000){
@@ -1711,7 +1713,19 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if(!submitted)return !!report.submittedSlipRequests?.[key];
       return !!submitted && !!reportTime && submitted<=reportTime;
     }
+    function refreshSlipSubmitMessage(){
+      const message=document.getElementById('slipSubmitMessage');
+      if(!message?.dataset.requestKey)return;
+      const key=message.dataset.requestKey;
+      const request=slipStatusItems[key];
+      if(message.dataset.user!==String(currentUser)||!request){message.textContent='';return;}
+      const amount=formatBD(request.amount||0);
+      if(request.status==='rejected'||request.status==='rejecting')message.textContent='❌ ৳'+amount+' Bank Slip Rejected।'+(request.rejectReason?' কারণ: '+request.rejectReason:'');
+      else if(request.status==='approved')message.textContent='✅ ৳'+amount+' Bank Slip Approved।';
+      else message.textContent='✅ ৳'+amount+' Bank Slip জমা হয়েছে। Admin Approval Pending।';
+    }
     function refreshSubmittedBankAmount(){
+      refreshSlipSubmitMessage();
       if(dsoEditModeKey)return;
       const date=getLocalDateString(),user=String(currentUser||'');
       const report=todaySubmittedReport();
@@ -1838,27 +1852,20 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         if(slipStatusScope===scope){slipStatusLoading=false;slipStatusLoadError='Bank Slip ডাটা লোড হয়নি: '+(err?.message||'সংযোগ সমস্যা');renderBankSlipStatus(user);}
         console.error('Bank Slip status load failed:',err);
       };
-      const add=snap=>{slipStatusItems[snap.key]=snap.val();schedule();};
-      const remove=snap=>{
-        if(user==='admin'&&slipStatusItems[snap.key])watchOlderSlip(snap.key,snap.val(),scope);
-        delete slipStatusItems[snap.key];schedule();
-      };
-      [['child_added',add],['child_changed',add],['child_removed',remove]].forEach(([event,handler])=>{
-        slipStatusRef.on(event,handler,error);slipStatusListeners.push([event,handler]);
-      });
-      // An empty query has no child_added event. Wait for the server's initial value,
-      // so slow connections cannot be mistaken for a day without Bank Slips.
-      const initial=snap=>{
-        if(String(currentUser)!==user||slipStatusScope!==scope)return;
-        snap.forEach(child=>{slipStatusItems[child.key]=child.val();});
+      const watchedRef=slipStatusRef;
+      const live=snap=>{
+        if(String(currentUser)!==user||slipStatusScope!==scope||slipStatusRef!==watchedRef)return;
+        // Replace the complete selected scope so removals and status changes
+        // cannot leave entries from an older snapshot behind.
+        slipStatusItems=snap.val()||{};
         slipStatusHasMore=user==='admin'&&snap.numChildren()===BANK_SLIP_PAGE_SIZE;
         slipStatusLoading=false;slipStatusLoadError='';
         if(user!=='admin')userSlipReadyEpoch=databaseConnected?databaseConnectionEpoch:-1;
-        if(document.getElementById(user==='admin'?'adminPageSlipApproval':'dsoPageSlip')?.style.display==='block')renderBankSlipStatus(user);
-        if(user!=='admin')refreshSubmittedBankAmount();
+        schedule();
       };
-      slipStatusRef.once('value',initial,error);
+      slipStatusRef.on('value',live,error);slipStatusListeners.push(['value',live]);
     }
+
     async function loadMoreBankSlips(){
       if(currentUser!=='admin'||!slipStatusHasMore||slipStatusLoadingMore||slipStatusLoading)return;
       const scope=slipStatusScope,mode=slipApprovalViewMode;
@@ -1945,7 +1952,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         // Slip creation and report attachment commit in the same daily transaction.
         if(String(currentUser)===user){
           active.forEach(cleanupSlipPreview);document.getElementById('slipsContainer').replaceChildren();addSlipRow();
-          document.getElementById('slipSubmitMessage').textContent='✅ ৳'+formatBD(amount)+' Bank Slip জমা হয়েছে। Admin Approval Pending।';
+          const message=document.getElementById('slipSubmitMessage');message.dataset.requestKey=requestRef.key;message.dataset.user=user;refreshSlipSubmitMessage();
           refreshSubmittedBankAmount();renderBankSlipStatus(user);
           alert('Bank Slip জমা হয়েছে। Admin Approval Pending।');
         }
@@ -2978,7 +2985,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if(file.size>15*1024*1024){alert('স্লিপ ইমেজ 15MB-এর মধ্যে রাখুন।');event.target.value='';return;}
 
       if(ocrStatus) ocrStatus.value='processing';
-      document.getElementById('slipSubmitMessage').textContent='';
+      document.getElementById('slipSubmitMessage').textContent='';delete document.getElementById('slipSubmitMessage').dataset.requestKey;delete document.getElementById('slipSubmitMessage').dataset.user;
       delete row.dataset.ocrAccountNumber;
       row.querySelector('.slip-account-number').value='';
       if(ocrAmt) ocrAmt.value='0';
@@ -5397,6 +5404,25 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     updateReleaseGate();
     startReleaseWatcher();
     checkHostedRelease(true);
+    let lastLiveRecoveryAt=0;
+    function recoverActiveDataSync(force=false){
+      if(!currentUser||document.hidden||!databaseConnected)return;
+      const now=Date.now();if(!force&&now-lastLiveRecoveryAt<15000)return;
+      lastLiveRecoveryAt=now;
+      const listeners=[...realtimeListenerRefs];
+      if(masterAdminRealtimeRef)listeners.push(masterAdminRealtimeRef);
+      if(slipStatusRef)for(const [event,handler] of slipStatusListeners)if(event==='value')listeners.push({ref:slipStatusRef,handler});
+      for(const entry of slipPagedListeners.values())listeners.push(entry);
+      const seen=new Set();
+      for(const {ref,handler} of listeners){
+        if(!ref||!handler||seen.has(ref))continue;seen.add(ref);
+        // Cancel the previous stream before attaching its replacement. The
+        // ledger adapter also cancels callbacks still waiting to subscribe.
+        ref.off('value',handler);
+        ref.on('value',handler,error=>console.warn('Live data recovery failed:',error));
+      }
+    }
+    setInterval(()=>recoverActiveDataSync(),60000);
     let lastDsoStatusDate=getLocalDateString();
     setInterval(()=>{
       checkHostedRelease();
@@ -5409,10 +5435,10 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         }
       }
     },60000);
-    document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkHostedRelease(true);});
-    window.addEventListener('focus',()=>checkHostedRelease(true));
-    window.addEventListener('online',()=>checkHostedRelease(true));
-    window.addEventListener('pageshow',()=>checkHostedRelease(true));
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden){checkHostedRelease(true);recoverActiveDataSync();}});
+    window.addEventListener('focus',()=>{checkHostedRelease(true);recoverActiveDataSync();});
+    window.addEventListener('online',()=>{checkHostedRelease(true);recoverActiveDataSync();});
+    window.addEventListener('pageshow',()=>{checkHostedRelease(true);recoverActiveDataSync();});
     document.getElementById('loginPass')?.addEventListener('keydown',e=>{if(e.key==='Enter')handleLogin();});
     document.getElementById('loginId')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass')?.focus();});
   </script>
