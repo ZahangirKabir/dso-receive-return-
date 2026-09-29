@@ -1367,7 +1367,6 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         switchDsoTab('form');
         resetForm();
       }
-      if(currentUser==='admin'){let setup=document.getElementById('ledgerSetupLink');if(!setup){setup=document.createElement('a');setup.id='ledgerSetupLink';setup.href='migration.html';setup.target='_blank';setup.rel='noopener';setup.textContent='একবার নতুন হিসাব সেটআপ';setup.style.cssText='display:block;padding:10px;text-align:center;';document.getElementById('adminView').prepend(setup);}}
       listenRealtimeData();
       // Open the small, date-scoped Admin slip query only when its page is visited.
       if(currentUser!=='admin')listenBankSlipStatuses();
