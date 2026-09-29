@@ -1,0 +1,151 @@
+<!doctype html><html lang="bn"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>একবার হিসাব সেটআপ</title>
+<style>body{font-family:system-ui;background:#edf7f4;color:#174b41;margin:0;padding:20px}main{max-width:760px;background:white;margin:auto;padding:24px;border-radius:16px}label{display:block;margin:16px 0}input,button{padding:12px;font:inherit;max-width:100%;box-sizing:border-box}button{background:#087c66;color:white;border:0;border-radius:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f7f6;padding:16px;max-height:400px;overflow:auto}a{color:#096c5b}</style>
+<main><h1>একবার নতুন হিসাব সেটআপ</h1><p>এই কাজ কম্পিউটার থেকে করুন। আপনার পুরোনো হিসাব ও ছবি মুছবে না। প্রস্তুতির সময় DSO জমা বন্ধ থাকবে।</p><ol><li>Firebase Realtime Database থেকে Export JSON করে নিজের কম্পিউটারে backup রাখুন।</li><li>ZIP-এর Billing_Free_Transition_Rules.json-এর Rules প্রকাশ করুন। এতে পুরোনো রিপোর্ট/স্লিপে নতুন লেখা বন্ধ হবে।</li><li>নিচে ওই backup নির্বাচন করে যাচাই করুন।</li><li>দেখানো সংশোধন ও সতর্কতা পড়ে স্থানান্তর শুরু করুন।</li></ol><p>এই Rules বর্তমান public password login-এর নিরাপত্তা সমাধান নয়; শুধু পুরোনো লেখার পথ বন্ধ করে নতুন কাঠামোয় যাওয়ার জন্য।</p>
+<label>Admin Password <input id="password" type="password" autocomplete="current-password"></label><label>আপনার Export JSON <input id="backup" type="file" accept=".json,application/json"></label><button id="check">Backup যাচাই করুন</button>
+<pre id="status">যাচাই এখনও হয়নি।</pre><label><input id="confirm" type="checkbox"> Backup রেখেছি, নতুন Rules প্রকাশ করেছি এবং নিচের পরিবর্তনগুলো গ্রহণ করছি।</label><button id="migrate" disabled>পুরোনো হিসাব স্থানান্তর করে চালু করুন</button><p><a href="index.html">Collection Portal-এ ফিরুন</a></p></main>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script><script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script><script>/* Billing-free canonical daily ledger. No images are stored in financial records. */
+(function(global){'use strict';
+const clone=x=>x==null?x:JSON.parse(JSON.stringify(x));
+const cents=x=>Math.round((Number(x)||0)*100);
+function id(s){const v=String(s||'').replace(/[০-৯]/g,c=>'০১২৩৪৫৬৭৮৯'.indexOf(c)).toUpperCase().replace(/[^A-Z0-9]/g,'');return v.length>=6&&v.length<=40&&/\d/.test(v)?v:'';}
+function identity(s){return id(s.transactionId)?String(s.bankName||'').trim().toUpperCase()+':'+id(s.transactionId):null;}
+function same(a,b){return !!(a.img&&a.img===b.img)||!!(identity(a)&&identity(a)===identity(b));}
+function balance(r){const sum=a=>(a||[]).reduce((n,x)=>n+cents(x.amount),0);return cents(r.emReceived)+cents(r.cashReceived)+sum(r.dsoReceivedList)-cents(r.emReturn)-cents(r.cashDeposit)-cents(r.bankDeposit)-sum(r.dsoTransferList);}
+function sync(account){
+ if(!account.report)return account;
+ const r=account.report,requests=account.requests||{};
+ // Unlinked legacy manual slips are retained rather than silently deleted.
+ const legacy=(r.slips||[]).filter(s=>!s.requestKey);
+ const slips=[...legacy],submitted={},approved={};
+ for(const [key,q] of Object.entries(requests)){
+  if(q.status==='rejected'||q.status==='rejecting')continue;
+  submitted[key]=true;if(q.status==='approved')approved[key]=true;
+  for(const slip of q.slips||[])if(!slips.some(old=>same(old,slip)))slips.push({...slip,requestKey:key});
+ }
+ r.slips=slips;r.submittedSlipRequests=submitted;r.approvedSlipRequests=approved;
+ r.bankDeposit=slips.reduce((n,s)=>n+cents(s.amt??s.amount),0)/100;
+ r.bankName=[...new Set(slips.map(s=>s.bankName).filter(Boolean))].join(', ');
+ return account;
+}
+function snapshot(key,value){return {key,val:()=>clone(value),exists:()=>value!=null,numChildren:()=>Object.keys(value||{}).length,forEach(fn){for(const [k,v] of Object.entries(value||{}))if(fn(snapshot(k,v))===true)return true;return false;},child(path){let v=value;for(const p of path.split('/'))v=v?.[p];return snapshot(path.split('/').pop(),v??null);}};}
+function create(raw,options={}){
+ const locations=new Map(),assetCache=new Map();let ready;
+ const today=()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const v=k=>p.find(x=>x.type===k).value;return `${v('year')}-${v('month')}-${v('day')}`;};
+ function accountKey(date,user){if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d+$/.test(String(user)))throw Error('সঠিক তারিখ ও DSO ID প্রয়োজন।');return date+'_'+user;}
+ async function enabled(){if(!ready)ready=raw.ref('appConfig/ledgerSchemaVersion').once('value').then(s=>{if(s.val()!==1)throw Error('নতুন হিসাব চালু করতে Admin-কে migration.html দিয়ে একবার সেটআপ করতে বলুন।');return true;}).catch(e=>{ready=null;throw e;});return ready;}
+ function learn(key,a){if(a?.reportKey)locations.set('collections/'+a.reportKey,key);for(const k of Object.keys(a?.requests||{}))locations.set('bankSlipRequests/'+k,key);}
+ async function locate(root,key){const cache=locations.get(root+'/'+key);if(cache)return cache;
+ const m=root==='collections'?key.match(/^daily_(\d{4}-\d{2}-\d{2})_(\d+)$/):key.match(/^(\d+)_(\d{4}-\d{2}-\d{2})_/);
+ if(m){const k=root==='collections'?accountKey(m[1],m[2]):accountKey(m[2],m[1]);locations.set(root+'/'+key,k);return k;}
+ const s=await raw.ref('ledgerLocations/'+root+'/'+key).once('value');if(!s.val())throw Error('এই পুরোনো হিসাবের পরিচয় পাওয়া যায়নি; migration যাচাই করুন।');locations.set(root+'/'+key,s.val());return s.val();}
+ function entity(a,root,key){return root==='collections'?(a?.reportKey===key?a.report:null):a?.requests?.[key]||null;}
+ function pathGet(x,parts){for(const p of parts)x=x?.[p];return x??null;}
+ function pathSet(x,parts,v){if(!parts.length)return v;let n=x;for(const p of parts.slice(0,-1))n=n[p]||(n[p]={});if(v===null)delete n[parts.at(-1)];else n[parts.at(-1)]=v;return x;}
+ class Ref{
+  constructor(path,opts={}){this.path=path;this.parts=path.split('/');this.root=this.parts[0];this.key=this.parts.at(-1);this.opts=opts;this.listeners=[];}
+  child(p){return new Ref(this.path+'/'+p,this.opts);}
+  query(k,v){return new Ref(this.path,{...this.opts,[k]:v});}
+  orderByChild(v){return this.query('order',v);}orderByKey(){return this.query('order','$key');}
+  equalTo(v,key){return this.query('equal',[v,key]);}startAt(v,key){return this.query('start',[v,key]);}endAt(v,key){return this.query('end',[v,key]);}
+  limitToLast(v){return this.query('last',v);}limitToFirst(v){return this.query('first',v);}
+  async source(){await enabled();if(this.parts.length>1)return raw.ref('ledgerAccounts/'+await locate(this.root,this.parts[1]));
+   let q=raw.ref('ledgerAccounts');const o=this.opts;
+   if(o.userDates)return q.orderByKey().startAt(o.userDates[1]+'_').endAt(o.userDates[2]+'_\uf8ff');
+   // A DSO's deposit status and submission checks need only today's account.
+   if(this.root==='bankSlipRequests'&&o.order==='userId'&&o.equal){return raw.ref('ledgerAccounts/'+accountKey(today(),o.equal[0]));}
+   if(o.order&&o.order!=='$key')q=q.orderByChild(o.order);else q=q.orderByKey();
+   if(o.equal)q=q.equalTo(...o.equal);
+   if(o.start)q=q.startAt(o.start[0]);if(o.end)q=q.endAt(o.end[0]);
+   // Request pages load the selected date's small metadata, never image blobs.
+   if(this.root==='collections'){if(o.last)q=q.limitToLast(o.last);if(o.first)q=q.limitToFirst(o.first);}
+   return q;
+  }
+  project(s){if(this.parts.length>1){const a=s.val();learn(s.key,a);return snapshot(this.key,pathGet(entity(a,this.root,this.parts[1]),this.parts.slice(2)));}
+   const out={};const add=(k,a)=>{if(!a||(this.opts.userDates&&String(a.userId)!==String(this.opts.userDates[0])))return;learn(k,a);if(this.root==='collections'){if(a.report)out[a.reportKey]=a.report;}else Object.assign(out,a.requests||{});};
+   if(this.root==='bankSlipRequests'&&this.opts.order==='userId'&&this.opts.equal)add(s.key,s.val());else s.forEach(c=>add(c.key,c.val()));
+   return snapshot(this.root,out);
+  }
+  async once(event,success,failure){try{if(event!=='value')throw Error('Unsupported ledger event');const q=await this.source();const s=this.project(await q.once('value'));success?.(s);return s;}catch(e){failure?.(e);throw e;}}
+  on(event,fn,error){const state={event,fn,cancel:false,previous:null,q:null,handler:null};this.listeners.push(state);
+   this.source().then(q=>{if(state.cancel)return;state.q=q;state.handler=s=>{if(state.cancel)return;const next=this.project(s);if(event==='value')fn(next);else{const now=next.val()||{},before=state.previous||{};for(const [k,v] of Object.entries(now)){if(event==='child_added'&&!(k in before))fn(snapshot(k,v));if(event==='child_changed'&&k in before&&JSON.stringify(v)!==JSON.stringify(before[k]))fn(snapshot(k,v));}if(event==='child_removed')for(const k of Object.keys(before))if(!(k in now))fn(snapshot(k,before[k]));state.previous=now;}};q.on('value',state.handler,error);}).catch(e=>{if(!state.cancel)error?.(e);});return fn;
+  }
+  off(event,fn){for(const l of this.listeners)if((!event||l.event===event)&&(!fn||l.fn===fn)){l.cancel=true;l.q?.off('value',l.handler);}this.listeners=this.listeners.filter(l=>!l.cancel);}
+  async transaction(update,complete,applyLocally=false){try{await enabled();const key=this.parts[1],ak=await locate(this.root,key);const [date,userId]=ak.split('_');
+   const result=await raw.ref('ledgerAccounts/'+ak).transaction(current=>{
+    const a=clone(current)||{date,userId,requests:{}};const old=entity(a,this.root,key);const value=update(clone(pathGet(old,this.parts.slice(2))));if(value===undefined)return;
+    const next=pathSet(clone(old)||{},this.parts.slice(2),value);
+    if(this.root==='collections'){
+     if(a.reportKey&&a.reportKey!==key&&a.report&&next!==null)throw Error('একই দিনের দ্বিতীয় রিপোর্ট গ্রহণযোগ্য নয়।');
+     const isNew=!old;a.reportKey=key;a.report=next;
+     const beforeBank=cents(next?.bankDeposit);sync(a);
+     if(next&&isNew){a.report.initialSlipRequestsKnown=true;a.report.initialSlipRequests=clone(a.report.submittedSlipRequests||{});if(balance(a.report)!==0)throw Error('স্লিপের টাকা পরিবর্তিত হয়েছে; নতুন হিসাব মিলিয়ে Submit করুন।');}
+     if(next&&!isNew&&this.parts.length===2&&cents(a.report.bankDeposit)!==beforeBank)throw Error('Bank Slip-এর টাকার সঙ্গে রিপোর্টের Amount মেলেনি।');
+     if(next?.approvalStatus==='approved'&&(balance(a.report)!==0||Object.values(a.requests||{}).some(r=>r.status!=='approved'&&r.status!=='rejected')))throw Error('সব Slip Approved ও হিসাব সমান না হলে রিপোর্ট Approved হবে না।');
+    }else{
+     if(next===null)delete a.requests[key];else{
+      if(String(next.userId)!==userId||next.date!==date)throw Error('স্লিপের DSO/তারিখ মেলেনি।');
+      if(!old&&next.status!=='rejected'&&Object.values(a.requests||{}).some(r=>r.status!=='rejected'&&(r.slips||[]).some(s=>(next.slips||[]).some(t=>same(s,t)))))throw Error('এই ছবি বা Transaction ID আগে জমা হয়েছে।');
+      next.slips=(next.slips||[]).map(s=>({...s,requestKey:key}));next.amount=next.slips.reduce((n,s)=>n+cents(s.amt??s.amount),0)/100;a.requests[key]=next;
+     }
+     sync(a);if(a.report)a.report.approvalStatus='pending';
+    }
+    return a;
+   },undefined,applyLocally);
+   learn(ak,result.snapshot.val());const out={committed:result.committed,snapshot:snapshot(this.key,pathGet(entity(result.snapshot.val(),this.root,key),this.parts.slice(2)))};complete?.(null,out.committed,out.snapshot);return out;
+  }catch(e){complete?.(e,false,null);throw e;}}
+  async set(v){return this.transaction(()=>v);}
+  async update(v){return this.transaction(old=>{const out=clone(old)||{};for(const [k,x] of Object.entries(v))pathSet(out,k.split('/'),x);return out;});}
+  async remove(){return this.set(null);}
+ }
+ const db={ref(path=''){const root=path.split('/')[0];return root==='collections'||root==='bankSlipRequests'?new Ref(path):raw.ref(path);}};
+ async function thumbnail(data){if(!global.document?.createElement)return '';return new Promise(resolve=>{let done=false;const img=new Image();const finish=v=>{if(done)return;done=true;clearTimeout(timer);resolve(v);};const timer=setTimeout(()=>finish(''),8000);img.onerror=()=>finish('');img.onload=()=>{try{const scale=Math.min(1,160/img.naturalWidth,160/img.naturalHeight);const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.naturalWidth*scale));c.height=Math.max(1,Math.round(img.naturalHeight*scale));const context=c.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,c.width,c.height);context.drawImage(img,0,0,c.width,c.height);finish(c.toDataURL('image/jpeg',0.65));}catch(_){finish('');}};img.src=data;});}
+ async function putImage(data){if(!/^data:image\//.test(data))return data;const bytes=new TextEncoder().encode(data);const [hash,small]=await Promise.all([crypto.subtle.digest('SHA-256',bytes),thumbnail(data)]);const key=[...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');const r=await raw.ref('slipImages/'+key).transaction(v=>v===null?{data,...(small?{thumbnail:small}:{})}:undefined,undefined,false);if(!r.snapshot.val()?.data)throw Error('স্লিপের ছবি সেভ হয়নি।');return 'rtdb:'+key;}
+ async function imageData(value,small=false){if(!String(value).startsWith('rtdb:'))return value;const key=value.slice(5);if(!/^[a-f0-9]{64}$/.test(key))throw Error('স্লিপের ছবির পরিচয় সঠিক নয়।');const cacheKey=key+(small?':thumbnail':':data');if(assetCache.has(cacheKey))return assetCache.get(cacheKey);const result=raw.ref('slipImages/'+key+'/'+(small?'thumbnail':'data')).once('value').then(async s=>{if(!s.val()&&small)return imageData(value,false);if(!s.val())throw Error('স্লিপের ছবি পাওয়া যায়নি।');return s.val();}).catch(e=>{assetCache.delete(cacheKey);throw e;});assetCache.set(cacheKey,result);if(assetCache.size>12)assetCache.delete(assetCache.keys().next().value);return result;}
+ return {database:db,raw,enabled,putImage,imageData,accountKey,requestsForDate:(date)=>new Ref('bankSlipRequests',{order:'date',equal:[date]}),collectionsRange:(user,start,end)=>new Ref('collections',{userDates:[String(user),start,end]}),reset:()=>{ready=null;}};
+}
+global.PortalLedger={create,sync,balance,same,snapshot};
+})(typeof window!=='undefined'?window:globalThis);
+</script><script>
+const firebaseConfig={
+      apiKey: "AIzaSyAjTNlvbrVyqI30-e1waJT1HKRd6dge43A",
+      authDomain: "collection-app-479e0.firebaseapp.com",
+      databaseURL: "https://collection-app-479e0-default-rtdb.firebaseio.com",
+      projectId: "collection-app-479e0",
+      storageBucket: "collection-app-479e0.firebasestorage.app",
+      messagingSenderId: "351312003148",
+      appId: "1:351312003148:web:825db3df14f3c3453a34e9",
+      measurementId: "G-FM0HDGQT0T"
+    };firebase.initializeApp(firebaseConfig);const raw=firebase.database(),ledger=PortalLedger.create(raw);const $=id=>document.getElementById(id);let groups=null,working=false,source=null;
+const show=t=>$('status').textContent=t;const clone=x=>JSON.parse(JSON.stringify(x));
+async function hash(x){const bytes=new TextEncoder().encode(JSON.stringify(x));const digest=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');}
+function canonical(x){if(Array.isArray(x))return x.map(canonical);if(x&&typeof x==='object')return Object.fromEntries(Object.keys(x).sort().map(k=>[k,canonical(x[k])]));return x;}
+async function login(){const pass=(await raw.ref('users/admin/password').once('value')).val()??'123456';if(!$('password').value||$('password').value!==String(pass))throw Error('Admin Password সঠিক নয়।');if((await raw.ref('appConfig/ledgerSchemaVersion').once('value')).val()===1)throw Error('স্থানান্তর আগেই হয়েছে। নতুন হিসাব overwrite করা যাবে না।');}
+function makeGroups(data){const out={};const get=(date,user)=>{const key=ledger.accountKey(date,String(user));return out[key]||(out[key]={date,userId:String(user),requests:{},originalReports:{},originalRequests:{}});};
+for(const [key,r] of Object.entries(data.collections||{})){if(!r)continue;const a=get(r.date,r.userId);if(a.report)throw Error(`একই DSO ${r.userId}, ${r.date}-তে একাধিক রিপোর্ট আছে (${a.reportKey}, ${key})। আগে পুরোনো সিস্টেমে যাচাই করে একটি সঠিক রিপোর্ট রাখুন।`);a.reportKey=key;a.report=clone(r);a.originalReports[key]=clone(r);}
+for(const [key,r] of Object.entries(data.bankSlipRequests||{})){if(!r)continue;if(Number(r.amount)>0&&!(r.slips||[]).length)throw Error('Slip request '+key+'-এ Amount আছে কিন্তু Slip details নেই। আগে যাচাই করুন।');const a=get(r.date,r.userId);a.requests[key]=clone(r);a.originalRequests[key]=clone(r);}
+return out;}
+$('check').onclick=async()=>{if(working)return;working=true;$('check').disabled=true;$('migrate').disabled=true;groups=null;try{await login();const file=$('backup').files[0];if(!file)throw Error('Export JSON নির্বাচন করুন।');source=JSON.parse(await file.text());if(!source||typeof source!=='object'||Array.isArray(source))throw Error('Backup সঠিক নয়।');groups=makeGroups(source);if(!Object.keys(groups).length&&!confirm('Backup-এ পুরোনো Report/Slip নেই। নতুন খালি হিসাব চালু করবেন?'))throw Error('বাতিল হয়েছে।');
+let reports=0,requests=0,images=0;const changes=[];for(const [key,a] of Object.entries(groups)){if(a.report)reports++;requests+=Object.keys(a.requests).length;images+=(a.report?.slips||[]).filter(s=>/^data:image\//.test(s.img||s.image||s.imageUrl||s.imgUrl||'')).length;images+=Object.values(a.requests).reduce((n,r)=>n+(r.slips||[]).filter(s=>/^data:image\//.test(s.img||s.image||s.imageUrl||s.imgUrl||'')).length,0);
+const test=clone(a);for(const r of Object.values(test.requests))if(r.status==='approving'||r.status==='rejecting')r.status='pending';const before=a.report?.bankDeposit;PortalLedger.sync(test);if(a.report&&Math.round(Number(before||0)*100)!==Math.round(Number(test.report.bankDeposit||0)*100))changes.push(`${key}: Bank Deposit ${before||0} → ${test.report.bankDeposit||0} (Slip অনুযায়ী পুনর্মিলন; রিপোর্ট Pending হবে)`);}
+show(`${reports} রিপোর্ট, ${requests} Slip request, ${Object.keys(groups).length} DSO/day হিসাব। ছবির ${images} references আলাদা হবে।\n`+(changes.length?changes.join('\n'):'Bank Deposit-এ কোনো অমিল ধরা পড়েনি।')+'\nApproving/Rejecting অসম্পূর্ণ status Pending হবে।');$('migrate').disabled=false;
+}catch(e){show('যাচাই হয়নি: '+e.message);}finally{working=false;$('check').disabled=false;}};
+$('migrate').onclick=async()=>{if(working||!groups)return;if(!$('confirm').checked){alert('Backup ও Rules প্রকাশ নিশ্চিত করুন।');return;}working=true;$('migrate').disabled=true;$('check').disabled=true;$('backup').disabled=true;
+try{await login();await raw.ref('appConfig/ledgerMigration').set({status:'running',startedAt:firebase.database.ServerValue.TIMESTAMP});let n=0;const total=Object.keys(groups).length;
+for(const [key,input] of Object.entries(groups)){show(`হিসাব ${++n}/${total}: ${key} — ছবি ও তথ্য স্থানান্তর হচ্ছে…`);const a=clone(input);const sourceHash=await hash(canonical({reports:a.originalReports,requests:a.originalRequests}));
+// Verify every source record against the frozen live legacy nodes.
+for(const [id,r] of Object.entries(a.originalReports)){const live=(await raw.ref('collections/'+id).once('value')).val();if(await hash(canonical(live))!==await hash(canonical(r)))throw Error(`${id}: live রিপোর্ট backup-এর সঙ্গে মেলেনি। নতুন backup নিন।`);}
+for(const [id,r] of Object.entries(a.originalRequests)){const live=(await raw.ref('bankSlipRequests/'+id).once('value')).val();if(await hash(canonical(live))!==await hash(canonical(r)))throw Error(`${id}: live Slip backup-এর সঙ্গে মেলেনি। নতুন backup নিন।`);}
+const convert=async s=>{const v=s.img||s.image||s.imageUrl||s.imgUrl||'';const next={...s,img:await ledger.putImage(v)};delete next.image;delete next.imageUrl;delete next.imgUrl;return next;};
+if(a.report)a.report.slips=await Promise.all((a.report.slips||[]).map(convert));
+for(const [id,r] of Object.entries(a.requests)){r.slips=await Promise.all((r.slips||[]).map(async s=>({...await convert(s),requestKey:id})));if(r.status==='approving'||r.status==='rejecting')r.status='pending';r.amount=r.slips.length?r.slips.reduce((n,s)=>n+Math.round(Number(s.amt??s.amount??0)*100),0)/100:Number(r.amount||0);}
+if(a.report){for(const s of a.report.slips){if(!s.requestKey){for(const [id,r] of Object.entries(a.requests))if((r.slips||[]).some(t=>PortalLedger.same(s,t))){s.requestKey=id;break;}}}
+if(!a.report.initialSlipRequestsKnown){a.report.initialSlipRequestsKnown=true;a.report.initialSlipRequests=Object.fromEntries(Object.entries(a.requests).filter(([id,r])=>a.report.initialSlipRequests?.[id]||Number(r.submittedAt||0)<=Number(a.report.timestamp||0)).map(([id])=>[id,true]));}}
+const oldBank=Math.round(Number(a.report?.bankDeposit||0)*100);PortalLedger.sync(a);if(a.report&&(oldBank!==Math.round(a.report.bankDeposit*100)||Object.values(a.requests).some(r=>r.status!=='approved'&&r.status!=='rejected')))a.report.approvalStatus='pending';delete a.originalReports;delete a.originalRequests;a.migrationSourceHash=sourceHash;
+const result=await raw.ref('ledgerAccounts/'+key).transaction(existing=>{if(existing&&existing.migrationSourceHash!==sourceHash)throw Error(`${key}: নতুন বা ভিন্ন তথ্য আছে; overwrite বন্ধ করা হয়েছে।`);return existing||a;},undefined,false);if(!result.committed)throw Error('হিসাব সেভ নিশ্চিত হয়নি।');
+const updates={};if(a.reportKey)updates['ledgerLocations/collections/'+a.reportKey]=key;for(const id of Object.keys(a.requests))updates['ledgerLocations/bankSlipRequests/'+id]=key;if(a.reportKey)updates['dailySubmissionIndex/'+a.date+'/'+a.userId]=a.reportKey;await raw.ref().update(updates);
+}
+// Ensure the backup contains every record in the frozen database, without downloading photos again.
+const base=firebaseConfig.databaseURL.replace(/\/$/,'');for(const name of ['collections','bankSlipRequests']){const response=await fetch(base+'/'+name+'.json?shallow=true',{cache:'no-store'});if(!response.ok)throw Error('পুরোনো record count যাচাই করা যায়নি।');const keys=Object.keys(await response.json()||{}).sort();const backupKeys=Object.keys(source[name]||{}).sort();if(JSON.stringify(keys)!==JSON.stringify(backupKeys))throw Error(name+': live record তালিকা backup-এর সঙ্গে মেলেনি। নতুন backup নিয়ে আবার চেষ্টা করুন।');}
+await raw.ref().update({'appConfig/ledgerSchemaVersion':1,'appConfig/ledgerMigration':{status:'complete',accounts:total,completedAt:firebase.database.ServerValue.TIMESTAMP},'appConfig/releaseVersion':'2026.09.30.03','appConfig/releaseSignal':String(Date.now())});show('✅ স্থানান্তর সম্পন্ন। পুরোনো হিসাব ও ছবি backup হিসেবে অক্ষত আছে। index.html খুলে নতুন করে Login করুন।');groups=null;
+}catch(e){show('স্থানান্তর সম্পূর্ণ হয়নি: '+e.message+'\nপুরোনো হিসাব মুছে যায়নি। সমস্যা ঠিক করে আবার যাচাই ও স্থানান্তর করুন।');$('migrate').disabled=false;}finally{working=false;$('check').disabled=false;$('backup').disabled=false;}};
+</script></html>

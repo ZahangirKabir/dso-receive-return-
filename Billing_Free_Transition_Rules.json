@@ -1,0 +1,37 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": false,
+    "ledgerAccounts": {
+      ".write": true,
+      ".indexOn": [
+        "date",
+        "userId"
+      ]
+    },
+    "slipImages": {
+      ".write": true
+    },
+    "ledgerLocations": {
+      ".write": true
+    },
+    "users": {
+      ".write": true
+    },
+    "appConfig": {
+      ".write": true
+    },
+    "notifications": {
+      ".write": true
+    },
+    "dailySubmissionIndex": {
+      ".write": true
+    },
+    "investmentEntries": {
+      ".write": true
+    },
+    "bankTrackerEntries": {
+      ".write": true
+    }
+  }
+}
