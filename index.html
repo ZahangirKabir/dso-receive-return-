@@ -981,7 +981,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.30.07';
+    const APP_RELEASE_VERSION = '2026.09.30.08';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1316,6 +1316,11 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       adminGhior: new Set(["824","825","826","827","828","829","830","831","832","833","834"])
     };
     const SUB_ADMIN_PASSWORD = "1234";
+    function normalizeLoginId(value) {
+      const entered=String(value || '').trim();
+      if(entered.toLowerCase()==='admin')return 'admin';
+      return Object.keys(SUB_ADMIN_GROUPS).find(id=>id.toLowerCase()===entered.toLowerCase()) || entered;
+    }
     function isGroupAdmin(id) { return Object.prototype.hasOwnProperty.call(SUB_ADMIN_GROUPS, String(id)); }
     function allowedDsoForCurrentUser(dsoId) {
       const viewer = String(currentUser || "").trim();
@@ -1378,7 +1383,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     let loginInProgress = false;
     async function handleLogin() {
       if (loginInProgress) return;
-      const id = document.getElementById("loginId").value.trim();
+      const id = normalizeLoginId(document.getElementById("loginId").value);
       const pass = document.getElementById("loginPass").value.trim();
       const btn = document.getElementById("loginBtn");
       if (!id || !pass) { alert("ইউজার আইডি এবং পাসওয়ার্ড লিখুন!"); return; }
@@ -1447,13 +1452,17 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
     async function changeUserPasswordByAdmin() {
+      if(currentUser !== 'admin') { alert('শুধুমাত্র মূল Admin পাসওয়ার্ড পরিবর্তন করতে পারবেন।'); return; }
       let targetUser = document.getElementById("targetUserSelect").value;
+      if(!isGroupAdmin(targetUser) && !/^(80[1-9]|8[1-3][0-9]|84[0-5])$/.test(targetUser)) {
+        alert('অনুমোদিত User নির্বাচন করুন।'); return;
+      }
       let newPass = document.getElementById("targetUserPassword").value.trim();
       if (newPass.length < 8) { alert("নতুন পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে।"); return; }
       if (!targetUser || !newPass) { alert("ইউজার সিলেক্ট করুন এবং নতুন পাসওয়ার্ড দিন!"); return; }
       try {
         await database.ref('users/' + targetUser + '/password').set(newPass);
-        alert(`DSO '${targetUser}' এর পাসওয়ার্ড আপডেট করা হয়েছে!`);
+        alert(`User '${targetUser}' এর পাসওয়ার্ড আপডেট করা হয়েছে!`);
         document.getElementById("targetUserPassword").value = "";
       } catch (err) { alert("পাসওয়ার্ড সেভ করা যায়নি: " + err.message); }
     }
@@ -4119,6 +4128,13 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
       checkboxContainer.innerHTML = '';
       targetUserSelect.innerHTML = '<option value="">-- Select User --</option>';
+      if(currentUser === 'admin') {
+        Object.keys(SUB_ADMIN_GROUPS).forEach(id=>{
+          const option=document.createElement('option');
+          option.value=id; option.textContent=id + ' (Group Admin)';
+          targetUserSelect.appendChild(option);
+        });
+      }
 
       let dsoSet = new Set();
       if (isGroupAdmin(currentUser)) {
