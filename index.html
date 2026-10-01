@@ -423,7 +423,14 @@
     @media(max-width:760px){.slip-field input,.slip-field select,.slip-file-label{height:45px!important;min-height:45px!important;}}
     .portal-footer{max-width:1100px;margin:24px auto 12px;padding:14px 10px;border-top:1px solid #d4e5df;text-align:center;color:#527068;font-size:12px;line-height:1.5;}
     .portal-footer strong{color:#004d40;}
-</style>
+
+    .container{width:100%;max-width:none;box-sizing:border-box}
+    #adminView,#adminView .section-box{width:100%;min-width:0;box-sizing:border-box}
+    #adminView .table-container{width:100%;max-width:100%;overflow-x:auto}
+    #adminView input,#adminView select{max-width:100%;box-sizing:border-box}
+    .slip-date-input{min-width:0;max-width:100%;box-sizing:border-box}
+    @media(max-width:768px){.container{padding:8px}#adminView .section-box{padding:10px}}
+    </style>
 </head>
 <body>
 
@@ -981,7 +988,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.09.30.08';
+    const APP_RELEASE_VERSION = '2026.10.01.02';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1564,14 +1571,14 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
           <div class="slip-field">
             <label class="slip-field-label">🏦 Bank Name</label>
-            <select class="slip-bank-name" aria-label="Bank" onchange="validateSlipBankManual(${slipCounter}); validateFormAndSubmitBtn()">
+            <select class="slip-bank-name" disabled aria-label="Bank" onchange="validateSlipBankManual(${slipCounter}); validateFormAndSubmitBtn()">
               ${getBankOptionsHTML()}
             </select>
           </div>
 
           <div class="slip-field">
             <label class="slip-field-label">🔢 অনুমোদিত Bank Account</label>
-            <select class="slip-account-number" aria-label="Approved bank account" onchange="selectApprovedSlipAccount(${slipCounter})">
+            <select class="slip-account-number" disabled aria-label="Approved bank account" onchange="selectApprovedSlipAccount(${slipCounter})">
               ${getApprovedAccountOptionsHTML()}
             </select>
           </div>
@@ -1583,7 +1590,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
           <div class="slip-field">
             <label class="slip-field-label">📅 Deposit Date</label>
-            <input type="text" placeholder="Deposit Date" class="slip-date-input" id="slipDate_${slipCounter}" readonly autocomplete="off">
+            <input type="date" class="slip-date-input" id="slipDate_${slipCounter}" readonly autocomplete="off" onkeydown="return false" onpaste="return false" ondrop="return false" onchange="validateSlipManual(${slipCounter})">
           </div>
 
           <div class="slip-field">
@@ -1606,6 +1613,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         </div>
 
         <div class="slip-manual-tools">
+          <button type="button" class="btn-manual-edit" onclick="retrySlipOCR(${slipCounter})">↻ আবার OCR করুন</button>
           <button type="button" class="btn-manual-edit" onclick="enableManualSlipEdit(${slipCounter})">✎ Manual Correction / Confirm</button>
           <label class="manual-confirm-label"><input type="checkbox" id="slipManualConfirm_${slipCounter}" onchange="validateSlipManual(${slipCounter})"> ছবি দেখে তথ্য নিশ্চিত করেছি</label>
         </div>
@@ -1915,7 +1923,10 @@ global.PortalLedger={create,sync,balance,same,snapshot};
           const amount=parseRawNumber(row.querySelector('.slip-amt-val')?.value);
           if(row.querySelector('[id^="slipOcrStatus_"]')?.value==='processing')throw new Error('OCR চলছে। Amount ও Account আসার পরে Submit করুন।');
           if(!(file||image)||amount<=0||!row.querySelector('.slip-bank-name')?.value)throw new Error('স্লিপের ছবি, Bank Name ও Amount দিন।');
-          if(!isApprovedSlipAccount(row))throw new Error('শুধু অনুমোদিত Bank Account ও তার নির্ধারিত Bank Name ব্যবহার করুন।');
+          if(!isApprovedSlipAccount(row))throw new Error('OCR থেকে অনুমোদিত Bank Account শনাক্ত হয়নি। পরিষ্কার ছবি দিয়ে আবার OCR করুন; Bank/Account হাতে পরিবর্তন করা যাবে না।');
+          const ocrState=row.querySelector('[id^="slipOcrStatus_"]')?.value;
+          if(!['ocr_ready','verified_manual'].includes(ocrState))throw new Error('Date ও Amount সংশোধন করে ছবি দেখে তথ্য নিশ্চিত করুন।');
+          if(!normalizeOCRDate(row.querySelector('.slip-date-input')?.value))throw new Error('Deposit Date নির্বাচন করুন।');
           const rawId=row.querySelector('.slip-transaction-id')?.value.trim()||'';
           const transactionId=normalizeSlipTransactionId(rawId);
           if(rawId&&!transactionId)throw new Error('Transaction / Reference ID-তে অন্তত ৬ অক্ষর এবং একটি সংখ্যা দিন।');
@@ -2082,7 +2093,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const info=KNOWN_SLIP_ACCOUNTS[number];
       return !!info && row.querySelector('.slip-bank-name')?.value===info.bank &&
         row.querySelector('.slip-account-name')?.value.trim()===info.accountName &&
-        (!row.dataset.ocrAccountNumber || row.dataset.ocrAccountNumber===number);
+        row.dataset.ocrAccountNumber===number;
     }
 
     function normalizeAccountOCRText(text) {
@@ -2691,7 +2702,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
       // Pass 2 only when the first pass is incomplete. PSM 11 is stronger for
       // scattered/thermal bank-slip text and broken line layouts.
-      if(ocrNeedsRecovery(first)||!extractSlipTransactionId([first])){
+      if(ocrNeedsRecovery(first)||!extractSlipTransactionId([first])||!chooseKnownSlipAccount(results)){
         const enhanced=await preprocessImage(file,4,0);
         results.push(await recognizeSlipPass(worker,enhanced,'11'));
       }
@@ -2769,6 +2780,10 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       return looksLikeNameText(ranked[0]?.name||"") ? ranked[0].name : "";
     }
 
+    async function retrySlipOCR(id) {
+      const input=document.getElementById(`slipFile_${id}`);
+      if(input?.files?.[0])await processSlipOCR({target:input},id);
+    }
     function enableManualSlipEdit(id) {
       const row=document.getElementById(`slipRow_${id}`);
       if(!row) return;
@@ -2778,11 +2793,13 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const dateInput=row.querySelector('.slip-date-input');
       const status=document.getElementById(`slipOcrStatus_${id}`);
       const st=document.getElementById(`slipStatus_${id}`);
-      if(bank) { bank.disabled=false; bank.classList.add('manual-mode'); bank.classList.remove('ocr-locked'); }
-      if(account) { account.readOnly=false; account.classList.add('manual-mode'); account.focus(); }
+      if(bank) { bank.disabled=true; bank.classList.add('manual-mode'); bank.classList.remove('ocr-locked'); }
+      if(account) account.readOnly=true;
+      const number=row.querySelector('.slip-account-number'); if(number)number.disabled=true;
       if(amount) { amount.readOnly=false; amount.classList.add('manual-mode'); amount.classList.remove('ocr-locked'); }
       if(dateInput) { dateInput.readOnly=false; dateInput.classList.add('manual-mode'); dateInput.classList.remove('ocr-locked'); }
       if(status && status.value!=='processing') status.value='manual_pending';
+      const confirm=document.getElementById(`slipManualConfirm_${id}`);if(confirm)confirm.checked=false;
       if(st) st.innerHTML = '';
       validateFormAndSubmitBtn();
     }
@@ -2793,8 +2810,8 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const confirm=document.getElementById(`slipManualConfirm_${id}`);
       const status=document.getElementById(`slipOcrStatus_${id}`);
       const st=document.getElementById(`slipStatus_${id}`);
-      const complete=!!confirm?.checked;
-      if(status && complete) status.value='verified_manual';
+      const complete=!!confirm?.checked && status?.value!=='processing' && isApprovedSlipAccount(row) && !!normalizeOCRDate(row.querySelector('.slip-date-input')?.value) && parseRawNumber(row.querySelector('.slip-amt-val')?.value)>0;
+      if(status && status.value!=='processing')status.value=complete?'verified_manual':'manual_pending';
       if(st) st.innerHTML='';
       recalculateBankDepositFromSlips();
       validateFormAndSubmitBtn();
@@ -2961,6 +2978,22 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     async function processSlipOCR(event, id) {
       const file=event.target.files?.[0];
       const row=document.getElementById(`slipRow_${id}`);
+      if(file && row) setSlipPreviewFromFile(row,document.getElementById(`slipPreview_${id}`),file);
+      try { await processSlipOCRCore(event,id); }
+      catch(error) {
+        if(!row?.isConnected || event.target.files?.[0]!==file)return;
+        console.error('Slip selection failed:',error);
+        const status=document.getElementById(`slipOcrStatus_${id}`);
+        if(status)status.value='failed';
+        enableManualSlipEdit(id);
+        const message=document.getElementById('slipSubmitMessage');
+        if(message)message.textContent='ছবি/OCR প্রক্রিয়া সম্পূর্ণ হয়নি: '+error.message+'। ছবি দেখে তথ্য নিশ্চিত করুন অথবা ছবিটি আবার নির্বাচন করুন।';
+        validateFormAndSubmitBtn();
+      }
+    }
+    async function processSlipOCRCore(event, id) {
+      const file=event.target.files?.[0];
+      const row=document.getElementById(`slipRow_${id}`);
       if(!row) return;
       const bankSelect=row.querySelector('.slip-bank-name');
       const amtInput=row.querySelector('.slip-amt-val');
@@ -2987,10 +3020,10 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         if(manualConfirm) manualConfirm.checked=false;
         if(amtInput){amtInput.value='';amtInput.readOnly=true;amtInput.classList.remove('ocr-locked','manual-mode','manual-confirmed');}
         if(accountInput){accountInput.value='';accountInput.readOnly=true;accountInput.classList.remove('manual-mode','manual-confirmed');}
-        if(bankSelect){bankSelect.value='';bankSelect.disabled=false;bankSelect.classList.remove('ocr-locked','manual-mode','manual-confirmed');}
+        if(bankSelect){bankSelect.value='';bankSelect.disabled=true;bankSelect.classList.remove('ocr-locked','manual-mode','manual-confirmed');}
         recalculateBankDepositFromSlips(); validateFormAndSubmitBtn(); return;
       }
-      if(!/^image\//i.test(file.type)){alert('শুধুমাত্র image file দিন।');event.target.value='';return;}
+      if(!/^image\//i.test(file.type) && !/\.(jpe?g|png|webp|gif|bmp)$/i.test(file.name)){alert('শুধুমাত্র image file দিন।');event.target.value='';return;}
       if(file.size>15*1024*1024){alert('স্লিপ ইমেজ 15MB-এর মধ্যে রাখুন।');event.target.value='';return;}
 
       if(ocrStatus) ocrStatus.value='processing';
@@ -3010,7 +3043,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       amtInput.value=''; amtInput.readOnly=true; amtInput.classList.remove('ocr-locked','manual-mode','manual-confirmed');
       accountInput.value=''; accountInput.readOnly=true; accountInput.classList.remove('manual-mode','manual-confirmed');
       if(dateInput){dateInput.value='';dateInput.readOnly=true;dateInput.classList.remove('manual-mode','manual-confirmed');}
-      bankSelect.value=''; bankSelect.disabled=false; bankSelect.classList.remove('ocr-locked','manual-mode','manual-confirmed');
+      bankSelect.value=''; bankSelect.disabled=true; bankSelect.classList.remove('ocr-locked','manual-mode','manual-confirmed');
       recalculateBankDepositFromSlips();
 
       // Prepare a small upload copy while the worker scans the original photo.
@@ -3040,15 +3073,16 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         if(account && !knownAccount) accountInput.value=account;
         if(depositDate){dateInput.value=depositDate;if(ocrDate)ocrDate.value=depositDate;dateInput.classList.add('ocr-locked');}
 
-        const ready=!!bank && !!amountInfo?.value && !!account && !!depositDate;
+        const ready=!!knownAccount && !!amountInfo?.value && !!depositDate;
         if(ocrStatus) ocrStatus.value=ready?'ocr_ready':'failed';
+        if(!ready)enableManualSlipEdit(id);
         recalculateBankDepositFromSlips(); validateFormAndSubmitBtn();
       }catch(err){
         if(!row.isConnected||row.querySelector('.slip-file-input')?.files?.[0]!==file)return;
         console.error('Bank Slip OCR failed:',err);
         if(ocrStatus) ocrStatus.value='failed';
         enableManualSlipEdit(id);
-        document.getElementById('slipSubmitMessage').textContent='OCR সম্পূর্ণ হয়নি। ছবি দেখে Amount ও অনুমোদিত Account নিশ্চিত করে Manual Correction / Confirm ব্যবহার করুন।';
+        document.getElementById('slipSubmitMessage').textContent='OCR সম্পূর্ণ হয়নি। Bank/Account OCR থেকে শনাক্ত হওয়া বাধ্যতামূলক। Date, Amount ও ID ভুল হলে Manual Correction করুন; Account না এলে পরিষ্কার ছবি দিয়ে আবার চেষ্টা করুন।';
         validateFormAndSubmitBtn();
       }finally{
         // OCR must never leave the main submit button permanently disabled.
@@ -3168,7 +3202,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         // Submission safety: the actual slip image, bank and positive amount are required.
         // OCR account/date/status remain audit metadata; an OCR miss must never lock Submit.
         const hasImage = !!file || !!existingImg;
-        return hasImage && !!bank && amt > 0 && isApprovedSlipAccount(row);
+        return hasImage && !!bank && amt > 0 && isApprovedSlipAccount(row) && !!normalizeOCRDate(date) && ['ocr_ready','verified_manual'].includes(status);
       });
     }
 
@@ -3365,31 +3399,41 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
     function setSlipPreviewFromFile(row, preview, file) {
-      if (!row || !preview) return;
+      if(!row || !preview)return;
       cleanupSlipPreview(row);
-      if (!file) {
-        preview.removeAttribute("src");
-        preview.classList.remove("visible");
-        return;
-      }
+      row._previewFile=file;
+      preview.onload=null; preview.onerror=null;
+      if(!file){preview.removeAttribute('src');preview.classList.remove('visible');return;}
+      const active=()=>row.isConnected && row._previewFile===file;
+      let fallbackStarted=false;
+      const fallback=async()=>{
+        if(!active() || fallbackStarted)return;
+        fallbackStarted=true;
+        try {
+          const data=await fileToDataURL(file);
+          if(!active())return;
+          if(!data)throw Error('ছবির ফাইল খালি।');
+          preview.src=data; preview.classList.add('visible');
+        }catch(error){showError(error);}
+      };
+      const showError=error=>{
+        if(!active())return;
+        preview.classList.remove('visible');
+        const message=document.getElementById('slipSubmitMessage');
+        if(message)message.textContent='ছবিটি পড়া যাচ্ছে না। Gallery থেকে JPG/PNG ছবি আবার নির্বাচন করুন।';
+      };
+      preview.onload=()=>{if(active()){clearTimeout(row._previewTimer);preview.classList.add('visible');}};
+      preview.onerror=()=>{if(!fallbackStarted)fallback();else showError();};
       try {
-        const url = URL.createObjectURL(file);
-        row.dataset.previewObjectUrl = url;
-        preview.onload = () => preview.classList.add("visible");
-        preview.onerror = () => {
-          preview.classList.remove("visible");
-          preview.removeAttribute("src");
-        };
-        preview.src = url;
-        preview.classList.add("visible");
-        // Preserve the instant original preview; image conversion starts after OCR.
-      } catch (err) {
-        console.warn("Slip preview object URL failed:", err);
-        preview.classList.remove("visible");
-      }
+        row.dataset.previewObjectUrl=URL.createObjectURL(file);
+        preview.src=row.dataset.previewObjectUrl;
+        preview.classList.add('visible');
+        row._previewTimer=setTimeout(fallback,8000);
+      }catch(error){fallback();}
     }
 
     function cleanupSlipPreview(row) {
+      clearTimeout(row?._previewTimer);
       const url = row?.dataset?.previewObjectUrl || "";
       if (url) {
         try { URL.revokeObjectURL(url); } catch (_) {}
