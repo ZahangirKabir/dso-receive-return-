@@ -988,7 +988,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.01.02';
+    const APP_RELEASE_VERSION = '2026.10.01.04';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1567,6 +1567,9 @@ global.PortalLedger={create,sync,balance,same,snapshot};
               </label>
               <span class="slip-file-name" id="slipFileName_${slipCounter}">JPG / PNG / WEBP</span>
             </div>
+        <div class="slip-preview-wrap">
+          <img id="slipPreview_${slipCounter}" class="slip-clear-preview" alt="Bank Slip Preview" onclick="zoomSlipInputImage(${slipCounter})">
+        </div>
           </div>
 
           <div class="slip-field">
@@ -1608,9 +1611,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
           <input type="hidden" id="slipOcrStatus_${slipCounter}" value="pending">
         </div>
 
-        <div class="slip-preview-wrap">
-          <img id="slipPreview_${slipCounter}" class="slip-clear-preview" alt="Bank Slip Preview" onclick="zoomSlipInputImage(${slipCounter})">
-        </div>
+
 
         <div class="slip-manual-tools">
           <button type="button" class="btn-manual-edit" onclick="retrySlipOCR(${slipCounter})">↻ আবার OCR করুন</button>
@@ -1921,9 +1922,10 @@ global.PortalLedger={create,sync,balance,same,snapshot};
           const file=row.querySelector('.slip-file-input')?.files?.[0];
           const image=row.dataset.existingImg||'';
           const amount=parseRawNumber(row.querySelector('.slip-amt-val')?.value);
+          if(file && row.dataset.previewReady!=='1')throw new Error('ছবির প্রিভিউ সম্পূর্ণ দেখা না গেলে Submit করা যাবে না। আবার ছবি নির্বাচন করুন।');
           if(row.querySelector('[id^="slipOcrStatus_"]')?.value==='processing')throw new Error('OCR চলছে। Amount ও Account আসার পরে Submit করুন।');
           if(!(file||image)||amount<=0||!row.querySelector('.slip-bank-name')?.value)throw new Error('স্লিপের ছবি, Bank Name ও Amount দিন।');
-          if(!isApprovedSlipAccount(row))throw new Error('OCR থেকে অনুমোদিত Bank Account শনাক্ত হয়নি। পরিষ্কার ছবি দিয়ে আবার OCR করুন; Bank/Account হাতে পরিবর্তন করা যাবে না।');
+          if(!isApprovedSlipAccount(row))throw new Error('অনুমোদিত Bank Account নির্বাচন করে তার Bank Name ও Account Name মিলিয়ে ছবি দেখে তথ্য নিশ্চিত করুন।');
           const ocrState=row.querySelector('[id^="slipOcrStatus_"]')?.value;
           if(!['ocr_ready','verified_manual'].includes(ocrState))throw new Error('Date ও Amount সংশোধন করে ছবি দেখে তথ্য নিশ্চিত করুন।');
           if(!normalizeOCRDate(row.querySelector('.slip-date-input')?.value))throw new Error('Deposit Date নির্বাচন করুন।');
@@ -1974,7 +1976,8 @@ global.PortalLedger={create,sync,balance,same,snapshot};
           active.forEach(cleanupSlipPreview);document.getElementById('slipsContainer').replaceChildren();addSlipRow();
           const message=document.getElementById('slipSubmitMessage');message.dataset.requestKey=requestRef.key;message.dataset.user=user;refreshSlipSubmitMessage();
           refreshSubmittedBankAmount();renderBankSlipStatus(user);
-          alert('Bank Slip জমা হয়েছে। Admin Approval Pending।');
+          
+          showSlipToast('Submit successfully — Admin Approval Pending',3000);
         }
       }catch(error){
         if(saved){
@@ -2093,7 +2096,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const info=KNOWN_SLIP_ACCOUNTS[number];
       return !!info && row.querySelector('.slip-bank-name')?.value===info.bank &&
         row.querySelector('.slip-account-name')?.value.trim()===info.accountName &&
-        row.dataset.ocrAccountNumber===number;
+        (row.dataset.ocrAccountNumber===number || !!row.querySelector('[id^="slipManualConfirm_"]')?.checked);
     }
 
     function normalizeAccountOCRText(text) {
@@ -2114,7 +2117,11 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         // occur in a digit-heavy chunk; never accept arbitrary account numbers.
         for(const line of chunks){
           const digitHeavy=line.replace(/[OQDoq]/g,"0").replace(/[Il|]/g,"1").replace(/[Ss]/g,"5").replace(/[Zz]/g,"2").replace(/[^0-9]/g,"");
-          if(digitHeavy===number) return {accountNumber:number,...info};
+          const tokens=line.match(/[0-9OQDoqIl|SsZz][0-9OQDoqIl|SsZz\s–—-]{8,}[0-9OQDoqIl|SsZz]/g)||[];
+          for(const token of tokens){
+            const corrected=token.replace(/[OQDoq]/g,'0').replace(/[Il|]/g,'1').replace(/[Ss]/g,'5').replace(/[Zz]/g,'2').replace(/[^0-9]/g,'');
+            if(corrected===number)return {accountNumber:number,...info};
+          }
         }
       }
       return null;
@@ -2780,6 +2787,13 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       return looksLikeNameText(ranked[0]?.name||"") ? ranked[0].name : "";
     }
 
+    let slipToastTimer;
+    function showSlipToast(text,duration) {
+      let popup=document.getElementById('slipSuccessToast');
+      if(!popup){popup=document.createElement('div');popup.id='slipSuccessToast';popup.setAttribute('role','status');popup.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:100000;background:#00695c;color:white;padding:15px 22px;border-radius:12px;box-shadow:0 6px 25px #0004;max-width:90vw;text-align:center;box-sizing:border-box';document.body.appendChild(popup);}
+      clearTimeout(slipToastTimer);popup.textContent=text;popup.hidden=false;
+      slipToastTimer=setTimeout(()=>popup.hidden=true,duration);
+    }
     async function retrySlipOCR(id) {
       const input=document.getElementById(`slipFile_${id}`);
       if(input?.files?.[0])await processSlipOCR({target:input},id);
@@ -2793,9 +2807,9 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const dateInput=row.querySelector('.slip-date-input');
       const status=document.getElementById(`slipOcrStatus_${id}`);
       const st=document.getElementById(`slipStatus_${id}`);
-      if(bank) { bank.disabled=true; bank.classList.add('manual-mode'); bank.classList.remove('ocr-locked'); }
-      if(account) account.readOnly=true;
-      const number=row.querySelector('.slip-account-number'); if(number)number.disabled=true;
+      if(bank) { bank.disabled=false; bank.classList.add('manual-mode'); bank.classList.remove('ocr-locked'); }
+      if(account) {account.readOnly=false;account.classList.add('manual-mode');}
+      const number=row.querySelector('.slip-account-number'); if(number)number.disabled=false;
       if(amount) { amount.readOnly=false; amount.classList.add('manual-mode'); amount.classList.remove('ocr-locked'); }
       if(dateInput) { dateInput.readOnly=false; dateInput.classList.add('manual-mode'); dateInput.classList.remove('ocr-locked'); }
       if(status && status.value!=='processing') status.value='manual_pending';
@@ -2978,8 +2992,11 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     async function processSlipOCR(event, id) {
       const file=event.target.files?.[0];
       const row=document.getElementById(`slipRow_${id}`);
-      if(file && row) setSlipPreviewFromFile(row,document.getElementById(`slipPreview_${id}`),file);
-      try { await processSlipOCRCore(event,id); }
+      try {
+        if(file && row)await setSlipPreviewFromFile(row,document.getElementById(`slipPreview_${id}`),file);
+        if(file && event.target.files?.[0]!==file)return;
+        await processSlipOCRCore(event,id);
+      }
       catch(error) {
         if(!row?.isConnected || event.target.files?.[0]!==file)return;
         console.error('Slip selection failed:',error);
@@ -3037,7 +3054,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       // Show the selected image immediately from the File itself. This is
       // independent of OCR and Base64 conversion, so the preview cannot go blank
       // just because OCR/conversion is slow or fails.
-      setSlipPreviewFromFile(row, preview, file);
+      // Preview has already decoded successfully before OCR starts.
       const manualConfirm=document.getElementById(`slipManualConfirm_${id}`);
       if(manualConfirm) manualConfirm.checked=false;
       amtInput.value=''; amtInput.readOnly=true; amtInput.classList.remove('ocr-locked','manual-mode','manual-confirmed');
@@ -3082,7 +3099,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         console.error('Bank Slip OCR failed:',err);
         if(ocrStatus) ocrStatus.value='failed';
         enableManualSlipEdit(id);
-        document.getElementById('slipSubmitMessage').textContent='OCR সম্পূর্ণ হয়নি। Bank/Account OCR থেকে শনাক্ত হওয়া বাধ্যতামূলক। Date, Amount ও ID ভুল হলে Manual Correction করুন; Account না এলে পরিষ্কার ছবি দিয়ে আবার চেষ্টা করুন।';
+        document.getElementById('slipSubmitMessage').textContent='OCR সম্পূর্ণ হয়নি। OCR সম্পূর্ণ হয়নি। ছবি দেখে সব তথ্য সংশোধন করে অনুমোদিত Account নির্বাচন করুন এবং তথ্য নিশ্চিত করুন।';
         validateFormAndSubmitBtn();
       }finally{
         // OCR must never leave the main submit button permanently disabled.
@@ -3398,42 +3415,38 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       }
     }
 
-    function setSlipPreviewFromFile(row, preview, file) {
-      if(!row || !preview)return;
+    function setSlipPreviewFromFile(row,preview,file) {
+      if(!row || !preview)return Promise.reject(Error('ছবির প্রিভিউ পাওয়া যায়নি।'));
+      if(row._previewFile===file && row._previewPromise)return row._previewPromise;
       cleanupSlipPreview(row);
       row._previewFile=file;
-      preview.onload=null; preview.onerror=null;
-      if(!file){preview.removeAttribute('src');preview.classList.remove('visible');return;}
-      const active=()=>row.isConnected && row._previewFile===file;
-      let fallbackStarted=false;
-      const fallback=async()=>{
-        if(!active() || fallbackStarted)return;
-        fallbackStarted=true;
-        try {
-          const data=await fileToDataURL(file);
-          if(!active())return;
-          if(!data)throw Error('ছবির ফাইল খালি।');
-          preview.src=data; preview.classList.add('visible');
-        }catch(error){showError(error);}
-      };
-      const showError=error=>{
+      row.dataset.previewReady='0';
+      const token={};row._previewToken=token;
+      const active=()=>row.isConnected && row._previewToken===token;
+      preview.onload=null;preview.onerror=null;
+      preview.classList.remove('visible');preview.removeAttribute('src');
+      if(!file)return Promise.resolve();
+      row._previewPromise=(async()=>{
+        // Keep a durable data URL: worker/canvas cleanup cannot revoke it.
+        const data=await fileToDataURL(file);
         if(!active())return;
-        preview.classList.remove('visible');
-        const message=document.getElementById('slipSubmitMessage');
-        if(message)message.textContent='ছবিটি পড়া যাচ্ছে না। Gallery থেকে JPG/PNG ছবি আবার নির্বাচন করুন।';
-      };
-      preview.onload=()=>{if(active()){clearTimeout(row._previewTimer);preview.classList.add('visible');}};
-      preview.onerror=()=>{if(!fallbackStarted)fallback();else showError();};
-      try {
-        row.dataset.previewObjectUrl=URL.createObjectURL(file);
-        preview.src=row.dataset.previewObjectUrl;
-        preview.classList.add('visible');
-        row._previewTimer=setTimeout(fallback,8000);
-      }catch(error){fallback();}
+        if(!data)throw Error('ছবির ফাইল পড়া যায়নি।');
+        await new Promise((resolve,reject)=>{
+          const timer=setTimeout(()=>reject(Error('ছবির প্রিভিউ লোড হয়নি। ছবি আবার নির্বাচন করুন।')),20000);
+          preview.onload=()=>{clearTimeout(timer);if(!active())return resolve();
+            if(!preview.naturalWidth)return reject(Error('ছবিটি পড়া যাচ্ছে না।'));
+            row.dataset.previewReady='1';preview.classList.add('visible');resolve();};
+          preview.onerror=()=>{clearTimeout(timer);reject(Error('ছবিটি পড়া যাচ্ছে না। Gallery থেকে JPG/PNG ছবি নির্বাচন করুন।'));};
+          preview.src=data;preview.classList.add('visible');
+        });
+        if(active() && row._notifiedFile!==file){row._notifiedFile=file;showSlipToast('Upload successfully — ছবি নির্বাচন হয়েছে',2000);}
+      })().catch(error=>{if(active()){row._previewPromise=null;row.dataset.previewReady='0';}throw error;});
+      return row._previewPromise;
     }
 
     function cleanupSlipPreview(row) {
       clearTimeout(row?._previewTimer);
+      if(row){row._previewToken=null;row._previewFile=null;row._previewPromise=null;row.dataset.previewReady='0';}
       const url = row?.dataset?.previewObjectUrl || "";
       if (url) {
         try { URL.revokeObjectURL(url); } catch (_) {}
