@@ -115,7 +115,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @media(max-width:360px){#moduleMenu{grid-template-columns:1fr}.module-dropdown-panel,#navPettyCash .module-dropdown-panel,#navBank .module-dropdown-panel{left:0;right:auto;width:100%}}
 @media(prefers-reduced-motion:reduce){.module-dropdown summary,.dropdown-arrow{transition:none}}
 </style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden>
- <details id="navWorkingCapital" class="module-dropdown"><summary>💼 Working Capital <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Working Capital submenu"><button type="button" id="showWorkingCapital">Daily Working Capital</button><button type="button" id="showWorkingCapitalReport">Working Capital Report</button></div></details>
+ <details id="navWorkingCapital" class="module-dropdown"><summary>💼 Working Capital <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Working Capital submenu"><button type="button" id="showWorkingCapital">Daily Working Capital</button><button type="button" id="showWorkingCapitalReport">Working Capital Report</button><button type="button" id="showBalanceCalculator">MA &amp; Bank Balance Calculator</button></div></details>
  <details id="navPettyCash" class="module-dropdown"><summary>💵 Petty Cash <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Petty Cash submenu"><button type="button" id="showPettyCash">Daily Petty Cash</button><button type="button" id="showPettyCashReport">Daily Petty Cash Report</button></div></details>
  <button type="button" id="showTotalInvestment">📊 Total Investment</button>
  <details id="navBank" class="module-dropdown"><summary>🏦 Bank <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Bank submenu"><button type="button" id="showBankCheque">Bank Cheque Tracker</button><button type="button" id="showBankDebit">Bank Debit</button></div></details>
@@ -186,13 +186,13 @@ function show(key){page=key;menu.replaceChildren();content.replaceChildren();
   const button=node('button',label);button.type='button';button.classList.toggle('active',name===key);
   button.onclick=()=>show(name);menu.append(button);
  });
- if(key==='capital')capitalForm();else if(key==='petty')pettyForm();else report(key);
+ if(key==='capital')capitalForm();else if(key==='calculator')balanceCalculator();else if(key==='petty')pettyForm();else report(key);
  if(preview){items={};render();return;}
  if(!stream){
   stream=database.ref('investmentEntries');
-  handler=snap=>{if(String(bridge.getUser())!==owner)return;items=snap.val()||{};dataReady=true;if(page==='capital'){window.investmentSyncOpening?.();window.investmentSyncCapitalState?.();}render();};
+  handler=snap=>{if(String(bridge.getUser())!==owner)return;items=snap.val()||{};dataReady=true;if(page==='capital'){window.investmentSyncOpening?.();window.investmentSyncCapitalState?.();window.investmentSyncCalculatorClosing?.();}render();};
   stream.on('value',handler,err=>{const box=document.getElementById('investList');if(box)box.textContent='ডাটা লোড হয়নি: '+err.message;});
- }else{if(page==='capital'){window.investmentSyncOpening?.();window.investmentSyncCapitalState?.();}render();}
+ }else{if(page==='capital'){window.investmentSyncOpening?.();window.investmentSyncCapitalState?.();window.investmentSyncCalculatorClosing?.();}render();}
 }
 function card(title){const div=node('div');div.className='card';div.append(node('h2',title));content.append(div);return div;}
 function listBox(){const list=node('div');list.id='investList';list.className='card scroll';content.append(list);return list;}
@@ -235,6 +235,16 @@ function capitalForm(){
   const balances=[['opening_wallet',saved.opening?.maWallet],['opening_cashHand',saved.opening?.cashInHand],['opening_cashOffice',saved.opening?.cashInOffice],['closing_wallet',saved.closing?.maWallet],['closing_cashHand',saved.closing?.cashInHand],['closing_cashOffice',saved.closing?.cashInOffice],...banks.flatMap(bank=>[[`openingBank_${bank}`,saved.opening?.banks?.[bank]],[`closingBank_${bank}`,saved.closing?.banks?.[bank]]]),['transfer_salary',saved.transfers?.salary],['transfer_route',saved.transfers?.routeConvence],['transfer_petty',saved.transfers?.petty]];
   balances.forEach(([name,value])=>setAmount(name,value));
   populateRows(commissions,saved.commission,'commission');populateRows(receipts,saved.headOfficeReceive,'received');populateRows(headTransfers,saved.headOfficeTransfer,'received');updateOpeningSum();updateClosingSum();syncCapitalState();status.textContent='আজকের হিসাব সংশোধন করে Submit করুন।';};
+ const applyCalculator=()=>{
+  if(!form.isConnected)return;
+  const draft=items[today()+'_calculator'];if(!draft||form.dataset.calculatorRevision===String(draft.updatedAt||draft.createdAt))return;
+  if(items[today()+'_company']&&!editing)edit.click();
+  setAmount('closing_wallet',draft.netMA);
+  Object.entries(draft.bankCalculations||{}).forEach(([bank,data])=>{if(banks.includes(bank))setAmount('closingBank_'+bank,data.net);});
+  form.dataset.calculatorRevision=String(draft.updatedAt||draft.createdAt);updateClosingSum();
+  status.textContent='Calculator-এর MA ও Bank Balance Closing-এ বসেছে। অন্য ঘরগুলো পূরণ করে Submit করুন।';
+ };
+ window.investmentSyncCalculatorClosing=applyCalculator;applyCalculator();
  form.onsubmit=async event=>{event.preventDefault();if(saving||!form.reportValidity()||String(bridge.getUser())!==owner)return;
   try{if(!dataReady)throw Error('আগের হিসাব লোড শেষ হলে Submit করুন।');const date=today();syncOpening();
    const opening={maWallet:amount(form.elements.opening_wallet.value),cashInHand:amount(form.elements.opening_cashHand.value),cashInOffice:amount(form.elements.opening_cashOffice.value),banks:collectBank(form,'openingBank')};
@@ -258,6 +268,68 @@ function capitalForm(){
   }catch(err){status.textContent='Submit হয়নি: '+err.message;}finally{saving=false;syncCapitalState();}
  };
 }
+
+function balanceCalculator(){
+ const box=card('MA & Bank Balance Calculator'),form=node('form');form.id='balanceCalculatorForm';
+ const top=section(form,'Date'),date=field(top,'Date','calc_date','date',true);date.readOnly=true;
+ const maArea=section(form,'MA Balance Calculation');
+ const maOpening=field(maArea,'MA Opening Balance','calc_ma_opening'),lifting=field(maArea,'Lifting','calc_lifting'),receive=field(maArea,'B2B Receive','calc_receive'),send=field(maArea,'B2B Send','calc_send'),netMA=field(maArea,'Net MA Balance','calc_net_ma');
+ [maOpening,receive,send,netMA].forEach(x=>x.readOnly=true);
+ const bankArea=section(form,'Bank Balance Calculation'),choice=select(bankArea,'Bank','calc_bank',[['','-- Select Bank --'],...banks.map(b=>[b,b])]);choice.required=false;
+ const bankOpening=field(bankArea,'Opening Balance','calc_bank_opening'),deposit=field(bankArea,'Bank Deposit','calc_bank_deposit'),transfer=field(bankArea,'Fund Transfer','calc_bank_transfer'),withdraw=field(bankArea,'Withdraw by Cheque','calc_bank_withdraw'),netBank=field(bankArea,'Net Bank Balance','calc_net_bank');
+ [bankOpening,deposit,netBank].forEach(x=>x.readOnly=true);
+ const results=node('div');results.className='card';form.append(results);
+ const refresh=node('button','↻ Refresh Source Data');refresh.type='button';refresh.className='add-row';form.append(refresh);
+ const {save,status}=submitTools(form,box);let loading=true,busy=false,loaded=false,bankDrafts={},previous=null,approved=[],maValue=0,bankValue=0;
+ const numeric=x=>amount(x.value);
+ const prior=()=>Object.values(items).filter(x=>x?.scope==='company'&&x.type==='capital'&&x.date<today()&&x.closing).sort((a,b)=>b.date.localeCompare(a.date))[0];
+ const bankKey=x=>String(x||'').toLowerCase().replace(/[^a-z]/g,'');
+ const matching=(name,bank)=>{const x=bankKey(name),b=bankKey(bank);return x===b||x.startsWith(b)||(bank==='Agroni'&&x.startsWith('agrani'))||(bank==='Islami'&&x.startsWith('islamibank'))||(bank==='DBBL'&&(x.includes('dutchbangla')||x==='dbbl'));};
+ const countBank=bank=>approved.filter(x=>matching(x.bankName,bank)).reduce((n,x)=>n+Number(x.amount||0),0);
+ function paint(){
+  save.disabled=preview||loading||busy||!loaded;
+  if(loading)return;
+  try{
+   maValue=Math.round((numeric(maOpening)+numeric(lifting)+numeric(receive)-numeric(send))*100)/100;netMA.value=money(maValue);
+   if(choice.value){bankValue=Math.round((numeric(bankOpening)+numeric(deposit)-numeric(transfer)-numeric(withdraw))*100)/100;netBank.value=money(bankValue);bankDrafts[choice.value]={opening:numeric(bankOpening),deposit:numeric(deposit),fundTransfer:numeric(transfer),chequeWithdrawal:numeric(withdraw),net:bankValue};}
+   results.replaceChildren();Object.entries(bankDrafts).forEach(([b,x])=>results.append(node('p',b+' Net Balance: ৳'+money(x.net))));
+   netMA.closest('.field').style.color=maValue<0?'#b91c1c':'#00695c';
+  }catch(e){status.textContent=e.message;}
+ }
+ choice.onchange=()=>{const b=choice.value,x=bankDrafts[b]||{};bankOpening.value=money(previous?.closing?.banks?.[b]||0);deposit.value=money(countBank(b));transfer.value=money(x.fundTransfer||0);withdraw.value=money(x.chequeWithdrawal||0);netBank.closest('.field').querySelector('label').textContent=b?'Net '+b+' Balance':'Net Bank Balance';paint();};
+ form.addEventListener('input',paint);
+ async function source(){
+  if(preview){loading=false;status.textContent='Admin হিসেবে Collection Portal-এর Investment menu থেকে খুলুন।';paint();return;}
+  loading=true;loaded=false;save.disabled=true;refresh.disabled=true;status.textContent='Opening এবং দিনের হিসাব লোড হচ্ছে…';
+  let timer;
+  try{
+   const snapshots=await Promise.race([Promise.all([database.ref('investmentEntries').once('value'),database.ref('collections').orderByChild('date').equalTo(today()).once('value'),database.ref('bankSlipRequests').orderByChild('date').equalTo(today()).once('value')]),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Source data load timeout. Refresh করুন।')),12000);})]);
+   if(!form.isConnected||String(bridge.getUser())!==owner)return;
+   items=snapshots[0].val()||{};dataReady=true;previous=prior();
+   const daily=Object.values(snapshots[1].val()||{}).filter(x=>x&&x.date===today());
+   approved=Object.values(snapshots[2].val()||{}).filter(x=>x&&x.date===today()&&x.status==='approved').flatMap(x=>Array.isArray(x.slips)?x.slips.map(slip=>({bankName:slip.bankName,amount:Number(slip.amt||0)})):[x]);
+   const saved=items[today()+'_calculator'];bankDrafts=saved?.bankCalculations||{};
+   maOpening.value=money(previous?.closing?.maWallet||0);lifting.value=money(saved?.lifting||0);
+   receive.value=money(daily.reduce((n,x)=>n+Number(x.emReturn||0),0));send.value=money(daily.reduce((n,x)=>n+Number(x.emReceived||0),0));
+   Object.entries(bankDrafts).forEach(([b,x])=>{x.opening=Number(previous?.closing?.banks?.[b]||0);x.deposit=countBank(b);x.net=Math.round((x.opening+x.deposit-Number(x.fundTransfer||0)-Number(x.chequeWithdrawal||0))*100)/100;});loaded=true;loading=false;choice.onchange();paint();
+   status.textContent=(previous?'Opening source: '+previous.date:'আগের Working Capital নেই; Opening ০।')+' · '+daily.length+' DSO reports · Approved Bank Slip থেকে Deposit। Lifting লিখুন।';
+  }catch(e){loading=false;status.textContent='ডাটা পাওয়া যায়নি: '+e.message;paint();}finally{clearTimeout(timer);refresh.disabled=false;}
+ }
+ refresh.onclick=source;
+ form.onsubmit=async event=>{
+  event.preventDefault();if(busy||!loaded||loading||preview||!form.reportValidity()||String(bridge.getUser())!==owner)return;
+  try{paint();const ma={opening:numeric(maOpening),lifting:numeric(lifting),b2bReceive:numeric(receive),b2bSend:numeric(send)};
+   const net=Math.round((ma.opening+ma.lifting+ma.b2bReceive-ma.b2bSend)*100)/100;
+   if(net<0||Object.values(bankDrafts).some(x=>x.net<0))throw Error('Net balance ঋণাত্মক। অঙ্কগুলো যাচাই করুন।');
+   busy=true;paint();status.textContent='Saving…';
+   const record={type:'calculator',scope:'company',date:today(),...ma,netMA:net,bankCalculations:bankDrafts,updatedAt:bridge.serverTimestamp,updatedBy:owner};
+   await database.ref('investmentEntries/'+today()+'_calculator').set(record);
+   items[today()+'_calculator']={...record,updatedAt:Date.now()};show('capital');
+  }catch(e){status.textContent='Submit হয়নি: '+e.message;}finally{busy=false;paint();}
+ };
+ source();
+}
+
 function pettyForm(){const box=card('Daily Petty Cash'),form=node('form');form.id='pettyForm';baseFields(form);
  const balance=node('p');balance.className='balance';balance.id='pettyOpening';box.append(balance);
  const grid=section(form,'Petty Cash Entry');field(grid,'Petty Cash Expense','amount');field(grid,'Purpose / Details','note','text',true);
@@ -409,7 +481,7 @@ window.addEventListener('pagehide',stop);window.bankNavigate=show;show('cheque')
    catch(error){alert('ডাটা পরিষ্কার হয়নি: '+error.message);clear.disabled=false;clear.textContent='🗑 পরীক্ষার ডাটা পরিষ্কার';}
   };
  }
- const ids={capital:'showWorkingCapital',capitalReport:'showWorkingCapitalReport',petty:'showPettyCash',pettyReport:'showPettyCashReport',total:'showTotalInvestment',bankCheque:'showBankCheque',bankDebit:'showBankDebit'};
+ const ids={capital:'showWorkingCapital',capitalReport:'showWorkingCapitalReport',calculator:'showBalanceCalculator',petty:'showPettyCash',pettyReport:'showPettyCashReport',total:'showTotalInvestment',bankCheque:'showBankCheque',bankDebit:'showBankDebit'};
  const groups=[...tabs.querySelectorAll('.module-dropdown')];
  const closeDropdowns=except=>groups.forEach(group=>{if(group!==except)group.open=false;});
  groups.forEach(group=>group.addEventListener('toggle',()=>{if(group.open)closeDropdowns(group);}));
@@ -419,7 +491,7 @@ window.addEventListener('pagehide',stop);window.bankNavigate=show;show('cheque')
   const isBank=which==='bankCheque'||which==='bankDebit';
   investment.hidden=isBank;bank.hidden=!isBank;
   Object.entries(ids).forEach(([key,id])=>document.getElementById(id).classList.toggle('active',key===which));
-  const group=which==='capital'||which==='capitalReport'?'navWorkingCapital':which==='petty'||which==='pettyReport'?'navPettyCash':isBank?'navBank':'';
+  const group=which==='capital'||which==='capitalReport'||which==='calculator'?'navWorkingCapital':which==='petty'||which==='pettyReport'?'navPettyCash':isBank?'navBank':'';
   groups.forEach(item=>item.classList.toggle('active',item.id===group));
   closeDropdowns();
   if(isBank)window.bankNavigate(which==='bankDebit'?'debit':'cheque');
