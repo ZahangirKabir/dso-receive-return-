@@ -1023,7 +1023,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.03.05';
+    const APP_RELEASE_VERSION = '2026.10.03.06';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -2285,8 +2285,8 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     function slipLabeledAmountCandidates(text) {
       const lines=String(text||'').split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
       const results=[];
-      const transfer=/(?:\btransfer(?:red)?\s*[-–:]?\s*am[o0]unt\b|\bam[o0]unt\s*transferred\b)/i;
-      const amount=/^\s*(?:am[o0]unt|deposit\s*am[o0]unt|cash\s*deposit|টাকার\s*পরিমাণ|জমার?\s*পরিমাণ)/i;
+      const transfer=/(?:\b(?:(?:fund|found)\s+)?transfer(?:red)?\s*[-–:]?\s*am[o0]unt\b|\bnpsb\s*am[o0]unt\b|\bam[o0]unt\s*transferred\b)/i;
+      const amount=/(?:\bam[o0]unt\b|\bdeposit\s*am[o0]unt\b|\bcash\s*deposit\b|টাকার\s*পরিমাণ|জমার?\s*পরিমাণ)/i;
       const disallowed=/\b(?:total|balance|debit|credit|fee|charge|vat|tax|reference|ref|account|a\/c|mobile|phone|date|time|cheque|check|transaction\s*(?:id|no)|amount\s*(?:in\s*words|words))\b/i;
       for(let i=0;i<lines.length;i++){
         const line=lines[i];
@@ -2306,6 +2306,12 @@ global.PortalLedger={create,sync,balance,same,snapshot};
           if(/^\s*(?:৳|tk\.?|taka|bdt)?\s*[০-৯0-9][০-৯0-9,.\s]*(?:৳|tk\.?|taka|bdt)?\s*$/i.test(next))tokens=moneyTokensFromLine(next.replace(/^\s*(?:৳|tk\.?|taka|bdt)\s*/i,'').replace(/\s*(?:৳|tk\.?|taka|bdt)\s*$/i,''));
         }
         if(tokens.length===1)results.push({value:tokens[0].value,priority,line,source:priority===2?'transfer-amount':'amount'});
+      }
+      // Currency-only values are lower priority than explicit deposit/transfer labels.
+      for(const line of lines){
+        if(disallowed.test(line)||isExcludedAmountLine(line))continue;
+        const currency=/(?:৳|\btk\.?|\btaka\b|\bbdt\b)\s*([০-৯0-9][০-৯0-9,.]*(?:\s+[০-৯0-9]{2,3})*)/gi;
+        let match;while((match=currency.exec(line))!==null){const value=parseMoneyCandidate(normalizeOCRDigits(match[1]));if(value>0)results.push({value,priority:0,line,source:'currency'});}
       }
       return results;
     }
@@ -2771,12 +2777,14 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     async function runSlipOCRExclusive(file, statusEl, id) {
       const current=()=>document.getElementById(`slipRow_${id}`)?.querySelector('.slip-file-input')?.files?.[0]===file;
       if(!current())return [];
+      const basePromise=preprocessImage(file,3,0);
+      basePromise.catch(()=>{});
       const worker=await getSlipOCRWorker();
       if(!current())return [];
       const results=[];
 
       // Pass 1: structured receipt/slip layout. This is the fastest useful scan.
-      const base=await preprocessImage(file,3,0);
+      const base=await basePromise;
       if(!current())return [];
       const first=await recognizeSlipPass(worker,base,'6');
       results.push(first);
@@ -2793,7 +2801,8 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       // Numeric recovery only when amount/date evidence is still weak. It uses
       // a character whitelist, making amount/date extraction both faster and cleaner.
       const hasDate=!!chooseConsensusDate(results);
-      if(!hasDate){
+      const hasAmount=!!chooseConsensusAmount(results);
+      if(!hasDate||!hasAmount){
         const numeric=await preprocessImage(file,2,0);
         results.push(await recognizeSlipPass(worker,numeric,'11',{
           tessedit_char_whitelist:'0123456789০১২৩৪৫৬৭৮৯.,/-৳TKBDT:'
@@ -2827,8 +2836,8 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if(!candidates.length)return null;
       // Transfer Amount is more specific than a separate generic Amount.
       // Resolve OCR differences by independent reads; ties require review.
-      const preferred=candidates.filter(x=>x.priority===2);
-      const relevant=preferred.length?preferred:candidates;
+      const highest=Math.max(...candidates.map(x=>x.priority));
+      const relevant=candidates.filter(x=>x.priority===highest);
       const votes=new Map();
       for(const candidate of relevant){
         const key=candidate.value.toFixed(2);
@@ -3009,20 +3018,25 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
     function extractDepositDate(result) {
-      if(!result) return "";
-      const fromData=extractDepositDateFromData(result.data);
-      if(fromData) return fromData;
-
-      const rawLines=String(result.text||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map(x=>x.replace(/\s+/g," "));
-      const labelRe=/(date\s*(?:&|and|\/)?\s*time|datetime|date\s*time|deposit\s*(date|dt)?|date\s*(of\s*)?deposit|transaction\s*(date|dt)|trans\s*(date|dt)|value\s*date|posting\s*date|cash\s*deposit\s*date|জমা\s*তারিখ|লেনদেনের\s*তারিখ|তারিখ)/i;
-      const found=[];
-      for(let i=0;i<rawLines.length;i++){
-        if(!labelRe.test(rawLines[i])) continue;
-        for(let j=Math.max(0,i-2);j<=Math.min(rawLines.length-1,i+2);j++){
-          extractDateCandidatesFromText(rawLines[j]).forEach(d=>{if(!found.includes(d)) found.push(d);});
+      if(!result)return '';
+      const lines=String(result.text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+      const scores=new Map();
+      const add=(date,weight)=>scores.set(date,(scores.get(date)||0)+weight);
+      for(let i=0;i<lines.length;i++){
+        const specific=/(deposit\s*date|transaction\s*date|date\s*(?:&|and|\/)\s*time|datetime|জমা\s*তারিখ|লেনদেনের\s*তারিখ)/i.test(lines[i]);
+        const labelled=specific||/\bdate\b|তারিখ/i.test(lines[i]);
+        if(!labelled)continue;
+        const same=extractDateCandidatesFromText(lines[i]);
+        if(same.length){same.forEach(d=>add(d,specific?14:10));continue;}
+        for(let j=i+1;j<=Math.min(i+2,lines.length-1);j++){
+          const dates=extractDateCandidatesFromText(lines[j]);
+          if(dates.length){dates.forEach(d=>add(d,(specific?9:6)-(j-i-1)));break;}
         }
       }
-      return found.length===1 ? found[0] : "";
+      const ranked=[...scores].sort((a,b)=>b[1]-a[1]);
+      if(ranked.length && (!ranked[1]||ranked[0][1]>ranked[1][1]))return ranked[0][0];
+      if(ranked.length)return '';
+      return extractDepositDateFromData(result.data)||'';
     }
 
     function chooseConsensusDate(ocrResults) {
