@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DSO & Admin Collection Portal — OCR & Mobile Stability Update</title>
   
+  <script>
+  try{var portalSavedSession=JSON.parse(sessionStorage.getItem('collectionPortalUser')||'null');
+  if(portalSavedSession&&portalSavedSession.id&&portalSavedSession.proof)document.documentElement.classList.add('portal-session-restoring');}catch(e){}
+  </script>
+  <style>
+  .portal-session-restoring #loginSection{display:none!important}
+  #sessionRefreshStatus{display:none}
+  .portal-session-restoring #sessionRefreshStatus{display:block;text-align:center;padding:30px;color:#00695c}
+  </style>
   <!-- Firebase SDKs -->
 
   <!-- Heavy libraries are lazy-loaded so Login opens faster. -->
@@ -454,6 +463,7 @@
 </style>
 </head>
 <body>
+<div id="sessionRefreshStatus" role="status">পেজ Refresh হচ্ছে…</div>
 
   <!-- LOGIN SECTION -->
   <div id="loginSection" class="login-box">
@@ -1015,7 +1025,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.03.02';
+    const APP_RELEASE_VERSION = '2026.10.03.03';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1377,9 +1387,9 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
     async function restorePortalSession(){
       let saved;try{saved=JSON.parse(sessionStorage.getItem(PORTAL_SESSION_KEY)||'null');}catch(e){return;}
-      if(!saved?.id||!saved.proof)return;
+      if(!saved?.id||!saved.proof){document.documentElement.classList.remove('portal-session-restoring');return;}
       const id=normalizeLoginId(saved.id);
-      if(id!=='admin'&&!isGroupAdmin(id)&&!/^(80[1-9]|8[1-3][0-9]|84[0-5])$/.test(id))return;
+      if(id!=='admin'&&!isGroupAdmin(id)&&!/^(80[1-9]|8[1-3][0-9]|84[0-5])$/.test(id)){document.documentElement.classList.remove('portal-session-restoring');return;}
       try{
         if(!(await checkHostedRelease(true))||firebaseReleaseMismatch)return;
         const snap=await Promise.race([database.ref('users/'+id+'/password').once('value'),new Promise((_,reject)=>setTimeout(()=>reject(Error('Session verification timeout')),12000))]);
@@ -1388,6 +1398,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         if(currentUser||loginInProgress||firebaseReleaseMismatch||hostedReleaseMismatch)return;
         openPortalForUser(id);
       }catch(error){window.portalBootNotice?.('আগের লগইন যাচাই হয়নি। Refresh বা Login দিয়ে আবার চেষ্টা করুন।');}
+      finally{document.documentElement.classList.remove('portal-session-restoring');}
     }
 
 
@@ -5582,7 +5593,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
  async function boot(){if(loading||started)return;loading=true;var button=document.getElementById('loginBtn');button.disabled=true;notice('অ্যাপ প্রস্তুত হচ্ছে…');
   try{await ensure('firebase-app.js',function(){return !!window.firebase;});await ensure('firebase-database.js',function(){return !!(window.firebase&&firebase.database);});
    var code=document.createElement('script');code.textContent=document.getElementById('portalApplicationCode').textContent;document.body.appendChild(code);if(typeof handleLogin!=='function')throw Error('Application initialization failed');started=true;var status=document.getElementById('portalBootStatus');if(status)status.remove();
-  }catch(error){notice('অ্যাপের প্রয়োজনীয় ফাইল লোড হয়নি। ইন্টারনেট সংযোগ যাচাই করে আবার চেষ্টা করুন।');}
+  }catch(error){document.documentElement.classList.remove('portal-session-restoring');notice('অ্যাপের প্রয়োজনীয় ফাইল লোড হয়নি। ইন্টারনেট সংযোগ যাচাই করে আবার চেষ্টা করুন।');}
   finally{loading=false;if(started&&typeof updateReleaseGate==='function')updateReleaseGate();}
  }
  window.addEventListener('error',function(event){if(event.target===window)notice('অ্যাপ চালু করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');});
