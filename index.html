@@ -1042,6 +1042,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     firebase.initializeApp(firebaseConfig);
     const credentialApp=firebase.initializeApp(firebaseConfig,'portal-credentials');
     const credentialAuth=credentialApp.auth();let credentialActionEpoch=0;
+    const devicePersistenceReady=new WeakMap();
     let portalFinancialApp=null,devicePermissionRef=null,devicePermissionHandler=null,deviceSessionRef=null,deviceSessionHandler=null,deviceSessionExpiryTimer=null,portalDeviceUid='';
     function authReady(auth){return new Promise((resolve,reject)=>{const stop=auth.onAuthStateChanged(user=>{stop();resolve(user);},reject);});}
     function accountEmail(id){return 'portal-'+String(id).toLowerCase()+'@collection-app-479e0.invalid';}
@@ -1053,8 +1054,10 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     async function prepareDeviceApp(id){
       const name='portal-device-'+String(id).toLowerCase();
       let app=firebase.apps.find(a=>a.name===name);if(!app)app=firebase.initializeApp(firebaseConfig,name);
-      const auth=app.auth();await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-      if(!await authReady(auth))await auth.signInAnonymously();
+      const auth=app.auth();
+      if(!devicePersistenceReady.has(auth)){const ready=auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(error=>{devicePersistenceReady.delete(auth);throw error;});devicePersistenceReady.set(auth,ready);}
+      await devicePersistenceReady.get(auth);
+      if(!auth.currentUser&&!await authReady(auth))await auth.signInAnonymously();
       if(!auth.currentUser?.isAnonymous)throw Error('Device identity সঠিক নয়। অন্য browser profile ব্যবহার করুন।');
       portalFinancialApp=app;portalDeviceUid=auth.currentUser.uid;return app;
     }
@@ -1065,15 +1068,21 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const text=document.createElement('p');text.textContent='আপনার ডিভাইসে লগইন করার জন্য অনুমতি প্রয়োজন';text.style.cssText='margin:0 0 20px;font-size:18px;line-height:1.6';card.appendChild(text);
       const close=document.createElement('button');close.type='button';close.textContent='ঠিক আছে';close.onclick=()=>modal.remove();card.appendChild(close);modal.appendChild(card);document.body.appendChild(modal);
     }
-    async function registerAndCheckDevice(id){
-      const meta=await getCredentialMeta();if(meta.userId!==id)throw Error('Login ID মিলছে না।');
-      const app=await prepareDeviceApp(id),uid=app.auth().currentUser.uid;
-      const requestRef=credentialApp.database().ref('deviceRequests/'+uid);
-      const current=(await app.database().ref('deviceRequests/'+uid).once('value')).val();
-      if(!current)await requestRef.set({userId:id,credentialUid:credentialAuth.currentUser.uid,deviceUid:uid,name:(navigator.userAgent||'Browser').slice(0,160),requestedAt:firebase.database.ServerValue.TIMESTAMP});
+    async function registerAndCheckDevice(id, prepared={}){
+      const tasks=await Promise.allSettled([prepared.meta?Promise.resolve(prepared.meta):getCredentialMeta(),prepared.app?Promise.resolve(prepared.app):prepareDeviceApp(id)]);
+      for(const task of tasks)if(task.status==='rejected')throw task.reason;
+      const meta=tasks[0].value,app=tasks[1].value;
+      if(meta.userId!==id||!meta.enabled)throw Error('Login ID মিলছে না।');
+      const credentialUid=credentialAuth.currentUser?.uid;
+      if(!credentialUid)throw Error('আবার Login করুন।');
+      const uid=app.auth().currentUser.uid;
       const access=(await app.database().ref('deviceAccess/'+uid).once('value')).val();
-      if(access?.status!=='approved'||access.userId!==id){showPendingDevice();const error=new Error('আপনার ডিভাইসে লগইন করার জন্য অনুমতি প্রয়োজন');error.code='portal/device-permission-required';throw error;}
-      await credentialApp.database().ref('deviceSessions/'+uid).set({active:true,credentialUid:credentialAuth.currentUser.uid,expiresAt:Date.now()+23*3600000});
+      if(access?.status!=='approved'||access.userId!==id||access.credentialUid!==credentialUid){
+        const current=(await app.database().ref('deviceRequests/'+uid).once('value')).val();
+        if(!current)await credentialApp.database().ref('deviceRequests/'+uid).set({userId:id,credentialUid,deviceUid:uid,name:(navigator.userAgent||'Browser').slice(0,160),requestedAt:firebase.database.ServerValue.TIMESTAMP});
+        showPendingDevice();const error=new Error('আপনার ডিভাইসে লগইন করার জন্য অনুমতি প্রয়োজন');error.code='portal/device-permission-required';throw error;
+      }
+      await credentialApp.database().ref('deviceSessions/'+uid).set({active:true,credentialUid,expiresAt:Date.now()+23*3600000});
       return access;
     }
     function watchDevicePermission(id){
@@ -1116,7 +1125,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.04.06';
+    const APP_RELEASE_VERSION = '2026.10.04.07';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1498,8 +1507,8 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
 
-    async function openPortalForUser(id, {freshLogin=false} = {}) {
-      await registerAndCheckDevice(String(id||'').trim());
+    async function openPortalForUser(id, {freshLogin=false,meta=null,app=null} = {}) {
+      await registerAndCheckDevice(String(id||'').trim(),{meta,app});
       currentUser = String(id || '').trim();
       if (!currentUser) return;
       installFirebaseDeviceMenu();watchDevicePermission(currentUser);
@@ -1526,8 +1535,8 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         document.getElementById("dsoView").style.display = "none";
         document.getElementById("dsoTabNav").style.display = "none";
         slipApprovalViewMode='date';
-        switchAdminTab('report');
         document.getElementById("filterDate").value = getLocalDateString();
+        switchAdminTab('report');
         document.getElementById("adminFilterPanel").style.display = "flex";
       } else {
         document.getElementById("portalTitle").innerText = "DSO Entry Portal (ID: " + currentUser + ")";
@@ -1563,15 +1572,20 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       credentialActionEpoch++;loginInProgress = true;
       if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Checking…';}
       try {
-        if(!(await checkHostedRelease(true))||firebaseReleaseMismatch)return;
-        if(id!=='admin')await portalLedger.enabled();
-        await credentialAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
-        await credentialAuth.signInWithEmailAndPassword(accountEmail(id),pass);
-        const meta=await getCredentialMeta();
+        const checks=await Promise.allSettled([
+          checkHostedRelease(true),
+          id!=='admin'?portalLedger.enabled():Promise.resolve(true),
+          (async()=>{await credentialAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION);return credentialAuth.signInWithEmailAndPassword(accountEmail(id),pass);})()
+        ]);
+        for(const check of checks)if(check.status==='rejected')throw check.reason;
+        if(!checks[0].value||firebaseReleaseMismatch)return;
+        const preparation=await Promise.allSettled([getCredentialMeta(),prepareDeviceApp(id)]);
+        for(const task of preparation)if(task.status==='rejected')throw task.reason;
+        const meta=preparation[0].value,app=preparation[1].value;
         if(meta.userId!==id)throw Error('Login ID মেলেনি।');
         if(meta.forceChange){currentUser=id;showPasswordGate();return;}
         await rememberPortalSession(id,pass);
-        await openPortalForUser(id, {freshLogin:true});
+        await openPortalForUser(id, {freshLogin:true,meta,app});
       } catch (e) {
         if(e.code!=='portal/device-permission-required')alert("লগইন চেক করতে সমস্যা হয়েছে: " + e.message);
       } finally {
