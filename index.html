@@ -480,6 +480,25 @@
 #deviceAdminContent button[data-action="block"]{background:#fff3de;border-color:#efdcba;color:#976409}
 #deviceAdminContent button[data-action="delete"]{background:#fff0f0;border-color:#eccaca;color:#b44848}
 @media(max-width:700px){#deviceAdminModal{padding:8px!important}#deviceAdminModal .device-admin-card{padding:16px!important;max-height:94dvh!important;border-radius:16px!important}#deviceAdminModal h3{font-size:22px}#deviceAdminContent{border:0}#deviceAdminContent table{display:block;min-width:0!important;width:100%}#deviceAdminContent table>tr:first-child{display:none}#deviceAdminContent tr{display:block;border:1px solid #dae6ed;border-radius:12px;margin-bottom:12px;padding:8px;background:white!important}#deviceAdminContent td{display:block;width:100%;max-width:none!important;padding:8px!important;border:0!important;overflow-wrap:anywhere}#deviceAdminContent td:before{content:attr(data-label);display:block;font:600 11px sans-serif;color:#708895;margin-bottom:3px}#deviceAdminContent .device-actions{border-top:1px solid #edf2f5!important;padding-top:10px!important}}
+
+/* Device approval: compact dashboard and touch-friendly actions. */
+#deviceAdminButton.device-approval-menu{background:linear-gradient(135deg,#135d74,#178b89);color:white;border:0;border-radius:10px;box-shadow:0 4px 12px #135d7426;padding:10px 16px}
+#deviceAdminButton.device-approval-menu:hover{background:linear-gradient(135deg,#104c61,#117572)}
+#deviceAdminModal .device-admin-header{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #e0ebef;padding-bottom:15px;margin-bottom:16px}
+#deviceAdminModal .device-admin-header h3{margin:0;font-size:25px;color:#174f63}
+#deviceAdminModal .device-close{background:#f1f5f7;border-color:#e1e9ee;color:#526875}
+#deviceAdminModal .device-refresh{background:#e7f4f5;border-color:#c5e3e5;color:#156f76}
+#deviceAdminModal .device-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+#deviceAdminModal .device-summary>div{display:flex;flex-direction:column;gap:5px;padding:16px;border:1px solid #e1eaf0;border-radius:13px;background:#f7fafc}
+#deviceAdminModal .device-summary strong{font-size:26px;line-height:1.2}#deviceAdminModal .device-summary span{font-size:13px}
+#deviceAdminModal .device-summary [data-status=pending]{background:#fff8e9;color:#946209;border-color:#f0dfb7}
+#deviceAdminModal .device-summary [data-status=approved]{background:#edf8f2;color:#18744e;border-color:#cce7d7}
+#deviceAdminModal .device-summary [data-status=blocked]{background:#fff1f2;color:#ac434b;border-color:#efd3d6}
+#deviceAdminContent td[data-label=Browser]{font-size:13px;color:#36566a;font-weight:600}
+#deviceAdminContent .device-status-badge{display:inline-block;border-radius:20px;padding:4px 10px;font-size:12px;white-space:nowrap;background:#f0f4f6}
+#deviceAdminContent [data-status=approved] .device-status-badge{background:#e3f4e9}#deviceAdminContent [data-status=pending] .device-status-badge{background:#fff1cc}#deviceAdminContent [data-status=blocked] .device-status-badge{background:#ffe3e6}
+#deviceAdminContent tr:hover{background:#f1f8fa}#deviceAdminContent .device-empty{text-align:center;padding:32px 16px;color:#657e8b}
+@media(max-width:700px){#deviceAdminModal .device-admin-header h3{font-size:21px}#deviceAdminModal .device-summary{gap:7px}#deviceAdminModal .device-summary>div{padding:12px 8px}#deviceAdminModal .device-summary strong{font-size:23px}#deviceAdminModal .device-summary span{font-size:11px}#deviceAdminContent .device-actions{display:flex;flex-wrap:wrap;gap:4px}#deviceAdminContent .device-actions:before{width:100%}}
 </style>
 </head>
 <body>
@@ -1097,19 +1116,19 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
     function installFirebaseDeviceMenu(){
       if(currentUser!=='admin'||document.getElementById('deviceAdminButton'))return;
-      const nav=document.getElementById('adminTabNav'),b=document.createElement('button');b.type='button';b.id='deviceAdminButton';b.textContent='ডিভাইস অনুমোদন';b.onclick=openFirebaseDeviceAdmin;nav.appendChild(b);
+      const nav=document.getElementById('adminTabNav'),b=document.createElement('button');b.type='button';b.id='deviceAdminButton';b.textContent='ডিভাইস অনুমোদন';b.className='device-approval-menu';b.onclick=openFirebaseDeviceAdmin;nav.appendChild(b);
     }
     async function openFirebaseDeviceAdmin(){
       if(currentUser!=='admin')return;
-      let modal=document.getElementById('deviceAdminModal');if(!modal){modal=document.createElement('div');modal.id='deviceAdminModal';modal.style.cssText='position:fixed;inset:0;z-index:99999;background:#0008;display:flex;align-items:center;justify-content:center;padding:12px';const card=document.createElement('div');card.className='device-admin-card';card.style.cssText='width:min(1100px,100%);max-height:90vh;overflow:auto;background:white;color:#173b45;border-radius:16px;padding:20px';const title=document.createElement('h3');title.textContent='ডিভাইস অনুমোদন';card.appendChild(title);const close=document.createElement('button');close.textContent='বন্ধ করুন';close.onclick=()=>modal.remove();card.appendChild(close);const refresh=document.createElement('button');refresh.textContent='Refresh';refresh.onclick=openFirebaseDeviceAdmin;card.appendChild(refresh);const status=document.createElement('p');status.id='deviceAdminStatus';card.appendChild(status);const content=document.createElement('div');content.id='deviceAdminContent';content.style.overflowX='auto';card.appendChild(content);modal.appendChild(card);document.body.appendChild(modal);}
+      let modal=document.getElementById('deviceAdminModal');if(!modal){modal=document.createElement('div');modal.id='deviceAdminModal';modal.style.cssText='position:fixed;inset:0;z-index:99999;background:#0008;display:flex;align-items:center;justify-content:center;padding:12px';const card=document.createElement('div');card.className='device-admin-card';card.style.cssText='width:min(1100px,100%);max-height:90vh;overflow:auto;background:white;color:#173b45;border-radius:16px;padding:20px';const title=document.createElement('h3');title.textContent='ডিভাইস অনুমোদন';const header=document.createElement('div');header.className='device-admin-header';header.appendChild(title);card.appendChild(header);const close=document.createElement('button');close.textContent='বন্ধ করুন';close.className='device-close';close.onclick=()=>modal.remove();header.appendChild(close);const refresh=document.createElement('button');refresh.textContent='↻ তালিকা আপডেট';refresh.className='device-refresh';refresh.onclick=openFirebaseDeviceAdmin;card.appendChild(refresh);const status=document.createElement('p');status.id='deviceAdminStatus';card.appendChild(status);const content=document.createElement('div');content.id='deviceAdminContent';content.style.overflowX='auto';card.appendChild(content);modal.appendChild(card);document.body.appendChild(modal);}
       const status=document.getElementById('deviceAdminStatus');status.textContent='তালিকা আসছে…';
       try{
         const db=portalFinancialApp.database(),[requests,access]=await Promise.all([db.ref('deviceRequests').once('value'),db.ref('deviceAccess').once('value')]);
         if(!modal.isConnected||currentUser!=='admin')return;
-        const permissions=access.val()||{},items=requests.val()||{},table=document.createElement('table');table.style.cssText='width:100%;min-width:650px;border-collapse:collapse';const head=document.createElement('tr');for(const label of ['User ID','Device UID','Browser','Status','অনুমতি']){const th=document.createElement('th');th.textContent=label;th.style.cssText='padding:10px;background:#e6f3f4;text-align:left';head.appendChild(th);}table.appendChild(head);
-        for(const [uid,item] of Object.entries(items).sort((a,b)=>(b[1].requestedAt||0)-(a[1].requestedAt||0))){const row=document.createElement('tr');for(const value of [item.userId,uid,item.name,permissions[uid]?.status||'pending']){const td=document.createElement('td');td.textContent=value;td.dataset.label=['User ID','Device UID','Browser','Status'][row.children.length];if(row.children.length===3)td.dataset.status=value;td.style.cssText='padding:10px;border-bottom:1px solid #ddd;max-width:280px;overflow-wrap:anywhere';row.appendChild(td);}const actions=document.createElement('td');actions.className='device-actions';actions.dataset.label='অনুমতি';
-          for(const [action,label] of [['approve','Approve'],['block','Block'],['unblock','Unblock'],['delete','Delete']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.dataset.action=action;b.style.margin='3px';b.onclick=async()=>{if(uid===portalDeviceUid&&['block','delete'].includes(action)){alert('নিজের চলমান Admin ডিভাইস Block/Delete করবেন না।');return;}if(!confirm(item.userId+' — '+label+' করবেন?'))return;b.disabled=true;try{const patch={};if(action==='delete'){patch['deviceAccess/'+uid]=null;patch['deviceRequests/'+uid]=null;}else patch['deviceAccess/'+uid]={userId:item.userId,credentialUid:item.credentialUid,status:action==='block'?'blocked':'approved',updatedBy:portalDeviceUid,updatedAt:firebase.database.ServerValue.TIMESTAMP};await db.ref().update(patch);await openFirebaseDeviceAdmin();}catch(e){status.textContent=e.message;b.disabled=false;}};actions.appendChild(b);}row.appendChild(actions);table.appendChild(row);}
-        document.getElementById('deviceAdminContent').replaceChildren(table);status.textContent='পুরোনো ও নতুন browser প্রথমবার Approve করুন। Delete করলে পরের Login-এ আবার আবেদন লাগবে।';
+        const permissions=access.val()||{},items=requests.val()||{},table=document.createElement('table');table.style.cssText='width:100%;min-width:650px;border-collapse:collapse';const head=document.createElement('tr');for(const label of ['User ID','Device UID','ডিভাইস / ব্রাউজার','অবস্থা','অনুমতি']){const th=document.createElement('th');th.textContent=label;th.style.cssText='padding:10px;background:#e6f3f4;text-align:left';head.appendChild(th);}table.appendChild(head);
+        for(const [uid,item] of Object.entries(items).sort((a,b)=>(b[1].requestedAt||0)-(a[1].requestedAt||0))){const row=document.createElement('tr');for(const value of [item.userId,uid,item.name,permissions[uid]?.status||'pending']){const td=document.createElement('td');td.dataset.label=['User ID','Device UID','Browser','Status'][row.children.length];if(row.children.length===3){td.dataset.status=value;const badge=document.createElement('span');badge.className='device-status-badge';badge.textContent=({approved:'অনুমোদিত',pending:'অপেক্ষমাণ',blocked:'ব্লক করা'})[value]||value;td.appendChild(badge);}else if(row.children.length===2){const ua=String(value||'');td.title=ua;const os=/Android/i.test(ua)?'Android':/iPhone|iPad/i.test(ua)?'iPhone / iPad':/Windows/i.test(ua)?'Windows':/Macintosh/i.test(ua)?'Mac':/Linux/i.test(ua)?'Linux':'ডিভাইস';const browser=/Edg/i.test(ua)?'Edge':/Firefox/i.test(ua)?'Firefox':/Chrome|CriOS/i.test(ua)?'Chrome':/Safari/i.test(ua)?'Safari':'Browser';td.textContent=os+' · '+browser;}else td.textContent=value;td.style.cssText='padding:10px;border-bottom:1px solid #ddd;max-width:280px;overflow-wrap:anywhere';row.appendChild(td);}const actions=document.createElement('td');actions.className='device-actions';actions.dataset.label='অনুমতি';
+          for(const [action,label] of [['approve','অনুমোদন'],['block','ব্লক'],['unblock','আনব্লক'],['delete','মুছুন']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.dataset.action=action;b.style.margin='3px';b.onclick=async()=>{if(uid===portalDeviceUid&&['block','delete'].includes(action)){alert('নিজের চলমান Admin ডিভাইস Block/Delete করবেন না।');return;}if(!confirm(item.userId+' — '+label+' করবেন?'))return;b.disabled=true;try{const patch={};if(action==='delete'){patch['deviceAccess/'+uid]=null;patch['deviceRequests/'+uid]=null;}else patch['deviceAccess/'+uid]={userId:item.userId,credentialUid:item.credentialUid,status:action==='block'?'blocked':'approved',updatedBy:portalDeviceUid,updatedAt:firebase.database.ServerValue.TIMESTAMP};await db.ref().update(patch);await openFirebaseDeviceAdmin();}catch(e){status.textContent=e.message;b.disabled=false;}};actions.appendChild(b);}row.appendChild(actions);table.appendChild(row);}
+        const summary=document.createElement('div');summary.className='device-summary';for(const [key,label]of [['pending','অপেক্ষমাণ'],['approved','অনুমোদিত'],['blocked','ব্লক করা']]){const tile=document.createElement('div');tile.dataset.status=key;const number=document.createElement('strong');number.textContent=Object.keys(items).filter(uid=>(permissions[uid]?.status||'pending')===key).length;const caption=document.createElement('span');caption.textContent=label;tile.append(number,caption);summary.appendChild(tile);}const content=document.getElementById('deviceAdminContent');let oldSummary=modal.querySelector('.device-summary');if(oldSummary)oldSummary.replaceWith(summary);else content.before(summary);if(Object.keys(items).length)content.replaceChildren(table);else{const empty=document.createElement('p');empty.className='device-empty';empty.textContent='এখন কোনো ডিভাইসের আবেদন নেই';content.replaceChildren(empty);}status.textContent='মুছে দিলে পরের লগইনে নতুন করে অনুমতি প্রয়োজন হবে।';
       }catch(e){status.textContent=e.message;}
     }
     const rawDatabase = {ref(...args){return (portalFinancialApp||firebase.app()).database().ref(...args);}};
@@ -1125,7 +1144,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.04.08';
+    const APP_RELEASE_VERSION = '2026.10.04.09';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1558,25 +1577,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
     function startLoginTiming(){
-      document.getElementById('portalLoginTimingPanel')?.remove();
-      const started=performance.now(),rows=[],trace={rows,started,finished:false,panel:null,timer:null};
-      function render(){
-        if(!trace.panel&&performance.now()-started<8000)return;
-        if(!trace.panel){
-          const panel=document.createElement('div');panel.id='portalLoginTimingPanel';panel.style.cssText='position:fixed;right:12px;bottom:12px;z-index:99997;width:min(360px,calc(100vw - 24px));max-height:55vh;overflow:auto;background:white;color:#173b45;border:1px solid #cce0e5;border-radius:14px;padding:16px;box-shadow:0 8px 30px #0003;font-size:14px';
-          const title=document.createElement('strong');title.textContent='লগইনের সময়';panel.appendChild(title);
-          const close=document.createElement('button');close.type='button';close.textContent='বন্ধ করুন';close.style.cssText='float:right;padding:4px 8px;font-size:12px';close.onclick=()=>{panel.remove();trace.dismissed=true;};panel.appendChild(close);
-          const body=document.createElement('div');body.className='login-timing-results';body.style.marginTop='12px';panel.appendChild(body);document.body.appendChild(panel);trace.panel=panel;
-        }
-        if(trace.dismissed)return;
-        const body=trace.panel.querySelector('.login-timing-results');body.replaceChildren();
-        for(const row of rows){const line=document.createElement('div');line.style.cssText='padding:5px 0;border-bottom:1px solid #edf2f4';line.textContent=row.label+' — '+((row.end??performance.now())-row.start).toFixed(0)/1000+' সেকেন্ড'+(row.end===undefined?' (চলছে…)':row.failed?' (ব্যর্থ)':'');body.appendChild(line);}
-        const total=document.createElement('p');total.style.cssText='margin:10px 0 0;font-weight:700';total.textContent='মোট সময়: '+((trace.ended??performance.now())-started).toFixed(0)/1000+' সেকেন্ড';body.appendChild(total);
-      }
-      trace.run=async(label,work)=>{const row={label,start:performance.now()};rows.push(row);try{return await work();}catch(error){row.failed=true;throw error;}finally{row.end=performance.now();render();}};
-      trace.timer=setInterval(()=>{const active=rows.filter(row=>row.end===undefined);const btn=document.getElementById('loginBtn');if(btn&&loginInProgress&&active.length)btn.textContent=active.map(row=>row.label).join(' / ');render();},500);
-      trace.finish=hide=>{clearInterval(trace.timer);trace.finished=true;trace.ended=performance.now();window.portalLoginTiming={totalMs:trace.ended-started,steps:rows.map(row=>({step:row.label,durationMs:(row.end??trace.ended)-row.start,failed:!!row.failed}))};if(hide){trace.panel?.remove();}else render();};
-      return trace;
+      return {run:async(_label,work)=>work(),finish(){}};
     }
     function timedLoginStep(trace,label,work){return trace?trace.run(label,work):work();}
 
