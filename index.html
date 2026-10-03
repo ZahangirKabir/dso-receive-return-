@@ -1023,7 +1023,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.03.04';
+    const APP_RELEASE_VERSION = '2026.10.03.05';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1267,6 +1267,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
     let slipReturnState=null;
     function switchAdminTab(tab) {
+      rememberPortalPage(tab);
       const previousTab=activeAdminTab;
       if(tab==='slipApproval'&&previousTab!=='slipApproval')slipReturnState={mode:masterAdminDataMode,date:document.getElementById('filterDate').value};
       activeAdminTab = tab;
@@ -1303,6 +1304,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
 
     function switchDsoTab(tab) {
+      rememberPortalPage(tab);
       ["Form","Slip","Report","Settings"].forEach(name => {
         document.getElementById("tabDso" + name + "Btn")?.classList.remove("active");
         const page = document.getElementById("dsoPage" + name);
@@ -1375,6 +1377,16 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
     const PORTAL_SESSION_KEY = 'collectionPortalUser';
+    function rememberPortalPage(tab){
+      if(!currentUser)return;
+      try{sessionStorage.setItem('collectionPortalPage:'+currentUser,tab);}catch(error){}
+    }
+    function getRememberedPortalPage(id){
+      let page;try{page=sessionStorage.getItem('collectionPortalPage:'+id);}catch(error){}
+      const allowed=id==='admin'?['report','bank','slipApproval','notes','settings','investment']:isGroupAdmin(id)?['report']:['form','slip','report','settings'];
+      return allowed.includes(page)?page:allowed[0];
+    }
+
     async function portalPasswordProof(id,password){
       if(!window.crypto?.subtle)return null;
       const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(id+'\n'+password));
@@ -1403,6 +1415,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     function openPortalForUser(id, {freshLogin=false} = {}) {
       currentUser = String(id || '').trim();
       if (!currentUser) return;
+      const rememberedPage=freshLogin?null:getRememberedPortalPage(currentUser);
       if(currentUser==='admin'&&freshLogin&&!hostedReleaseMismatch){database.ref('appConfig/releaseVersion').transaction(current=>{
         const previous=String(current||'');return !previous||APP_RELEASE_VERSION.localeCompare(previous,undefined,{numeric:true})>0?APP_RELEASE_VERSION:undefined;
       },undefined,false).catch(error=>console.warn('Release broadcast failed:',error));}
@@ -1443,6 +1456,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       listenRealtimeData();
       // Open the small, date-scoped Admin slip query only when its page is visited.
       if(currentUser!=='admin')listenBankSlipStatuses();
+      if(rememberedPage){if(currentUser==='admin'||isGroupAdmin(currentUser))switchAdminTab(rememberedPage);else switchDsoTab(rememberedPage);}
       // OCR assets load only when a slip is selected, keeping login light.
     }
 
