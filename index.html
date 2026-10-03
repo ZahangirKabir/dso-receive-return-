@@ -1076,13 +1076,13 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const credentialUid=credentialAuth.currentUser?.uid;
       if(!credentialUid)throw Error('আবার Login করুন।');
       const uid=app.auth().currentUser.uid;
-      const access=(await app.database().ref('deviceAccess/'+uid).once('value')).val();
+      const access=(await timedLoginStep(prepared.trace,'ডিভাইসের অনুমতি',()=>app.database().ref('deviceAccess/'+uid).once('value'))).val();
       if(access?.status!=='approved'||access.userId!==id||access.credentialUid!==credentialUid){
-        const current=(await app.database().ref('deviceRequests/'+uid).once('value')).val();
+        const current=(await timedLoginStep(prepared.trace,'ডিভাইসের আবেদন',()=>app.database().ref('deviceRequests/'+uid).once('value'))).val();
         if(!current)await credentialApp.database().ref('deviceRequests/'+uid).set({userId:id,credentialUid,deviceUid:uid,name:(navigator.userAgent||'Browser').slice(0,160),requestedAt:firebase.database.ServerValue.TIMESTAMP});
         showPendingDevice();const error=new Error('আপনার ডিভাইসে লগইন করার জন্য অনুমতি প্রয়োজন');error.code='portal/device-permission-required';throw error;
       }
-      await credentialApp.database().ref('deviceSessions/'+uid).set({active:true,credentialUid,expiresAt:Date.now()+23*3600000});
+      await timedLoginStep(prepared.trace,'নিরাপদ সেশন',()=>credentialApp.database().ref('deviceSessions/'+uid).set({active:true,credentialUid,expiresAt:Date.now()+23*3600000}));
       return access;
     }
     function watchDevicePermission(id){
@@ -1125,7 +1125,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.04.07';
+    const APP_RELEASE_VERSION = '2026.10.04.08';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1507,8 +1507,8 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
 
-    async function openPortalForUser(id, {freshLogin=false,meta=null,app=null} = {}) {
-      await registerAndCheckDevice(String(id||'').trim(),{meta,app});
+    async function openPortalForUser(id, {freshLogin=false,meta=null,app=null,trace=null} = {}) {
+      await registerAndCheckDevice(String(id||'').trim(),{meta,app,trace});
       currentUser = String(id || '').trim();
       if (!currentUser) return;
       installFirebaseDeviceMenu();watchDevicePermission(currentUser);
@@ -1557,6 +1557,29 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       // OCR assets load only when a slip is selected, keeping login light.
     }
 
+    function startLoginTiming(){
+      document.getElementById('portalLoginTimingPanel')?.remove();
+      const started=performance.now(),rows=[],trace={rows,started,finished:false,panel:null,timer:null};
+      function render(){
+        if(!trace.panel&&performance.now()-started<8000)return;
+        if(!trace.panel){
+          const panel=document.createElement('div');panel.id='portalLoginTimingPanel';panel.style.cssText='position:fixed;right:12px;bottom:12px;z-index:99997;width:min(360px,calc(100vw - 24px));max-height:55vh;overflow:auto;background:white;color:#173b45;border:1px solid #cce0e5;border-radius:14px;padding:16px;box-shadow:0 8px 30px #0003;font-size:14px';
+          const title=document.createElement('strong');title.textContent='লগইনের সময়';panel.appendChild(title);
+          const close=document.createElement('button');close.type='button';close.textContent='বন্ধ করুন';close.style.cssText='float:right;padding:4px 8px;font-size:12px';close.onclick=()=>{panel.remove();trace.dismissed=true;};panel.appendChild(close);
+          const body=document.createElement('div');body.className='login-timing-results';body.style.marginTop='12px';panel.appendChild(body);document.body.appendChild(panel);trace.panel=panel;
+        }
+        if(trace.dismissed)return;
+        const body=trace.panel.querySelector('.login-timing-results');body.replaceChildren();
+        for(const row of rows){const line=document.createElement('div');line.style.cssText='padding:5px 0;border-bottom:1px solid #edf2f4';line.textContent=row.label+' — '+((row.end??performance.now())-row.start).toFixed(0)/1000+' সেকেন্ড'+(row.end===undefined?' (চলছে…)':row.failed?' (ব্যর্থ)':'');body.appendChild(line);}
+        const total=document.createElement('p');total.style.cssText='margin:10px 0 0;font-weight:700';total.textContent='মোট সময়: '+((trace.ended??performance.now())-started).toFixed(0)/1000+' সেকেন্ড';body.appendChild(total);
+      }
+      trace.run=async(label,work)=>{const row={label,start:performance.now()};rows.push(row);try{return await work();}catch(error){row.failed=true;throw error;}finally{row.end=performance.now();render();}};
+      trace.timer=setInterval(()=>{const active=rows.filter(row=>row.end===undefined);const btn=document.getElementById('loginBtn');if(btn&&loginInProgress&&active.length)btn.textContent=active.map(row=>row.label).join(' / ');render();},500);
+      trace.finish=hide=>{clearInterval(trace.timer);trace.finished=true;trace.ended=performance.now();window.portalLoginTiming={totalMs:trace.ended-started,steps:rows.map(row=>({step:row.label,durationMs:(row.end??trace.ended)-row.start,failed:!!row.failed}))};if(hide){trace.panel?.remove();}else render();};
+      return trace;
+    }
+    function timedLoginStep(trace,label,work){return trace?trace.run(label,work):work();}
+
     let loginInProgress = false;
     async function handleLogin() {
       if (loginInProgress) return;
@@ -1571,24 +1594,27 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       }
       credentialActionEpoch++;loginInProgress = true;
       if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Checking…';}
+      const trace=startLoginTiming();let devicePermissionPending=false;
       try {
         const checks=await Promise.allSettled([
-          checkHostedRelease(true),
-          id!=='admin'?portalLedger.enabled():Promise.resolve(true),
-          (async()=>{await credentialAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION);return credentialAuth.signInWithEmailAndPassword(accountEmail(id),pass);})()
+          trace.run('অ্যাপের আপডেট',()=>checkHostedRelease(true)),
+          trace.run('হিসাবের প্রস্তুতি',()=>id!=='admin'?portalLedger.enabled():Promise.resolve(true)),
+          trace.run('পাসওয়ার্ড যাচাই',async()=>{await credentialAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION);return credentialAuth.signInWithEmailAndPassword(accountEmail(id),pass);})
         ]);
         for(const check of checks)if(check.status==='rejected')throw check.reason;
         if(!checks[0].value||firebaseReleaseMismatch)return;
-        const preparation=await Promise.allSettled([getCredentialMeta(),prepareDeviceApp(id)]);
+        const preparation=await Promise.allSettled([trace.run('অ্যাকাউন্টের অনুমতি',()=>getCredentialMeta()),trace.run('ডিভাইসের পরিচয়',()=>prepareDeviceApp(id))]);
         for(const task of preparation)if(task.status==='rejected')throw task.reason;
         const meta=preparation[0].value,app=preparation[1].value;
         if(meta.userId!==id)throw Error('Login ID মেলেনি।');
         if(meta.forceChange){currentUser=id;showPasswordGate();return;}
         await rememberPortalSession(id,pass);
-        await openPortalForUser(id, {freshLogin:true,meta,app});
+        await trace.run('পেজ খোলা',()=>openPortalForUser(id, {freshLogin:true,meta,app,trace}));
       } catch (e) {
-        if(e.code!=='portal/device-permission-required')alert("লগইন চেক করতে সমস্যা হয়েছে: " + e.message);
+        devicePermissionPending=e.code==='portal/device-permission-required';
+        if(!devicePermissionPending)alert("লগইন চেক করতে সমস্যা হয়েছে: " + e.message);
       } finally {
+        trace.finish(devicePermissionPending);
         loginInProgress = false;
         if(btn){btn.classList.remove('is-loading');btn.textContent='Login';}updateReleaseGate();
       }
