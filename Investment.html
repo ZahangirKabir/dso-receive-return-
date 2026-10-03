@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.10.03.3">
+<meta name="investment-release-version" content="2026.10.03.4">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -146,11 +146,12 @@ const pages=[['capital','Daily Working Capital'],['capitalReport','Working Capit
 let page='capital',items={},stream=null,handler=null,dataReady=false;
 const node=(tag,label)=>{const x=document.createElement(tag);if(label!==undefined)x.textContent=String(label);return x;};
 const money=n=>Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+const inputMoney=n=>Number(n||0)===0?'':money(n);
 function today(){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const part=key=>parts.find(x=>x.type===key).value;return `${part('year')}-${part('month')}-${part('day')}`;}
 function stop(){if(stream){stream.off('value',handler);stream=null;handler=null;}}
 function field(area,label,name,type='number',required=false){
  const box=node('div');box.className='field';box.append(node('label',label));const input=node('input');input.name=name;input.type=type==='number'?'text':type;input.required=required;
- if(type==='number'){input.inputMode='decimal';input.addEventListener('blur',()=>{if(input.value.trim()){try{input.value=money(amount(input.value));}catch{input.setCustomValidity('সঠিক টাকার অঙ্ক লিখুন।');input.reportValidity();}}});input.addEventListener('input',()=>input.setCustomValidity(''));}
+ if(type==='number'){input.inputMode='decimal';input.addEventListener('blur',()=>{if(input.value.trim()){try{input.value=inputMoney(amount(input.value));}catch{input.setCustomValidity('সঠিক টাকার অঙ্ক লিখুন।');input.reportValidity();}}});input.addEventListener('input',()=>input.setCustomValidity(''));}
  if(type==='date')input.value=today();box.append(input);area.append(box);return input;
 }
 function select(area,label,name,options){
@@ -217,12 +218,12 @@ function capitalForm(){
  bankFields(openingLevel,'openingBank','Bank');
  const commissions=commissionRows(openingLevel),receipts=receivedRows(openingLevel);
  const totalGrid=node('div');totalGrid.className='card fields opening-total';form.append(totalGrid);const openingSum=field(totalGrid,'Total Opening Balance','opening_total','text');openingSum.readOnly=true;openingSum.setAttribute('aria-live','polite');
- const updateDifference=()=>{const output=form.elements.balance_difference;if(!output)return;const difference=Math.round(((Number(openingSum.value.replace(/,/g,''))||0)-(Number(form.elements.closing_total?.value.replace(/,/g,''))||0))*100)/100;output.value=money(difference);output.closest('.card').classList.toggle('balance-mismatch',difference!==0);};
- const updateOpeningSum=()=>{const names=['opening_wallet','opening_cashHand','opening_cashOffice',...banks.map(bank=>`openingBank_${bank}`)];const extra=[...commissions.querySelectorAll('[name=commission_amount]'),...receipts.querySelectorAll('[name=received_amount]')];openingSum.value=money([...names.map(name=>form.elements[name]),...extra].reduce((sum,input)=>sum+(Number(input.value.replace(/,/g,''))||0),0));updateDifference();};
+ const updateDifference=()=>{const output=form.elements.balance_difference;if(!output)return;const difference=Math.round(((Number(openingSum.value.replace(/,/g,''))||0)-(Number(form.elements.closing_total?.value.replace(/,/g,''))||0))*100)/100;output.value=inputMoney(difference);output.closest('.card').classList.toggle('balance-mismatch',difference!==0);};
+ const updateOpeningSum=()=>{const names=['opening_wallet','opening_cashHand','opening_cashOffice',...banks.map(bank=>`openingBank_${bank}`)];const extra=[...commissions.querySelectorAll('[name=commission_amount]'),...receipts.querySelectorAll('[name=received_amount]')];openingSum.value=inputMoney([...names.map(name=>form.elements[name]),...extra].reduce((sum,input)=>sum+(Number(input.value.replace(/,/g,''))||0),0));updateDifference();};
  openingLevel.addEventListener('input',updateOpeningSum);updateOpeningSum();
  const syncOpening=()=>{if(!form.isConnected)return;const prior=Object.values(items).filter(x=>x?.scope==='company'&&x.type==='capital'&&x.date<selectedDate.value&&x.closing).sort((a,b)=>b.date.localeCompare(a.date))[0];
   const balances=prior?.closing;const pairs=[['opening_wallet',balances?.maWallet],['opening_cashHand',balances?.cashInHand],['opening_cashOffice',balances?.cashInOffice],...banks.map(bank=>[`openingBank_${bank}`,balances?.banks?.[bank]])];
-  pairs.forEach(([name,value])=>{const input=form.elements[name];if(!prior&&input.readOnly)input.value='';input.readOnly=!!prior;if(prior)input.value=money(Number(value)||0);});updateOpeningSum();};
+  pairs.forEach(([name,value])=>{const input=form.elements[name];if(!prior&&input.readOnly)input.value='';input.readOnly=!!prior;if(prior)input.value=inputMoney(Number(value)||0);});updateOpeningSum();};
  window.investmentSyncOpening=syncOpening;syncOpening();
  const closingLevel=node('fieldset');closingLevel.className='working-level closing-level';closingLevel.append(node('legend','Closing Balance'));form.append(closingLevel);
  grid=node('div');grid.className='fields';closingLevel.append(grid);field(grid,'MA Wallet','closing_wallet');field(grid,'Cash In Hand','closing_cashHand');field(grid,'Cash In Shivalaya','closing_cashOffice');
@@ -231,13 +232,13 @@ function capitalForm(){
  grid=section(closingLevel,'Cash Transfer');field(grid,'Salary','transfer_salary');field(grid,'Route Convence','transfer_route');field(grid,'Petty Cash','transfer_petty');
  const closingTotalGrid=node('div');closingTotalGrid.className='card fields closing-total';form.append(closingTotalGrid);const closingSum=field(closingTotalGrid,'Total Closing Balance','closing_total','text');closingSum.readOnly=true;closingSum.setAttribute('aria-live','polite');
  const differenceGrid=node('div');differenceGrid.className='card fields difference-total';form.append(differenceGrid);const difference=field(differenceGrid,'পার্থক্য (Opening − Closing)','balance_difference','text');difference.readOnly=true;difference.setAttribute('aria-live','polite');
- const updateClosingSum=()=>{const names=['closing_wallet','closing_cashHand','closing_cashOffice',...banks.map(bank=>`closingBank_${bank}`),'transfer_salary','transfer_route','transfer_petty'];const extra=[...headTransfers.querySelectorAll('[name=received_amount]')];closingSum.value=money([...names.map(name=>form.elements[name]),...extra].reduce((sum,input)=>sum+(Number(input.value.replace(/,/g,''))||0),0));updateDifference();};
+ const updateClosingSum=()=>{const names=['closing_wallet','closing_cashHand','closing_cashOffice',...banks.map(bank=>`closingBank_${bank}`),'transfer_salary','transfer_route','transfer_petty'];const extra=[...headTransfers.querySelectorAll('[name=received_amount]')];closingSum.value=inputMoney([...names.map(name=>form.elements[name]),...extra].reduce((sum,input)=>sum+(Number(input.value.replace(/,/g,''))||0),0));updateDifference();};
  closingLevel.addEventListener('input',updateClosingSum);updateClosingSum();
  const {save,status}=submitTools(form,box);const edit=node('button','✏️ আজকের হিসাব Edit করুন');edit.type='button';edit.className='add-row';edit.hidden=true;form.insertBefore(edit,save);let editing=false,saving=false,editRevision=null;
- const setAmount=(name,value)=>{form.elements[name].value=value==null?'':money(value);};
+ const setAmount=(name,value)=>{form.elements[name].value=value==null?'':inputMoney(value);};
  const populateRows=(container,entries,kind)=>{const values=Array.isArray(entries)?entries:(entries?.amount?[entries]:[]);while(container.children.length>1)container.lastElementChild.remove();
   while(container.children.length<Math.max(1,values.length))container.nextElementSibling.click();
-  values.forEach((item,i)=>{const row=container.children[i];row.querySelector('[name='+kind+'_amount]').value=money(item.amount);if(kind==='commission')row.querySelector('[name=commission_type]').value=item.type||'';
+  values.forEach((item,i)=>{const row=container.children[i];row.querySelector('[name='+kind+'_amount]').value=inputMoney(item.amount);if(kind==='commission')row.querySelector('[name=commission_type]').value=item.type||'';
    else{const via=row.querySelector('[name=received_via]');via.value=item.via||'';via.dispatchEvent(new Event('change'));row.querySelector('[name=received_bank]').value=item.bankName||'';row.querySelector('[name=received_person]').value=item.personName||'';}});
  };
  const syncCapitalState=()=>{if(!form.isConnected)return;const exists=!!items[selectedDate.value+'_company'];edit.hidden=!exists||editing;save.disabled=preview||!selectedDate.value||!dataReady||saving||(exists&&!editing);save.textContent=editing?'সংশোধন Submit':'Submit';};
@@ -320,13 +321,13 @@ function balanceCalculator(){
   save.disabled=preview||loading||busy||!loaded;
   if(loading)return;
   try{
-   maValue=Math.round((numeric(maOpening)+numeric(lifting)+numeric(receive)-numeric(send))*100)/100;netMA.value=money(maValue);
-   if(choice.value){bankValue=Math.round((numeric(bankOpening)+numeric(deposit)-numeric(transfer)-numeric(withdraw))*100)/100;netBank.value=money(bankValue);bankDrafts[choice.value]={opening:numeric(bankOpening),deposit:numeric(deposit),fundTransfer:numeric(transfer),chequeWithdrawal:numeric(withdraw),net:bankValue};}
+   maValue=Math.round((numeric(maOpening)+numeric(lifting)+numeric(receive)-numeric(send))*100)/100;netMA.value=inputMoney(maValue);
+   if(choice.value){bankValue=Math.round((numeric(bankOpening)+numeric(deposit)-numeric(transfer)-numeric(withdraw))*100)/100;netBank.value=inputMoney(bankValue);bankDrafts[choice.value]={opening:numeric(bankOpening),deposit:numeric(deposit),fundTransfer:numeric(transfer),chequeWithdrawal:numeric(withdraw),net:bankValue};}
    results.replaceChildren();Object.entries(bankDrafts).forEach(([b,x])=>results.append(node('p',b+' Net Balance: ৳'+money(x.net))));
    netMA.closest('.field').style.color=maValue<0?'#b91c1c':'#00695c';
   }catch(e){status.textContent=e.message;}
  }
- choice.onchange=()=>{const b=choice.value,x=bankDrafts[b]||{};bankOpening.value=money(previous?.closing?.banks?.[b]||0);deposit.value=money(countBank(b));transfer.value=money(x.fundTransfer||0);withdraw.value=money(x.chequeWithdrawal||0);netBank.closest('.field').querySelector('label').textContent=b?'Net '+b+' Balance':'Net Bank Balance';paint();};
+ choice.onchange=()=>{const b=choice.value,x=bankDrafts[b]||{};bankOpening.value=inputMoney(previous?.closing?.banks?.[b]||0);deposit.value=inputMoney(countBank(b));transfer.value=inputMoney(x.fundTransfer||0);withdraw.value=inputMoney(x.chequeWithdrawal||0);netBank.closest('.field').querySelector('label').textContent=b?'Net '+b+' Balance':'Net Bank Balance';paint();};
  form.addEventListener('input',paint);
  async function source(){
   if(!date.value){++sourceEpoch;loading=false;loaded=false;save.disabled=true;refresh.disabled=false;status.textContent='প্রথমে তারিখ নির্বাচন করুন।';return;}
@@ -341,8 +342,8 @@ function balanceCalculator(){
    const totals=selectedDateDsoTotals(snapshots[1].val(),snapshots[3].val(),selectedDate);
    approved=Object.values(snapshots[2].val()||{}).filter(x=>x&&x.date===date.value&&x.status==='approved').flatMap(x=>Array.isArray(x.slips)?x.slips.map(slip=>({bankName:slip.bankName,amount:Number(slip.amt||0)})):[x]);
    const saved=items[date.value+'_calculator'];bankDrafts=saved?.bankCalculations||{};
-   maOpening.value=money(previous?.closing?.maWallet||0);lifting.value=money(saved?.lifting||0);
-   receive.value=money(totals.receive);send.value=money(totals.send);
+   maOpening.value=inputMoney(previous?.closing?.maWallet||0);lifting.value=inputMoney(saved?.lifting||0);
+   receive.value=inputMoney(totals.receive);send.value=inputMoney(totals.send);
    Object.entries(bankDrafts).forEach(([b,x])=>{x.opening=Number(previous?.closing?.banks?.[b]||0);x.deposit=countBank(b);x.net=Math.round((x.opening+x.deposit-Number(x.fundTransfer||0)-Number(x.chequeWithdrawal||0))*100)/100;});loaded=true;loading=false;choice.onchange();paint();
    status.textContent=(previous?'Opening source: '+previous.date:'আগের Working Capital নেই; Opening ০।')+' · '+totals.count+' DSO reports · Approved Bank Slip থেকে Deposit। Lifting লিখুন।';
   }catch(e){if(epoch!==sourceEpoch)return;loading=false;status.textContent='ডাটা পাওয়া যায়নি: '+e.message;paint();}finally{clearTimeout(timer);if(epoch===sourceEpoch)refresh.disabled=false;}
@@ -382,7 +383,7 @@ function pettyForm(){const box=card('Daily Petty Cash'),form=node('form');form.i
    const available=Math.round((deposits-spentBefore-spentToday)*100);if(Math.round(n*100)>available)return;
    entries[key]={type:'petty',date,scope:'company',amount:n,note,openingBalance:Math.round((deposits-spentBefore)*100)/100,closingBalance:(available-Math.round(n*100))/100,createdBy:owner,createdAt:bridge.serverTimestamp};return entries;
   },undefined,false);if(!result.committed)throw Error('জমা পরিবর্তিত হয়েছে; বর্তমান balance দেখে আবার চেষ্টা করুন।');items=result.snapshot.val()||{};
-  status.textContent='✅ Petty Cash সেভ হয়েছে।';form.elements.amount.value='0';form.elements.note.value='';update();
+  status.textContent='✅ Petty Cash সেভ হয়েছে।';form.elements.amount.value='';form.elements.note.value='';update();
  }catch(err){status.textContent='Submit হয়নি: '+err.message;}finally{pettySaving=false;save.disabled=preview;}};
  update();
 }
@@ -461,7 +462,7 @@ const database=bridge.database,menu=document.getElementById('bankMenu'),content=
 function el(tag,value){const e=document.createElement(tag);if(value!==undefined)e.textContent=String(value);return e;}
 function today(){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const v=k=>p.find(x=>x.type===k).value;return `${v('year')}-${v('month')}-${v('day')}`;}
 function fmt(n){return Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});}
-function field(form,label,name,type='text',required=true){const box=el('div'),i=el('input');i.name=name;i.type=type==='number'?'text':type;i.required=required;if(type==='date')i.value=today();if(type==='number'){i.inputMode='decimal';i.addEventListener('blur',()=>{const raw=i.value.trim().replace(/,/g,'');if(raw&&/^\d+(?:\.\d{0,2})?$/.test(raw))i.value=fmt(Number(raw));});}box.append(el('label',label),i);form.append(box);return i;}
+function field(form,label,name,type='text',required=true){const box=el('div'),i=el('input');i.name=name;i.type=type==='number'?'text':type;i.required=required;if(type==='date')i.value=today();if(type==='number'){i.inputMode='decimal';i.addEventListener('blur',()=>{const raw=i.value.trim().replace(/,/g,'');if(raw&&/^\d+(?:\.\d{0,2})?$/.test(raw))i.value=Number(raw)===0?'':fmt(Number(raw));});}box.append(el('label',label),i);form.append(box);return i;}
 function stop(){if(ref){ref.off('value',handler);ref=null;handler=null;}}
 function show(type){mode=type;menu.replaceChildren();content.replaceChildren();
 [['cheque','Bank Cheque Tracker'],['debit','Bank Debit']].forEach(([name,title])=>{const b=el('button',title);b.type='button';b.classList.toggle('active',name===type);b.onclick=()=>show(name);menu.append(b);});
@@ -525,6 +526,7 @@ window.addEventListener('pagehide',stop);window.bankNavigate=show;show('cheque')
  document.addEventListener('click',event=>{if(!tabs.contains(event.target))closeDropdowns();});
  document.addEventListener('keydown',event=>{if(event.key==='Escape'){const openGroup=groups.find(group=>group.open);closeDropdowns();openGroup?.querySelector('summary')?.focus();}});
  function open(which){
+  try{sessionStorage.setItem('investmentLastPage',which);}catch(e){}
   const isBank=which==='bankCheque'||which==='bankDebit';
   investment.hidden=isBank;bank.hidden=!isBank;
   Object.entries(ids).forEach(([key,id])=>document.getElementById(id).classList.toggle('active',key===which));
@@ -535,7 +537,8 @@ window.addEventListener('pagehide',stop);window.bankNavigate=show;show('cheque')
   else window.investmentNavigate(which);
  }
  Object.entries(ids).forEach(([key,id])=>document.getElementById(id).onclick=()=>open(key));
- open('capital');
+ let lastPage='capital';try{const saved=sessionStorage.getItem('investmentLastPage');if(Object.prototype.hasOwnProperty.call(ids,saved))lastPage=saved;}catch(e){}
+ open(lastPage);
 })();
 </script><script>
 (function(){
