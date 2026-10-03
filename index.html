@@ -11,8 +11,6 @@
   </script>
   <style>
   .portal-session-restoring #loginSection{display:none!important}
-  #sessionRefreshStatus{display:none}
-  .portal-session-restoring #sessionRefreshStatus{display:block;text-align:center;padding:30px;color:#00695c}
   </style>
   <!-- Firebase SDKs -->
 
@@ -463,7 +461,7 @@
 </style>
 </head>
 <body>
-<div id="sessionRefreshStatus" role="status">পেজ Refresh হচ্ছে…</div>
+
 
   <!-- LOGIN SECTION -->
   <div id="loginSection" class="login-box">
@@ -1025,7 +1023,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.03.03';
+    const APP_RELEASE_VERSION = '2026.10.03.04';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -5590,7 +5588,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
  window.portalBootNotice=notice;
  function load(url){return new Promise(function(resolve,reject){var script=document.createElement('script'),finished=false;var timer=setTimeout(function(){finish(new Error('SDK load timeout'));},12000);function finish(error){if(finished)return;finished=true;clearTimeout(timer);script.onload=null;script.onerror=null;if(error){script.remove();reject(error);}else resolve();}script.src=url;script.onload=function(){finish();};script.onerror=function(){finish(new Error('SDK unavailable'));};document.head.appendChild(script);});}
  async function ensure(file,test){if(test())return;try{await load('https://www.gstatic.com/firebasejs/8.10.1/'+file);}catch(e){await load('https://cdn.jsdelivr.net/npm/firebase@8.10.1/'+file);}if(!test())throw Error('Firebase load failed');}
- async function boot(){if(loading||started)return;loading=true;var button=document.getElementById('loginBtn');button.disabled=true;notice('অ্যাপ প্রস্তুত হচ্ছে…');
+ async function boot(){if(loading||started)return;loading=true;var button=document.getElementById('loginBtn');button.disabled=true;if(!document.documentElement.classList.contains('portal-session-restoring'))notice('অ্যাপ প্রস্তুত হচ্ছে…');
   try{await ensure('firebase-app.js',function(){return !!window.firebase;});await ensure('firebase-database.js',function(){return !!(window.firebase&&firebase.database);});
    var code=document.createElement('script');code.textContent=document.getElementById('portalApplicationCode').textContent;document.body.appendChild(code);if(typeof handleLogin!=='function')throw Error('Application initialization failed');started=true;var status=document.getElementById('portalBootStatus');if(status)status.remove();
   }catch(error){document.documentElement.classList.remove('portal-session-restoring');notice('অ্যাপের প্রয়োজনীয় ফাইল লোড হয়নি। ইন্টারনেট সংযোগ যাচাই করে আবার চেষ্টা করুন।');}
