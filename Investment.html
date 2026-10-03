@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.10.03.2">
+<meta name="investment-release-version" content="2026.10.03.3">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -121,7 +121,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .compact-capital-date label{font-size:12px;color:#00695c;font-weight:700}
 .compact-capital-date input{width:100%;height:39px;padding:7px 10px;border-radius:8px;border:1px solid #96c7b9;background:#fff;font-size:14px;color:#164e45;box-sizing:border-box}
 .compact-capital-date input:focus{outline:2px solid #98d5c5;outline-offset:2px}
-</style><style>.date-selection-section{border:0!important;background:transparent!important;padding:0!important;margin-bottom:12px}.date-selection-section .compact-capital-date{margin-bottom:0}</style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden>
+</style><style>.date-selection-section{border:0!important;background:transparent!important;padding:0!important;margin-bottom:12px}.date-selection-section .compact-capital-date{margin-bottom:0}</style><style>
+.date-selection-section .compact-capital-date{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;width:210px;max-width:100%}
+.date-selection-section{border:0!important;box-shadow:none!important;background:transparent!important}
+</style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden>
  <details id="navWorkingCapital" class="module-dropdown"><summary>💼 Working Capital <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Working Capital submenu"><button type="button" id="showWorkingCapital">Daily Working Capital</button><button type="button" id="showWorkingCapitalReport">Working Capital Report</button><button type="button" id="showBalanceCalculator">MA &amp; Bank Balance Calculator</button></div></details>
  <details id="navPettyCash" class="module-dropdown"><summary>💵 Petty Cash <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Petty Cash submenu"><button type="button" id="showPettyCash">Daily Petty Cash</button><button type="button" id="showPettyCashReport">Daily Petty Cash Report</button></div></details>
  <button type="button" id="showTotalInvestment">📊 Total Investment</button>
@@ -298,7 +301,7 @@ function selectedDateDsoTotals(legacy,ledger,selectedDate){
 
 function balanceCalculator(){
  const box=card('MA & Bank Balance Calculator'),form=node('form');form.id='balanceCalculatorForm';
- const top=section(form,'Date'),date=field(top,'Date','calc_date','date',true);date.readOnly=false;date.value='';
+ const top=section(form,'Date'),date=field(top,'Date','calc_date','date',true);date.readOnly=false;date.value='';top.classList.add('compact-capital-date');
  const maArea=section(form,'MA Balance Calculation');
  const maOpening=field(maArea,'MA Opening Balance','calc_ma_opening'),lifting=field(maArea,'Lifting','calc_lifting'),receive=field(maArea,'B2B Receive','calc_receive'),send=field(maArea,'B2B Send','calc_send'),netMA=field(maArea,'Net MA Balance','calc_net_ma');
  [maOpening,receive,send,netMA].forEach(x=>x.readOnly=true);
