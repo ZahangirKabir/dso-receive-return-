@@ -1023,7 +1023,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.03.06';
+    const APP_RELEASE_VERSION = '2026.10.04.01';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1406,15 +1406,90 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         const password=String(snap.val()??defaultPasswordFor(id)).trim();
         if(password===defaultPasswordFor(id)||await portalPasswordProof(id,password)!==saved.proof){sessionStorage.removeItem(PORTAL_SESSION_KEY);return;}
         if(currentUser||loginInProgress||firebaseReleaseMismatch||hostedReleaseMismatch)return;
-        openPortalForUser(id);
-      }catch(error){window.portalBootNotice?.('আগের লগইন যাচাই হয়নি। Refresh বা Login দিয়ে আবার চেষ্টা করুন।');}
+        await openPortalForUser(id);
+      }catch(error){window.portalBootNotice?.(error.message||'আগের লগইন যাচাই হয়নি। আবার Login করুন।');}
       finally{document.documentElement.classList.remove('portal-session-restoring');}
     }
 
 
-    function openPortalForUser(id, {freshLogin=false} = {}) {
+    const DEVICE_BACKEND='https://collection-slip-ai.zahangir-ithome.workers.dev';
+    let portalDeviceKeyPromise,portalDeviceWatch,portalDeviceCheckBusy=false;
+    function deviceBase64(bytes){return btoa(String.fromCharCode(...new Uint8Array(bytes)));}
+    function portalDeviceKeys(){
+      if(portalDeviceKeyPromise)return portalDeviceKeyPromise;
+      portalDeviceKeyPromise=(async()=>{
+        if(!crypto?.subtle||!window.indexedDB)throw Error('এই Browser-এ নিরাপদ device registration সমর্থিত নয়। Chrome/Edge/Safari আপডেট করুন।');
+        const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('collectionPortalDevice',1);r.onupgradeneeded=()=>r.result.createObjectStore('keys');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(Error('Device storage খুলতে পারেনি।'));});
+        const existing=await new Promise((resolve,reject)=>{const r=db.transaction('keys','readonly').objectStore('keys').get('identity');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(Error('Device identity পড়তে পারেনি।'));});
+        if(existing){db.close();return existing;}
+        // Private key cannot be exported to a device-ID text string.
+        const keys=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},false,['sign','verify']);
+        await new Promise((resolve,reject)=>{const tx=db.transaction('keys','readwrite');const store=tx.objectStore('keys');const r=store.get('identity');r.onsuccess=()=>{if(r.result){keys.privateKey=r.result.privateKey;keys.publicKey=r.result.publicKey;}else store.put(keys,'identity');};tx.oncomplete=resolve;tx.onerror=()=>reject(Error('Device identity সংরক্ষণ হয়নি।'));});
+        db.close();return keys;
+      })().catch(error=>{portalDeviceKeyPromise=null;throw error;});return portalDeviceKeyPromise;
+    }
+    async function deviceFetch(path,body){
+      const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),20000);
+      try{const r=await fetch(DEVICE_BACKEND+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:abort.signal});const data=await r.json();if(!r.ok)throw Error(data.error||'ডিভাইস অনুমতি যাচাই হয়নি।');return data;}
+      finally{clearTimeout(timer);}
+    }
+    async function deviceEnvelope(user,action='access',target=''){
+      let saved;try{saved=JSON.parse(sessionStorage.getItem(PORTAL_SESSION_KEY)||'null');}catch(_){}
+      if(saved?.id!==user||!saved.proof)throw Error('আবার Login করুন।');
+      const keys=await portalDeviceKeys(),challenge=await deviceFetch('/device/challenge',{});
+      const payload=JSON.stringify({nonce:challenge.nonce,user,action,target,deviceName:(navigator.userAgent||'Browser').slice(0,100)});
+      const signature=deviceBase64(await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},keys.privateKey,new TextEncoder().encode(payload)));
+      return {payload,signature,publicKey:deviceBase64(await crypto.subtle.exportKey('spki',keys.publicKey)),proof:saved.proof};
+    }
+    async function checkPortalDevice(user){return deviceFetch('/device/request',await deviceEnvelope(user));}
+    function deviceAccessError(result){return result.status==='blocked'?'এই ডিভাইস Admin Block করেছেন।': 'এই ডিভাইসের আবেদন জমা হয়েছে। Admin অনুমোদন দিলে Login করতে পারবেন।';}
+    function startPortalDeviceWatch(){
+      clearInterval(portalDeviceWatch);
+      const check=async()=>{
+        if(!currentUser||portalDeviceCheckBusy)return;portalDeviceCheckBusy=true;
+        const user=currentUser;
+        try{const result=await checkPortalDevice(user);if(user===currentUser&&result.status!=='approved'){logout();alert(deviceAccessError(result));}}
+        catch(error){if(user===currentUser){logout();alert('ডিভাইস অনুমতি যাচাই করা যাচ্ছে না। সংযোগ ঠিক হলে আবার Login করুন।');}}
+        finally{portalDeviceCheckBusy=false;}
+      };
+      portalDeviceWatch=setInterval(check,60000);
+      window.portalDeviceVisibilityCheck=()=>{if(document.visibilityState==='visible')check();};
+      document.removeEventListener('visibilitychange',window.portalPreviousDeviceVisibilityCheck);
+      document.addEventListener('visibilitychange',window.portalDeviceVisibilityCheck);window.portalPreviousDeviceVisibilityCheck=window.portalDeviceVisibilityCheck;
+    }
+    function installDeviceAdminButton(){
+      if(currentUser!=='admin')return;
+      const nav=document.getElementById('adminTabNav');if(!nav||document.getElementById('deviceAdminButton'))return;
+      const button=document.createElement('button');button.id='deviceAdminButton';button.textContent='ডিভাইস অনুমোদন';button.type='button';button.onclick=openDeviceAdmin;nav.appendChild(button);
+    }
+    async function openDeviceAdmin(){
+      if(currentUser!=='admin')return;
+      let modal=document.getElementById('deviceAdminModal');
+      if(!modal){modal=document.createElement('div');modal.id='deviceAdminModal';modal.style.cssText='position:fixed;inset:0;background:#0008;z-index:99999;display:flex;align-items:center;justify-content:center;padding:12px';
+        const card=document.createElement('div');card.style.cssText='background:white;color:#153947;border-radius:16px;padding:20px;width:min(1100px,100%);max-height:90vh;overflow:auto';
+        const title=document.createElement('h3');title.textContent='ডিভাইস অনুমোদন';card.appendChild(title);
+        const close=document.createElement('button');close.textContent='বন্ধ করুন';close.onclick=()=>modal.remove();card.appendChild(close);
+        const refresh=document.createElement('button');refresh.textContent='তালিকা Refresh';refresh.onclick=openDeviceAdmin;card.appendChild(refresh);
+        const status=document.createElement('p');status.id='deviceAdminStatus';card.appendChild(status);
+        const content=document.createElement('div');content.id='deviceAdminContent';content.style.overflowX='auto';card.appendChild(content);modal.appendChild(card);document.body.appendChild(modal);}
+      const status=document.getElementById('deviceAdminStatus');status.textContent='ডিভাইসের তালিকা আসছে…';
+      try{
+        const result=await deviceFetch('/device/request',await deviceEnvelope(currentUser,'list'));
+        if(!modal.isConnected||currentUser!=='admin')return;
+        const table=document.createElement('table');table.style.cssText='width:100%;border-collapse:collapse;min-width:650px';
+        const tr=document.createElement('tr');for(const label of ['User ID','Device','Browser','Status','অনুমতি']){const th=document.createElement('th');th.textContent=label;th.style.cssText='padding:10px;background:#e7f3f4;text-align:left';tr.appendChild(th);}table.appendChild(tr);
+        for(const item of result.devices||[]){const row=document.createElement('tr');for(const value of [item.user,item.device.slice(0,12),item.name,item.status]){const td=document.createElement('td');td.textContent=value;td.style.cssText='padding:10px;border-bottom:1px solid #ddd;max-width:280px;overflow-wrap:anywhere';row.appendChild(td);}
+          const actions=document.createElement('td');for(const [action,label] of [['approve','Approve'],['block','Block'],['unblock','Unblock'],['delete','Delete']]){const b=document.createElement('button');b.textContent=label;b.type='button';b.style.margin='3px';b.onclick=async()=>{if(!confirm(item.user+' · '+item.device.slice(0,12)+' — '+label+' করবেন?'))return;b.disabled=true;try{await deviceFetch('/device/request',await deviceEnvelope(currentUser,action,item.key));await openDeviceAdmin();}catch(e){status.textContent=e.message;b.disabled=false;}};actions.appendChild(b);}row.appendChild(actions);table.appendChild(row);}
+        document.getElementById('deviceAdminContent').replaceChildren(table);status.textContent='পুরোনো ও নতুন ডিভাইস প্রথমবার অনুমোদন দিন। Unblock অনুমতি চালু করে; Delete করলে আবার আবেদন লাগবে।';
+      }catch(e){status.textContent=e.message;}
+    }
+    async function openPortalForUser(id, {freshLogin=false} = {}) {
+      const deviceAccess=await checkPortalDevice(String(id||'').trim());
+      if(deviceAccess.status!=='approved')throw Error(deviceAccessError(deviceAccess));
+
       currentUser = String(id || '').trim();
       if (!currentUser) return;
+      installDeviceAdminButton();startPortalDeviceWatch();
       const rememberedPage=freshLogin?null:getRememberedPortalPage(currentUser);
       if(currentUser==='admin'&&freshLogin&&!hostedReleaseMismatch){database.ref('appConfig/releaseVersion').transaction(current=>{
         const previous=String(current||'');return !previous||APP_RELEASE_VERSION.localeCompare(previous,undefined,{numeric:true})>0?APP_RELEASE_VERSION:undefined;
@@ -1489,7 +1564,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
           return;
         }
         await rememberPortalSession(id,String(dbPass).trim());
-        openPortalForUser(id, {freshLogin:true});
+        await openPortalForUser(id, {freshLogin:true});
       } catch (e) {
         alert("লগইন চেক করতে সমস্যা হয়েছে: " + e.message);
       } finally {
@@ -1512,7 +1587,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if (!result.committed) throw new Error('বর্তমান পাসওয়ার্ড সঠিক নয়।');
       await rememberPortalSession(currentUser,newPass);
       document.getElementById('passwordGate').style.display='none';
-      if (document.getElementById('appContainer').style.display !== 'block') openPortalForUser(currentUser, {freshLogin:true});
+      if (document.getElementById('appContainer').style.display !== 'block') await openPortalForUser(currentUser, {freshLogin:true});
       return true;
     }
     async function changePasswordAtGate() {
@@ -1571,6 +1646,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
     function logout() {
+      clearInterval(portalDeviceWatch);document.getElementById('deviceAdminModal')?.remove();document.getElementById('deviceAdminButton')?.remove();document.removeEventListener('visibilitychange',window.portalPreviousDeviceVisibilityCheck);
       const investmentFrame=document.getElementById('investmentFrame');
       if(investmentFrame) investmentFrame.removeAttribute('src');
       detachRealtimeDataListeners();
@@ -3097,6 +3173,26 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         validateFormAndSubmitBtn();
       }
     }
+    const SLIP_AI_ENDPOINT='https://collection-slip-ai.zahangir-ithome.workers.dev/extract';
+    async function requestSlipAI(preview){
+      let saved;try{saved=JSON.parse(sessionStorage.getItem(PORTAL_SESSION_KEY)||'null');}catch(_){}
+      if(!saved?.proof||saved.id!==currentUser)throw Error('AI ব্যবহারের জন্য আবার Login করুন।');
+      if(!preview?.naturalWidth||!preview?.naturalHeight)throw Error('স্লিপের প্রিভিউ পাওয়া যায়নি।');
+      const scale=Math.min(1,2200/Math.max(preview.naturalWidth,preview.naturalHeight));
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.max(1,Math.round(preview.naturalWidth*scale));canvas.height=Math.max(1,Math.round(preview.naturalHeight*scale));
+      const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(preview,0,0,canvas.width,canvas.height);
+      const image=canvas.toDataURL('image/jpeg',0.92);
+      const deviceProof=await deviceEnvelope(saved.id);
+      if(image.length>4000000)throw Error('AI-এর জন্য ছবিটি বেশি বড়। Manual correction করুন।');
+      const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),45000);
+      try{
+        const response=await fetch(SLIP_AI_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:saved.id,proof:saved.proof,image,deviceEnvelope:deviceProof}),signal:abort.signal,credentials:'omit'});
+        const result=await response.json();if(!response.ok)throw Error(result.error||'AI যাচাই সম্পন্ন হয়নি।');
+        return result.data||{};
+      }finally{clearTimeout(timer);}
+    }
+
     async function processSlipOCRCore(event, id) {
       const file=event.target.files?.[0];
       const row=document.getElementById(`slipRow_${id}`);
@@ -3158,18 +3254,35 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const submitBtn=document.getElementById('subBtn');
       if(submitBtn) submitBtn.disabled=true;
       try{
-        const ocrResults=await runSlipOCR(file,null,id);
+        let ocrResults=[];try{ocrResults=await runSlipOCR(file,null,id);}catch(_){}
         if(!row.isConnected||row.querySelector('.slip-file-input')?.files?.[0]!==file)return;
-        if(!ocrResults.length) throw new Error('OCR থেকে কোনো লেখা পাওয়া যায়নি।');
 
-        const knownAccount=chooseKnownSlipAccount(ocrResults);
+
+        let knownAccount=chooseKnownSlipAccount(ocrResults);
         if(knownAccount?.accountNumber) row.dataset.ocrAccountNumber=knownAccount.accountNumber;
         const detectedBank=chooseConsensusBank(ocrResults);
-        const bank=knownAccount?.bank || (detectedBank && detectedBank!=='AMBIGUOUS' ? detectedBank : '');
-        const amountInfo=chooseConsensusAmount(ocrResults);
-        const account=knownAccount?.accountName || chooseConsensusAccount(ocrResults) || '';
-        const depositDate=chooseConsensusDate(ocrResults) || '';
-        const transactionId=extractSlipTransactionId(ocrResults);
+        let bank=knownAccount?.bank || (detectedBank && detectedBank!=='AMBIGUOUS' ? detectedBank : '');
+        let amountInfo=chooseConsensusAmount(ocrResults);
+        let account=knownAccount?.accountName || chooseConsensusAccount(ocrResults) || '';
+        let depositDate=chooseConsensusDate(ocrResults) || '';
+        let transactionId=extractSlipTransactionId(ocrResults);
+        let aiUsed=false,aiNotice='';
+        if(!knownAccount||!amountInfo?.value||!depositDate||!transactionId){
+          document.getElementById('slipSubmitMessage').textContent='OCR-এর অস্পষ্ট তথ্য AI দিয়ে যাচাই হচ্ছে…';
+          try{
+            const ai=await requestSlipAI(preview);
+            if(!row.isConnected||row.querySelector('.slip-file-input')?.files?.[0]!==file)return;
+            // Fill missing fields only. AI results always need visual confirmation.
+            if(!knownAccount&&KNOWN_SLIP_ACCOUNTS[ai.accountNumber]){knownAccount={accountNumber:ai.accountNumber,...KNOWN_SLIP_ACCOUNTS[ai.accountNumber]};bank=knownAccount.bank;account=knownAccount.accountName;aiUsed=true;}
+            if(!amountInfo?.value&&typeof ai.amount==='number'&&Number.isFinite(ai.amount)&&ai.amount>0){amountInfo={value:ai.amount};aiUsed=true;}
+            if(!depositDate&&typeof ai.date==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(ai.date)){const d=new Date(ai.date+'T00:00:00Z');if(!isNaN(d)&&d.toISOString().slice(0,10)===ai.date){depositDate=ai.date;aiUsed=true;}}
+            if(!transactionId&&typeof ai.transactionId==='string'&&/^[A-Za-z0-9][A-Za-z0-9/._-]{2,79}$/.test(ai.transactionId)){transactionId=ai.transactionId;aiUsed=true;}
+            aiNotice=aiUsed?'AI কিছু তথ্য পূরণ করেছে। স্লিপের ছবির সঙ্গে মিলিয়ে সব তথ্য নিশ্চিত করুন।':'AI থেকেও তথ্য নিশ্চিত হয়নি। ছবি দেখে সংশোধন করুন।';
+          }catch(error){aiNotice=error.name==='AbortError'?'AI সময়মতো ফল দেয়নি। OCR-এর তথ্য আছে; ছবি দেখে নিশ্চিত করুন।':String(error.message||'AI চালু হয়নি। OCR/manual correction ব্যবহার করুন।');}
+          if(!row.isConnected||row.querySelector('.slip-file-input')?.files?.[0]!==file)return;
+          document.getElementById('slipSubmitMessage').textContent=aiNotice;
+        }
+        if(knownAccount?.accountNumber)row.dataset.ocrAccountNumber=knownAccount.accountNumber;
         if(transactionInput)transactionInput.value=transactionId;
 
         if(bank){bankSelect.value=bank;bankSelect.classList.add('ocr-locked');if(ocrBank)ocrBank.value=bank;}
@@ -3180,15 +3293,15 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         if(depositDate){dateInput.value=depositDate;if(ocrDate)ocrDate.value=depositDate;dateInput.classList.add('ocr-locked');}
 
         const ready=!!knownAccount && !!amountInfo?.value && !!depositDate;
-        if(ocrStatus) ocrStatus.value=ready?'ocr_ready':'failed';
-        if(!ready)enableManualSlipEdit(id);
+        if(ocrStatus) ocrStatus.value=ready&&!aiUsed?'ocr_ready':'failed';
+        if(!ready||aiUsed)enableManualSlipEdit(id);
         recalculateBankDepositFromSlips(); validateFormAndSubmitBtn();
       }catch(err){
         if(!row.isConnected||row.querySelector('.slip-file-input')?.files?.[0]!==file)return;
         console.error('Bank Slip OCR failed:',err);
         if(ocrStatus) ocrStatus.value='failed';
         enableManualSlipEdit(id);
-        document.getElementById('slipSubmitMessage').textContent='OCR সম্পূর্ণ হয়নি। OCR সম্পূর্ণ হয়নি। ছবি দেখে সব তথ্য সংশোধন করে অনুমোদিত Account নির্বাচন করুন এবং তথ্য নিশ্চিত করুন।';
+        document.getElementById('slipSubmitMessage').textContent='OCR সম্পূর্ণ হয়নি। ছবি দেখে সব তথ্য সংশোধন করে অনুমোদিত Account নির্বাচন করুন এবং তথ্য নিশ্চিত করুন।';
         validateFormAndSubmitBtn();
       }finally{
         // OCR must never leave the main submit button permanently disabled.
