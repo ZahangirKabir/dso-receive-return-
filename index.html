@@ -950,7 +950,13 @@ function create(raw,options={}){
   off(event,fn){for(const l of this.listeners)if((!event||l.event===event)&&(!fn||l.fn===fn)){l.cancel=true;l.q?.off('value',l.handler);}this.listeners=this.listeners.filter(l=>!l.cancel);}
   async transaction(update,complete,applyLocally=false){try{await enabled();const key=this.parts[1],ak=await locate(this.root,key);const [date,userId]=ak.split('_');
    const result=await raw.ref('ledgerAccounts/'+ak).transaction(current=>{
-    const a=clone(current)||{date,userId,requests:{}};const old=entity(a,this.root,key);const value=update(clone(pathGet(old,this.parts.slice(2))));if(value===undefined)return;
+    const a=clone(current)||{date,userId,requests:{}};
+    // Migrated report-only accounts may predate the requests container.
+    // Normalize on every transaction retry, preserving all existing financial fields.
+    if(typeof a!=='object'||Array.isArray(a))throw Error('দিনের হিসাবের গঠন সঠিক নয়। Admin-কে জানান।');
+    if(a.requests==null)a.requests={};
+    else if(typeof a.requests!=='object'||Array.isArray(a.requests))throw Error('Bank Slip তালিকার গঠন সঠিক নয়। Admin-কে জানান।');
+    const old=entity(a,this.root,key);const value=update(clone(pathGet(old,this.parts.slice(2))));if(value===undefined)return;
     const next=pathSet(clone(old)||{},this.parts.slice(2),value);
     if(this.root==='collections'){
      if(a.reportKey&&a.reportKey!==key&&a.report&&next!==null)throw Error('একই দিনের দ্বিতীয় রিপোর্ট গ্রহণযোগ্য নয়।');
@@ -1011,7 +1017,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.02.06';
+    const APP_RELEASE_VERSION = '2026.10.03.01';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
