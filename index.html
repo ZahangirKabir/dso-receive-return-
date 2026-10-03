@@ -6,8 +6,6 @@
   <title>DSO & Admin Collection Portal — OCR & Mobile Stability Update</title>
   
   <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
   <!-- Heavy libraries are lazy-loaded so Login opens faster. -->
 
@@ -991,7 +989,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 })(typeof window!=='undefined'?window:globalThis);
 
 </script>
-  <script>
+  <script type="text/plain" id="portalApplicationCode">
     const firebaseConfig = {
       apiKey: "AIzaSyAjTNlvbrVyqI30-e1waJT1HKRd6dge43A",
       authDomain: "collection-app-479e0.firebaseapp.com",
@@ -1017,7 +1015,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.03.01';
+    const APP_RELEASE_VERSION = '2026.10.03.02';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1369,6 +1367,29 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
     const PORTAL_SESSION_KEY = 'collectionPortalUser';
+    async function portalPasswordProof(id,password){
+      if(!window.crypto?.subtle)return null;
+      const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(id+'\n'+password));
+      return [...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
+    }
+    async function rememberPortalSession(id,password){
+      try{const proof=await portalPasswordProof(id,password);if(proof)sessionStorage.setItem(PORTAL_SESSION_KEY,JSON.stringify({id,proof}));}catch(e){console.warn('Session storage unavailable');}
+    }
+    async function restorePortalSession(){
+      let saved;try{saved=JSON.parse(sessionStorage.getItem(PORTAL_SESSION_KEY)||'null');}catch(e){return;}
+      if(!saved?.id||!saved.proof)return;
+      const id=normalizeLoginId(saved.id);
+      if(id!=='admin'&&!isGroupAdmin(id)&&!/^(80[1-9]|8[1-3][0-9]|84[0-5])$/.test(id))return;
+      try{
+        if(!(await checkHostedRelease(true))||firebaseReleaseMismatch)return;
+        const snap=await Promise.race([database.ref('users/'+id+'/password').once('value'),new Promise((_,reject)=>setTimeout(()=>reject(Error('Session verification timeout')),12000))]);
+        const password=String(snap.val()??defaultPasswordFor(id)).trim();
+        if(password===defaultPasswordFor(id)||await portalPasswordProof(id,password)!==saved.proof){sessionStorage.removeItem(PORTAL_SESSION_KEY);return;}
+        if(currentUser||loginInProgress||firebaseReleaseMismatch||hostedReleaseMismatch)return;
+        openPortalForUser(id);
+      }catch(error){window.portalBootNotice?.('আগের লগইন যাচাই হয়নি। Refresh বা Login দিয়ে আবার চেষ্টা করুন।');}
+    }
+
 
     function openPortalForUser(id, {freshLogin=false} = {}) {
       currentUser = String(id || '').trim();
@@ -1444,6 +1465,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
           showPasswordGate();
           return;
         }
+        await rememberPortalSession(id,String(dbPass).trim());
         openPortalForUser(id, {freshLogin:true});
       } catch (e) {
         alert("লগইন চেক করতে সমস্যা হয়েছে: " + e.message);
@@ -1465,6 +1487,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         return existing === oldPass ? newPass : undefined;
       },undefined,false);
       if (!result.committed) throw new Error('বর্তমান পাসওয়ার্ড সঠিক নয়।');
+      await rememberPortalSession(currentUser,newPass);
       document.getElementById('passwordGate').style.display='none';
       if (document.getElementById('appContainer').style.display !== 'block') openPortalForUser(currentUser, {freshLogin:true});
       return true;
@@ -5483,8 +5506,8 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         alert("Excel ডাউনলোড করতে সমস্যা হয়েছে: " + (err?.message || err));
       }
     }
-    // Never restore a session automatically after reload or a forced update.
-    try { sessionStorage.removeItem(PORTAL_SESSION_KEY); } catch (_) {}
+    // Restore only a password-verified session in this browser tab.
+    restorePortalSession();
 
 
     const ledgerImageObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{
@@ -5544,5 +5567,27 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     document.getElementById('loginPass')?.addEventListener('keydown',e=>{if(e.key==='Enter')handleLogin();});
     document.getElementById('loginId')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass')?.focus();});
   </script>
+<script>
+(function(){
+ var loading=false,started=false;
+ function notice(message){
+  var box=document.getElementById('portalBootStatus');
+  if(!box){box=document.createElement('div');box.id='portalBootStatus';box.setAttribute('role','status');box.style.cssText='padding:12px;margin:12px auto;max-width:460px;background:#fff8e1;color:#654400;border:1px solid #ffe082;border-radius:8px;text-align:center';document.getElementById('loginSection').appendChild(box);}
+  box.textContent=message;
+  var button=document.createElement('button');button.type='button';button.textContent='আবার চেষ্টা করুন';button.style.cssText='display:block;margin:8px auto;padding:8px 14px';button.onclick=function(){if(started)location.reload();else boot();};box.appendChild(button);
+ }
+ window.portalBootNotice=notice;
+ function load(url){return new Promise(function(resolve,reject){var script=document.createElement('script'),finished=false;var timer=setTimeout(function(){finish(new Error('SDK load timeout'));},12000);function finish(error){if(finished)return;finished=true;clearTimeout(timer);script.onload=null;script.onerror=null;if(error){script.remove();reject(error);}else resolve();}script.src=url;script.onload=function(){finish();};script.onerror=function(){finish(new Error('SDK unavailable'));};document.head.appendChild(script);});}
+ async function ensure(file,test){if(test())return;try{await load('https://www.gstatic.com/firebasejs/8.10.1/'+file);}catch(e){await load('https://cdn.jsdelivr.net/npm/firebase@8.10.1/'+file);}if(!test())throw Error('Firebase load failed');}
+ async function boot(){if(loading||started)return;loading=true;var button=document.getElementById('loginBtn');button.disabled=true;notice('অ্যাপ প্রস্তুত হচ্ছে…');
+  try{await ensure('firebase-app.js',function(){return !!window.firebase;});await ensure('firebase-database.js',function(){return !!(window.firebase&&firebase.database);});
+   var code=document.createElement('script');code.textContent=document.getElementById('portalApplicationCode').textContent;document.body.appendChild(code);if(typeof handleLogin!=='function')throw Error('Application initialization failed');started=true;var status=document.getElementById('portalBootStatus');if(status)status.remove();
+  }catch(error){notice('অ্যাপের প্রয়োজনীয় ফাইল লোড হয়নি। ইন্টারনেট সংযোগ যাচাই করে আবার চেষ্টা করুন।');}
+  finally{loading=false;if(started&&typeof updateReleaseGate==='function')updateReleaseGate();}
+ }
+ window.addEventListener('error',function(event){if(event.target===window)notice('অ্যাপ চালু করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');});
+ window.addEventListener('online',function(){if(!started)boot();});boot();
+})();
+</script>
 </body>
 </html>
