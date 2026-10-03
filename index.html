@@ -7,7 +7,7 @@
   
   <script>
   try{var portalSavedSession=JSON.parse(sessionStorage.getItem('collectionPortalUser')||'null');
-  if(portalSavedSession&&portalSavedSession.id&&portalSavedSession.proof)document.documentElement.classList.add('portal-session-restoring');}catch(e){}
+  if(portalSavedSession&&portalSavedSession.id)document.documentElement.classList.add('portal-session-restoring');}catch(e){}
   </script>
   <style>
   .portal-session-restoring #loginSection{display:none!important}
@@ -682,8 +682,8 @@
                 <select id="targetUserSelect" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; min-width: 100px;">
                   <option value="">-- Select User --</option>
                 </select>
-                <input type="password" id="targetUserPassword" placeholder="নতুন পাসওয়ার্ড" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1; min-width: 120px;">
-                <button class="btn" style="width: auto; padding: 8px 12px; font-size: 13px; background: #0288d1;" onclick="changeUserPasswordByAdmin()">Update Pass</button>
+                
+                <button class="btn" style="width: auto; padding: 8px 12px; font-size: 13px; background: #0288d1;" onclick="changeUserPasswordByAdmin()">Password Reset নির্দেশনা</button>
               </div>
             </div>
           </div>
@@ -925,6 +925,13 @@ function create(raw,options={}){
  function entity(a,root,key){return root==='collections'?(a?.reportKey===key?a.report:null):a?.requests?.[key]||null;}
  function pathGet(x,parts){for(const p of parts)x=x?.[p];return x??null;}
  function pathSet(x,parts,v){if(!parts.length)return v;let n=x;for(const p of parts.slice(0,-1))n=n[p]||(n[p]={});if(v===null)delete n[parts.at(-1)];else n[parts.at(-1)]=v;return x;}
+ class DeviceScopedQuery {
+  constructor(refs){this.refs=refs;this.handlers=new Map();this.key='ledgerAccounts';}
+  async once(){const all=await Promise.all(this.refs.map(r=>r.once('value')));return this.merge(all);}
+  merge(all){const out={};for(const s of all){if(!s)continue;if(s.key==='ledgerAccounts')s.forEach(c=>{if(c.val())out[c.key]=c.val();});else if(s.val())out[s.key]=s.val();}return snapshot('ledgerAccounts',out);}
+  on(event,fn,error){const data=Array(this.refs.length),seen=new Set(),handlers=[];this.refs.forEach((r,i)=>{const h=s=>{data[i]=s;seen.add(i);if(seen.size===this.refs.length)fn(this.merge(data));};handlers.push(h);r.on(event,h,error);});this.handlers.set(fn,handlers);if(!this.refs.length)Promise.resolve().then(()=>fn(snapshot('ledgerAccounts',{})));}
+  off(event,fn){const handlers=this.handlers.get(fn)||[];this.refs.forEach((r,i)=>{if(handlers[i])r.off(event,handlers[i]);});this.handlers.delete(fn);}
+ }
  class Ref{
   constructor(path,opts={}){this.path=path;this.parts=path.split('/');this.root=this.parts[0];this.key=this.parts.at(-1);this.opts=opts;this.listeners=[];}
   child(p){return new Ref(this.path+'/'+p,this.opts);}
@@ -934,9 +941,10 @@ function create(raw,options={}){
   limitToLast(v){return this.query('last',v);}limitToFirst(v){return this.query('first',v);}
   async source(){await enabled();if(this.parts.length>1)return raw.ref('ledgerAccounts/'+await locate(this.root,this.parts[1]));
    let q=raw.ref('ledgerAccounts');const o=this.opts;
-   if(o.userDates)return q.orderByKey().startAt(o.userDates[1]+'_').endAt(o.userDates[2]+'_\uf8ff');
    // A DSO's deposit status and submission checks need only today's account.
    if(this.root==='bankSlipRequests'&&o.order==='userId'&&o.equal){return raw.ref('ledgerAccounts/'+accountKey(today(),o.equal[0]));}
+   const scope=options.scope?.();if(Array.isArray(scope)){const users=o.userDates?[String(o.userDates[0])]:scope.map(String);if(users.some(u=>!scope.map(String).includes(u)))throw Error('এই DSO দেখার অনুমতি নেই।');return new DeviceScopedQuery(users.map(u=>o.order==='date'&&o.equal?raw.ref('ledgerAccounts/'+accountKey(o.equal[0],u)):raw.ref('ledgerAccounts').orderByChild('userId').equalTo(u)));}
+   if(o.userDates)return q.orderByChild('userId').equalTo(String(o.userDates[0]));
    if(o.order&&o.order!=='$key')q=q.orderByChild(o.order);else q=q.orderByKey();
    if(o.equal)q=q.equalTo(...o.equal);
    if(o.start)q=q.startAt(o.start[0]);if(o.end)q=q.endAt(o.end[0]);
@@ -945,7 +953,7 @@ function create(raw,options={}){
    return q;
   }
   project(s){if(this.parts.length>1){const a=s.val();learn(s.key,a);return snapshot(this.key,pathGet(entity(a,this.root,this.parts[1]),this.parts.slice(2)));}
-   const out={};const add=(k,a)=>{if(!a||(this.opts.userDates&&String(a.userId)!==String(this.opts.userDates[0])))return;learn(k,a);if(this.root==='collections'){if(a.report)out[a.reportKey]=a.report;}else Object.assign(out,a.requests||{});};
+   const out={};const add=(k,a)=>{if(!a||(this.opts.userDates&&String(a.userId)!==String(this.opts.userDates[0])))return;if(this.opts.userDates&&(a.date<this.opts.userDates[1]||a.date>this.opts.userDates[2]))return;if(this.opts.start&&a.date<this.opts.start[0])return;if(this.opts.end&&a.date>this.opts.end[0])return;learn(k,a);if(this.root==='collections'){if(a.report)out[a.reportKey]=a.report;}else Object.assign(out,a.requests||{});};
    if(this.root==='bankSlipRequests'&&this.opts.order==='userId'&&this.opts.equal)add(s.key,s.val());else s.forEach(c=>add(c.key,c.val()));
    return snapshot(this.root,out);
   }
@@ -991,7 +999,7 @@ function create(raw,options={}){
  async function thumbnail(data){if(!global.document?.createElement)return '';return new Promise(resolve=>{let done=false;const img=new Image();const finish=v=>{if(done)return;done=true;clearTimeout(timer);resolve(v);};const timer=setTimeout(()=>finish(''),8000);img.onerror=()=>finish('');img.onload=()=>{try{const scale=Math.min(1,160/img.naturalWidth,160/img.naturalHeight);const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.naturalWidth*scale));c.height=Math.max(1,Math.round(img.naturalHeight*scale));const context=c.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,c.width,c.height);context.drawImage(img,0,0,c.width,c.height);finish(c.toDataURL('image/jpeg',0.65));}catch(_){finish('');}};img.src=data;});}
  async function putImage(data){if(!/^data:image\//.test(data))return data;const bytes=new TextEncoder().encode(data);const [hash,small]=await Promise.all([crypto.subtle.digest('SHA-256',bytes),thumbnail(data)]);const key=[...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');const r=await raw.ref('slipImages/'+key).transaction(v=>v===null?{data,...(small?{thumbnail:small}:{})}:undefined,undefined,false);if(!r.snapshot.val()?.data)throw Error('স্লিপের ছবি সেভ হয়নি।');return 'rtdb:'+key;}
  async function imageData(value,small=false){if(!String(value).startsWith('rtdb:'))return value;const key=value.slice(5);if(!/^[a-f0-9]{64}$/.test(key))throw Error('স্লিপের ছবির পরিচয় সঠিক নয়।');const cacheKey=key+(small?':thumbnail':':data');if(assetCache.has(cacheKey))return assetCache.get(cacheKey);const result=raw.ref('slipImages/'+key+'/'+(small?'thumbnail':'data')).once('value').then(async s=>{if(!s.val()&&small)return imageData(value,false);if(!s.val())throw Error('স্লিপের ছবি পাওয়া যায়নি।');return s.val();}).catch(e=>{assetCache.delete(cacheKey);throw e;});assetCache.set(cacheKey,result);if(assetCache.size>12)assetCache.delete(assetCache.keys().next().value);return result;}
- return {database:db,raw,enabled,putImage,imageData,accountKey,requestsForDate:(date)=>new Ref('bankSlipRequests',{order:'date',equal:[date]}),collectionsRange:(user,start,end)=>new Ref('collections',{userDates:[String(user),start,end]}),reset:()=>{ready=null;}};
+ return {database:db,raw,enabled,putImage,imageData,accountKey,requestsForDate:(date)=>new Ref('bankSlipRequests',{order:'date',equal:[date]}),collectionsRange:(user,start,end)=>new Ref('collections',{userDates:[String(user),start,end]}),reset:()=>{ready=null;locations.clear();assetCache.clear();}};
 }
 global.PortalLedger={create,sync,balance,same,snapshot};
 })(typeof window!=='undefined'?window:globalThis);
@@ -1010,8 +1018,74 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     };
 
     firebase.initializeApp(firebaseConfig);
-    const rawDatabase = firebase.database();
-    const portalLedger=PortalLedger.create(rawDatabase);
+    const credentialApp=firebase.initializeApp(firebaseConfig,'portal-credentials');
+    const credentialAuth=credentialApp.auth();let credentialActionEpoch=0;
+    let portalFinancialApp=null,devicePermissionRef=null,devicePermissionHandler=null,deviceSessionRef=null,deviceSessionHandler=null,deviceSessionExpiryTimer=null,portalDeviceUid='';
+    function authReady(auth){return new Promise((resolve,reject)=>{const stop=auth.onAuthStateChanged(user=>{stop();resolve(user);},reject);});}
+    function accountEmail(id){return 'portal-'+String(id).toLowerCase()+'@collection-app-479e0.invalid';}
+    async function getCredentialMeta(){
+      const user=credentialAuth.currentUser;if(!user)throw Error('আবার Login করুন।');
+      const meta=(await credentialApp.database().ref('accountMeta/'+user.uid).once('value')).val();
+      if(!meta?.enabled||!meta.userId)throw Error('এই ID অনুমোদিত তালিকায় নেই। Admin-কে জানান।');return meta;
+    }
+    async function prepareDeviceApp(id){
+      const name='portal-device-'+String(id).toLowerCase();
+      let app=firebase.apps.find(a=>a.name===name);if(!app)app=firebase.initializeApp(firebaseConfig,name);
+      const auth=app.auth();await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      if(!await authReady(auth))await auth.signInAnonymously();
+      if(!auth.currentUser?.isAnonymous)throw Error('Device identity সঠিক নয়। অন্য browser profile ব্যবহার করুন।');
+      portalFinancialApp=app;portalDeviceUid=auth.currentUser.uid;return app;
+    }
+    function showPendingDevice(uid,id,status){
+      document.getElementById('pendingDeviceModal')?.remove();
+      const modal=document.createElement('div');modal.id='pendingDeviceModal';modal.style.cssText='position:fixed;inset:0;z-index:99998;background:#0008;display:flex;align-items:center;justify-content:center;padding:16px';
+      const card=document.createElement('div');card.style.cssText='background:white;color:#173b45;border-radius:16px;padding:24px;max-width:480px;width:100%';
+      const title=document.createElement('h3');title.textContent=status==='blocked'?'ডিভাইস Block করা হয়েছে':'ডিভাইসের অনুমোদন প্রয়োজন';card.appendChild(title);
+      const text=document.createElement('p');text.textContent=id==='admin'?'প্রথম Admin অনুমোদনের জন্য নিচের UID Copy করে APPROVE_FIRST_ADMIN_WINDOWS.bat-এ দিন।':'Admin আপনার ডিভাইসের আবেদন অনুমোদন দিলে আবার Login করুন।';card.appendChild(text);
+      const input=document.createElement('input');input.readOnly=true;input.value=uid;input.style.width='100%';card.appendChild(input);
+      const copy=document.createElement('button');copy.type='button';copy.textContent='Copy Device UID';copy.onclick=async()=>{try{await navigator.clipboard.writeText(uid);copy.textContent='Copied';}catch(_){input.select();document.execCommand('copy');}};card.appendChild(copy);
+      const close=document.createElement('button');close.type='button';close.textContent='বন্ধ করুন';close.onclick=()=>modal.remove();card.appendChild(close);modal.appendChild(card);document.body.appendChild(modal);
+    }
+    async function registerAndCheckDevice(id){
+      const meta=await getCredentialMeta();if(meta.userId!==id)throw Error('Login ID মিলছে না।');
+      const app=await prepareDeviceApp(id),uid=app.auth().currentUser.uid;
+      const requestRef=credentialApp.database().ref('deviceRequests/'+uid);
+      const current=(await app.database().ref('deviceRequests/'+uid).once('value')).val();
+      if(!current)await requestRef.set({userId:id,credentialUid:credentialAuth.currentUser.uid,deviceUid:uid,name:(navigator.userAgent||'Browser').slice(0,160),requestedAt:firebase.database.ServerValue.TIMESTAMP});
+      const access=(await app.database().ref('deviceAccess/'+uid).once('value')).val();
+      if(access?.status!=='approved'||access.userId!==id){showPendingDevice(uid,id,access?.status);throw Error((access?.status==='blocked'?'এই ডিভাইস Admin Block করেছেন।':'ডিভাইসের আবেদন জমা হয়েছে। Admin অনুমোদন দিলে আবার Login করুন।')+(id==='admin'?'\nপ্রথম Admin setup-এর জন্য Device UID: '+uid:''));}
+      await credentialApp.database().ref('deviceSessions/'+uid).set({active:true,credentialUid:credentialAuth.currentUser.uid,expiresAt:Date.now()+23*3600000});
+      return access;
+    }
+    function watchDevicePermission(id){
+      if(devicePermissionRef&&devicePermissionHandler)devicePermissionRef.off('value',devicePermissionHandler);
+      devicePermissionRef=portalFinancialApp.database().ref('deviceAccess/'+portalDeviceUid);
+      devicePermissionHandler=snapshot=>{const a=snapshot.val();if(currentUser===id&&(a?.status!=='approved'||a.userId!==id)){logout();alert('এই ডিভাইসের অনুমতি বন্ধ বা মুছে দেওয়া হয়েছে।');}};
+      if(deviceSessionRef&&deviceSessionHandler)deviceSessionRef.off('value',deviceSessionHandler);
+      deviceSessionRef=portalFinancialApp.database().ref('deviceSessions/'+portalDeviceUid);
+      deviceSessionHandler=s=>{const value=s.val();clearTimeout(deviceSessionExpiryTimer);if(value?.active&&value.expiresAt>Date.now())deviceSessionExpiryTimer=setTimeout(()=>{if(currentUser===id){logout();alert('Session-এর মেয়াদ শেষ। আবার Login করুন।');}},Math.min(value.expiresAt-Date.now(),86400000));if(currentUser===id&&(!value?.active||value.expiresAt<Date.now())){logout();alert('Session বন্ধ হয়েছে। আবার Login করুন।');}};
+      deviceSessionRef.on('value',deviceSessionHandler);
+      devicePermissionRef.on('value',devicePermissionHandler,error=>{if(currentUser===id){logout();alert('ডিভাইস অনুমতি যাচাই হয়নি। আবার Login করুন।');}});
+    }
+    function installFirebaseDeviceMenu(){
+      if(currentUser!=='admin'||document.getElementById('deviceAdminButton'))return;
+      const nav=document.getElementById('adminTabNav'),b=document.createElement('button');b.type='button';b.id='deviceAdminButton';b.textContent='ডিভাইস অনুমোদন';b.onclick=openFirebaseDeviceAdmin;nav.appendChild(b);
+    }
+    async function openFirebaseDeviceAdmin(){
+      if(currentUser!=='admin')return;
+      let modal=document.getElementById('deviceAdminModal');if(!modal){modal=document.createElement('div');modal.id='deviceAdminModal';modal.style.cssText='position:fixed;inset:0;z-index:99999;background:#0008;display:flex;align-items:center;justify-content:center;padding:12px';const card=document.createElement('div');card.style.cssText='width:min(1100px,100%);max-height:90vh;overflow:auto;background:white;color:#173b45;border-radius:16px;padding:20px';const title=document.createElement('h3');title.textContent='ডিভাইস অনুমোদন';card.appendChild(title);const close=document.createElement('button');close.textContent='বন্ধ করুন';close.onclick=()=>modal.remove();card.appendChild(close);const refresh=document.createElement('button');refresh.textContent='Refresh';refresh.onclick=openFirebaseDeviceAdmin;card.appendChild(refresh);const status=document.createElement('p');status.id='deviceAdminStatus';card.appendChild(status);const content=document.createElement('div');content.id='deviceAdminContent';content.style.overflowX='auto';card.appendChild(content);modal.appendChild(card);document.body.appendChild(modal);}
+      const status=document.getElementById('deviceAdminStatus');status.textContent='তালিকা আসছে…';
+      try{
+        const db=portalFinancialApp.database(),[requests,access]=await Promise.all([db.ref('deviceRequests').once('value'),db.ref('deviceAccess').once('value')]);
+        if(!modal.isConnected||currentUser!=='admin')return;
+        const permissions=access.val()||{},items=requests.val()||{},table=document.createElement('table');table.style.cssText='width:100%;min-width:650px;border-collapse:collapse';const head=document.createElement('tr');for(const label of ['User ID','Device UID','Browser','Status','অনুমতি']){const th=document.createElement('th');th.textContent=label;th.style.cssText='padding:10px;background:#e6f3f4;text-align:left';head.appendChild(th);}table.appendChild(head);
+        for(const [uid,item] of Object.entries(items).sort((a,b)=>(b[1].requestedAt||0)-(a[1].requestedAt||0))){const row=document.createElement('tr');for(const value of [item.userId,uid,item.name,permissions[uid]?.status||'pending']){const td=document.createElement('td');td.textContent=value;td.style.cssText='padding:10px;border-bottom:1px solid #ddd;max-width:280px;overflow-wrap:anywhere';row.appendChild(td);}const actions=document.createElement('td');
+          for(const [action,label] of [['approve','Approve'],['block','Block'],['unblock','Unblock'],['delete','Delete']]){const b=document.createElement('button');b.type='button';b.textContent=label;b.style.margin='3px';b.onclick=async()=>{if(uid===portalDeviceUid&&['block','delete'].includes(action)){alert('নিজের চলমান Admin ডিভাইস Block/Delete করবেন না।');return;}if(!confirm(item.userId+' — '+label+' করবেন?'))return;b.disabled=true;try{const patch={};if(action==='delete'){patch['deviceAccess/'+uid]=null;patch['deviceRequests/'+uid]=null;}else patch['deviceAccess/'+uid]={userId:item.userId,credentialUid:item.credentialUid,status:action==='block'?'blocked':'approved',updatedBy:portalDeviceUid,updatedAt:firebase.database.ServerValue.TIMESTAMP};await db.ref().update(patch);await openFirebaseDeviceAdmin();}catch(e){status.textContent=e.message;b.disabled=false;}};actions.appendChild(b);}row.appendChild(actions);table.appendChild(row);}
+        document.getElementById('deviceAdminContent').replaceChildren(table);status.textContent='পুরোনো ও নতুন browser প্রথমবার Approve করুন। Delete করলে পরের Login-এ আবার আবেদন লাগবে।';
+      }catch(e){status.textContent=e.message;}
+    }
+    const rawDatabase = {ref(...args){return (portalFinancialApp||firebase.app()).database().ref(...args);}};
+    const portalLedger=PortalLedger.create(rawDatabase,{scope:()=>currentUser==='admin'?null:isGroupAdmin(currentUser)?SUB_ADMIN_GROUPS[currentUser]:currentUser?[String(currentUser)]:[]});
     const database = portalLedger.database;
     // Stable one-time connection used by Investment.html. Its future code stays separate.
     window.portalInvestmentContext = {
@@ -1023,7 +1097,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.04.03';
+    const APP_RELEASE_VERSION = '2026.10.04.04';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1387,34 +1461,29 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       return allowed.includes(page)?page:allowed[0];
     }
 
-    async function portalPasswordProof(id,password){
-      if(!window.crypto?.subtle)return null;
-      const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(id+'\n'+password));
-      return [...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
-    }
-    async function rememberPortalSession(id,password){
-      try{const proof=await portalPasswordProof(id,password);if(proof)sessionStorage.setItem(PORTAL_SESSION_KEY,JSON.stringify({id,proof}));}catch(e){console.warn('Session storage unavailable');}
-    }
+    async function rememberPortalSession(id,password){try{sessionStorage.setItem(PORTAL_SESSION_KEY,JSON.stringify({id}));}catch(_){} }
     async function restorePortalSession(){
       let saved;try{saved=JSON.parse(sessionStorage.getItem(PORTAL_SESSION_KEY)||'null');}catch(e){return;}
-      if(!saved?.id||!saved.proof){document.documentElement.classList.remove('portal-session-restoring');return;}
+      if(!saved?.id){document.documentElement.classList.remove('portal-session-restoring');return;}
       const id=normalizeLoginId(saved.id);
       if(id!=='admin'&&!isGroupAdmin(id)&&!/^(80[1-9]|8[1-3][0-9]|84[0-5])$/.test(id)){document.documentElement.classList.remove('portal-session-restoring');return;}
       try{
         if(!(await checkHostedRelease(true))||firebaseReleaseMismatch)return;
-        const snap=await Promise.race([database.ref('users/'+id+'/password').once('value'),new Promise((_,reject)=>setTimeout(()=>reject(Error('Session verification timeout')),12000))]);
-        const password=String(snap.val()??defaultPasswordFor(id)).trim();
-        if(password===defaultPasswordFor(id)||await portalPasswordProof(id,password)!==saved.proof){sessionStorage.removeItem(PORTAL_SESSION_KEY);return;}
+        await authReady(credentialAuth);
+        const meta=await getCredentialMeta();
+        if(meta.userId!==id||meta.forceChange){sessionStorage.removeItem(PORTAL_SESSION_KEY);return;}
         if(currentUser||loginInProgress||firebaseReleaseMismatch||hostedReleaseMismatch)return;
-        openPortalForUser(id);
-      }catch(error){window.portalBootNotice?.('আগের লগইন যাচাই হয়নি। Refresh বা Login দিয়ে আবার চেষ্টা করুন।');}
+        await openPortalForUser(id);
+      }catch(error){window.portalBootNotice?.(error.message||'আগের Login যাচাই হয়নি। আবার Login করুন।');}
       finally{document.documentElement.classList.remove('portal-session-restoring');}
     }
 
 
-    function openPortalForUser(id, {freshLogin=false} = {}) {
+    async function openPortalForUser(id, {freshLogin=false} = {}) {
+      await registerAndCheckDevice(String(id||'').trim());
       currentUser = String(id || '').trim();
       if (!currentUser) return;
+      installFirebaseDeviceMenu();watchDevicePermission(currentUser);
       const rememberedPage=freshLogin?null:getRememberedPortalPage(currentUser);
       if(currentUser==='admin'&&freshLogin&&!hostedReleaseMismatch){database.ref('appConfig/releaseVersion').transaction(current=>{
         const previous=String(current||'');return !previous||APP_RELEASE_VERSION.localeCompare(previous,undefined,{numeric:true})>0?APP_RELEASE_VERSION:undefined;
@@ -1472,24 +1541,18 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if (!isPrivileged && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
         alert("অপ্রবেশযোগ্য আইডি! শুধুমাত্র ৮০১ থেকে ৮৪৫ অথবা অনুমোদিত Admin ID ব্যবহার করুন।"); return;
       }
-      loginInProgress = true;
+      credentialActionEpoch++;loginInProgress = true;
       if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Checking…';}
       try {
         if(!(await checkHostedRelease(true))||firebaseReleaseMismatch)return;
         if(id!=='admin')await portalLedger.enabled();
-        let dbPass;
-        const snap = await database.ref('users/' + id + '/password').once('value');
-        if(firebaseReleaseMismatch||hostedReleaseMismatch)return;
-        dbPass = snap.val();
-        if (dbPass === null || dbPass === undefined) dbPass = isGroupAdmin(id) ? SUB_ADMIN_PASSWORD : '123456';
-        if (pass !== String(dbPass).trim()) { alert("ভুল পাসওয়ার্ড! দয়া করে সঠিক পাসওয়ার্ড দিন।"); return; }
-        if (String(dbPass).trim() === defaultPasswordFor(id)) {
-          currentUser=id;
-          showPasswordGate();
-          return;
-        }
-        await rememberPortalSession(id,String(dbPass).trim());
-        openPortalForUser(id, {freshLogin:true});
+        await credentialAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+        await credentialAuth.signInWithEmailAndPassword(accountEmail(id),pass);
+        const meta=await getCredentialMeta();
+        if(meta.userId!==id)throw Error('Login ID মেলেনি।');
+        if(meta.forceChange){currentUser=id;showPasswordGate();return;}
+        await rememberPortalSession(id,pass);
+        await openPortalForUser(id, {freshLogin:true});
       } catch (e) {
         alert("লগইন চেক করতে সমস্যা হয়েছে: " + e.message);
       } finally {
@@ -1504,15 +1567,13 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if (!currentUser) throw new Error('আগে লগইন করুন।');
       if (!oldPass || !newPass || newPass.length < 8) throw new Error('বর্তমান এবং কমপক্ষে ৮ অক্ষরের নতুন পাসওয়ার্ড দিন।');
       if (newPass === oldPass || newPass === defaultPasswordFor(currentUser)) throw new Error('নতুন পাসওয়ার্ড আলাদা হতে হবে।');
-      const ref=database.ref('users/'+currentUser+'/password');
-      const result=await ref.transaction(value=>{
-        const existing=value == null ? defaultPasswordFor(currentUser) : String(value);
-        return existing === oldPass ? newPass : undefined;
-      },undefined,false);
-      if (!result.committed) throw new Error('বর্তমান পাসওয়ার্ড সঠিক নয়।');
+      const user=credentialAuth.currentUser;if(!user)throw Error('আবার Login করুন।');
+      await user.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(accountEmail(currentUser),oldPass));
+      await user.updatePassword(newPass);
+      await credentialApp.database().ref('accountMeta/'+user.uid+'/forceChange').set(false);
       await rememberPortalSession(currentUser,newPass);
       document.getElementById('passwordGate').style.display='none';
-      if (document.getElementById('appContainer').style.display !== 'block') openPortalForUser(currentUser, {freshLogin:true});
+      if (document.getElementById('appContainer').style.display !== 'block') await openPortalForUser(currentUser, {freshLogin:true});
       return true;
     }
     async function changePasswordAtGate() {
@@ -1533,21 +1594,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       }catch(err){alert(err.message);}
     }
 
-    async function changeUserPasswordByAdmin() {
-      if(currentUser !== 'admin') { alert('শুধুমাত্র মূল Admin পাসওয়ার্ড পরিবর্তন করতে পারবেন।'); return; }
-      let targetUser = document.getElementById("targetUserSelect").value;
-      if(!isGroupAdmin(targetUser) && !/^(80[1-9]|8[1-3][0-9]|84[0-5])$/.test(targetUser)) {
-        alert('অনুমোদিত User নির্বাচন করুন।'); return;
-      }
-      let newPass = document.getElementById("targetUserPassword").value.trim();
-      if (newPass.length < 8) { alert("নতুন পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে।"); return; }
-      if (!targetUser || !newPass) { alert("ইউজার সিলেক্ট করুন এবং নতুন পাসওয়ার্ড দিন!"); return; }
-      try {
-        await database.ref('users/' + targetUser + '/password').set(newPass);
-        alert(`User '${targetUser}' এর পাসওয়ার্ড আপডেট করা হয়েছে!`);
-        document.getElementById("targetUserPassword").value = "";
-      } catch (err) { alert("পাসওয়ার্ড সেভ করা যায়নি: " + err.message); }
-    }
+    async function changeUserPasswordByAdmin(){if(currentUser!=='admin'){alert('শুধু মূল Admin করতে পারবেন।');return;}alert('setup ফোল্ডারের RESET_PASSWORD_WINDOWS.bat চালিয়ে User ID দিন। Temporary password স্থানীয় ফাইলে পাবেন।');}
 
     async function refreshCurrentData() {
       const btn=document.getElementById('refreshDataBtn');
@@ -1571,6 +1618,14 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
     function logout() {
+      clearTimeout(deviceSessionExpiryTimer);portalLedger.reset();
+      const closingEpoch=++credentialActionEpoch;
+      const closeSession=portalDeviceUid&&credentialAuth.currentUser?credentialApp.database().ref('deviceSessions/'+portalDeviceUid+'/active').set(false):Promise.resolve();
+      closeSession.catch(()=>{}).finally(()=>{if(closingEpoch===credentialActionEpoch)credentialAuth.signOut().catch(()=>{});});
+      if(devicePermissionRef&&devicePermissionHandler)devicePermissionRef.off('value',devicePermissionHandler);
+      if(deviceSessionRef&&deviceSessionHandler)deviceSessionRef.off('value',deviceSessionHandler);
+      deviceSessionRef=null;deviceSessionHandler=null;devicePermissionRef=null;devicePermissionHandler=null;
+      document.getElementById('deviceAdminModal')?.remove();document.getElementById('pendingDeviceModal')?.remove();document.getElementById('deviceAdminButton')?.remove();
       const investmentFrame=document.getElementById('investmentFrame');
       if(investmentFrame) investmentFrame.removeAttribute('src');
       detachRealtimeDataListeners();
@@ -4879,12 +4934,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if (confirmPass === null) return;
 
       try {
-        const passSnapshot = await database.ref('users/admin/password').once('value');
-        const adminPass = passSnapshot.val() || "123456";
-        if (confirmPass.trim() !== String(adminPass).trim()) {
-          alert("ভুল এডমিন পাসওয়ার্ড! মুছে ফেলা সম্ভব হয়নি।");
-          return;
-        }
+        await credentialAuth.currentUser.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(accountEmail('admin'),confirmPass.trim()));
 
         pendingOptimisticDeletes.add(key);
         delete globalAllData[key];
@@ -5617,7 +5667,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
  function load(url){return new Promise(function(resolve,reject){var script=document.createElement('script'),finished=false;var timer=setTimeout(function(){finish(new Error('SDK load timeout'));},12000);function finish(error){if(finished)return;finished=true;clearTimeout(timer);script.onload=null;script.onerror=null;if(error){script.remove();reject(error);}else resolve();}script.src=url;script.onload=function(){finish();};script.onerror=function(){finish(new Error('SDK unavailable'));};document.head.appendChild(script);});}
  async function ensure(file,test){if(test())return;try{await load('https://www.gstatic.com/firebasejs/8.10.1/'+file);}catch(e){await load('https://cdn.jsdelivr.net/npm/firebase@8.10.1/'+file);}if(!test())throw Error('Firebase load failed');}
  async function boot(){if(loading||started)return;loading=true;var button=document.getElementById('loginBtn');button.disabled=true;if(!document.documentElement.classList.contains('portal-session-restoring'))notice('অ্যাপ প্রস্তুত হচ্ছে…');
-  try{await ensure('firebase-app.js',function(){return !!window.firebase;});await ensure('firebase-database.js',function(){return !!(window.firebase&&firebase.database);});
+  try{await ensure('firebase-app.js',function(){return !!window.firebase;});await ensure('firebase-auth.js',function(){return !!(window.firebase&&firebase.auth);});await ensure('firebase-database.js',function(){return !!(window.firebase&&firebase.database);});
    var code=document.createElement('script');code.textContent=document.getElementById('portalApplicationCode').textContent;document.body.appendChild(code);if(typeof handleLogin!=='function')throw Error('Application initialization failed');started=true;var status=document.getElementById('portalBootStatus');if(status)status.remove();
   }catch(error){document.documentElement.classList.remove('portal-session-restoring');notice('অ্যাপের প্রয়োজনীয় ফাইল লোড হয়নি। ইন্টারনেট সংযোগ যাচাই করে আবার চেষ্টা করুন।');}
   finally{loading=false;if(started&&typeof updateReleaseGate==='function')updateReleaseGate();}
