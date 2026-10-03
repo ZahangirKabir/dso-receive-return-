@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.10.02.2">
+<meta name="investment-release-version" content="2026.10.03.1">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -115,6 +115,12 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @media(max-width:560px){#moduleMenu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.module-dropdown{min-width:0;width:100%}.module-dropdown summary{width:100%;min-height:46px;font-size:13px;padding:9px 10px}.module-dropdown-panel{min-width:min(270px,calc(100vw - 28px));max-width:calc(100vw - 28px)}#navPettyCash .module-dropdown-panel,#navBank .module-dropdown-panel{left:auto;right:0}}
 @media(max-width:360px){#moduleMenu{grid-template-columns:1fr}.module-dropdown-panel,#navPettyCash .module-dropdown-panel,#navBank .module-dropdown-panel{left:0;right:auto;width:100%}}
 @media(prefers-reduced-motion:reduce){.module-dropdown summary,.dropdown-arrow{transition:none}}
+</style><style>
+.compact-capital-date{display:block!important;width:220px;max-width:100%;padding:10px 12px!important;margin-bottom:14px;background:linear-gradient(135deg,#e9f7f3,#fff);border:1px solid #a7d4c8;border-radius:12px;box-shadow:0 3px 10px #00695c0c}
+.compact-capital-date .field{min-width:0;width:100%}
+.compact-capital-date label{font-size:12px;color:#00695c;font-weight:700}
+.compact-capital-date input{width:100%;height:39px;padding:7px 10px;border-radius:8px;border:1px solid #96c7b9;background:#fff;font-size:14px;color:#164e45;box-sizing:border-box}
+.compact-capital-date input:focus{outline:2px solid #98d5c5;outline-offset:2px}
 </style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden>
  <details id="navWorkingCapital" class="module-dropdown"><summary>💼 Working Capital <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Working Capital submenu"><button type="button" id="showWorkingCapital">Daily Working Capital</button><button type="button" id="showWorkingCapitalReport">Working Capital Report</button><button type="button" id="showBalanceCalculator">MA &amp; Bank Balance Calculator</button></div></details>
  <details id="navPettyCash" class="module-dropdown"><summary>💵 Petty Cash <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Petty Cash submenu"><button type="button" id="showPettyCash">Daily Petty Cash</button><button type="button" id="showPettyCashReport">Daily Petty Cash Report</button></div></details>
@@ -202,7 +208,7 @@ function submitTools(form,card){const save=node('button','Submit');save.classNam
  form.append(save);card.append(form);const status=node('p');status.id='investMessage';card.append(status);return {save,status};}
 function capitalForm(){
  const box=card('Daily Working Capital'),form=node('form');form.id='capitalForm';
- const dateArea=section(form,'Date'),selectedDate=field(dateArea,'Date','capital_date','date',true);selectedDate.value='';
+ const dateArea=section(form,'Date'),selectedDate=field(dateArea,'Date','capital_date','date',true);selectedDate.value='';dateArea.classList.add('compact-capital-date');
  const openingLevel=node('fieldset');openingLevel.className='working-level opening-level';openingLevel.append(node('legend','Opening Balance'));form.append(openingLevel);
  let grid=node('div');grid.className='fields';openingLevel.append(grid);field(grid,'MA Wallet','opening_wallet');field(grid,'Cash In Hand','opening_cashHand');field(grid,'Cash In Shivalaya Office','opening_cashOffice');
  bankFields(openingLevel,'openingBank','Bank');
@@ -527,5 +533,19 @@ window.addEventListener('pagehide',stop);window.bankNavigate=show;show('cheque')
  }
  Object.entries(ids).forEach(([key,id])=>document.getElementById(id).onclick=()=>open(key));
  open('capital');
+})();
+</script><script>
+(function(){
+ try{
+  if(parent===window||parent.location.origin!==location.origin)return;
+  var doc=parent.document,page=doc.getElementById('adminPageInvestment'),admin=doc.getElementById('adminView');
+  if(!page)return;
+  var style=doc.getElementById('investmentScopedFilterStyle');
+  if(!style){style=doc.createElement('style');style.id='investmentScopedFilterStyle';style.textContent='html.investment-page-active #adminFilterPanel{display:none!important}';doc.head.appendChild(style);}
+  function sync(){doc.documentElement.classList.toggle('investment-page-active',parent.getComputedStyle(page).display!=='none'&&(!admin||parent.getComputedStyle(admin).display!=='none'));}
+  var observer=new MutationObserver(sync);observer.observe(page,{attributes:true,attributeFilter:['style','class','hidden']});
+  if(admin)observer.observe(admin,{attributes:true,attributeFilter:['style','class','hidden']});sync();
+  window.addEventListener('pagehide',function(){observer.disconnect();doc.documentElement.classList.remove('investment-page-active');});
+ }catch(error){console.warn('Investment filter display unavailable',error);}
 })();
 </script></body></html>
