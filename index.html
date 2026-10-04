@@ -1144,7 +1144,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.04.09';
+    const APP_RELEASE_VERSION = '2026.10.04.10';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1582,6 +1582,15 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     function timedLoginStep(trace,label,work){return trace?trace.run(label,work):work();}
 
     let loginInProgress = false;
+    function loginErrorMessage(error){
+      const code=String(error?.code||'');
+      const detail=String(error?.message||'');
+      if(['auth/invalid-login-credentials','auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email'].includes(code)||/INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND/.test(detail))return 'ইউজার আইডি অথবা পাসওয়ার্ড সঠিক নয়। আবার চেষ্টা করুন।';
+      if(code==='auth/too-many-requests'||/TOO_MANY_ATTEMPTS_TRY_LATER/.test(detail))return 'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।';
+      if(code==='auth/network-request-failed')return 'সংযোগে সমস্যা হচ্ছে। ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।';
+      if(code==='auth/user-disabled'||/USER_DISABLED/.test(detail))return 'এই অ্যাকাউন্ট বন্ধ করা হয়েছে। Admin-এর সঙ্গে যোগাযোগ করুন।';
+      return 'লগইন করা যায়নি। আবার চেষ্টা করুন। সমস্যা থাকলে Admin-এর সঙ্গে যোগাযোগ করুন।';
+    }
     async function handleLogin() {
       if (loginInProgress) return;
       const id = normalizeLoginId(document.getElementById("loginId").value);
@@ -1591,7 +1600,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       let userIdNum = parseInt(id, 10);
       const isPrivileged = id === "admin" || isGroupAdmin(id);
       if (!isPrivileged && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
-        alert("অপ্রবেশযোগ্য আইডি! শুধুমাত্র ৮০১ থেকে ৮৪৫ অথবা অনুমোদিত Admin ID ব্যবহার করুন।"); return;
+        alert("ইউজার আইডি অথবা পাসওয়ার্ড সঠিক নয়। আবার চেষ্টা করুন।"); return;
       }
       credentialActionEpoch++;loginInProgress = true;
       if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Checking…';}
@@ -1613,7 +1622,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         await trace.run('পেজ খোলা',()=>openPortalForUser(id, {freshLogin:true,meta,app,trace}));
       } catch (e) {
         devicePermissionPending=e.code==='portal/device-permission-required';
-        if(!devicePermissionPending)alert("লগইন চেক করতে সমস্যা হয়েছে: " + e.message);
+        if(!devicePermissionPending)alert(loginErrorMessage(e));
       } finally {
         trace.finish(devicePermissionPending);
         loginInProgress = false;
