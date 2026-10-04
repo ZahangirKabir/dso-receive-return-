@@ -724,7 +724,12 @@
                   <option value="">-- Select User --</option>
                 </select>
                 
-                <button class="btn" style="width: auto; padding: 8px 12px; font-size: 13px; background: #0288d1;" onclick="changeUserPasswordByAdmin()">Password Reset নির্দেশনা</button>
+                <input id="passwordResetWorkerUrl" type="url" placeholder="Cloudflare Worker URL (একবার দিন)" autocomplete="off" style="padding:10px;flex:1;min-width:220px;border:1px solid #bdd6da;border-radius:8px;">
+                <input id="resetAdminConfirmation" type="password" placeholder="আপনার Admin password" autocomplete="current-password" style="padding:10px;flex:1;min-width:180px;border:1px solid #bdd6da;border-radius:8px;">
+                <input id="targetNewPassword" type="password" placeholder="User-এর নতুন password (কমপক্ষে ৮ অক্ষর)" autocomplete="new-password" style="padding:10px;flex:1;min-width:220px;border:1px solid #bdd6da;border-radius:8px;">
+                <input id="targetConfirmPassword" type="password" placeholder="User-এর নতুন password আবার দিন" autocomplete="new-password" style="padding:10px;flex:1;min-width:220px;border:1px solid #bdd6da;border-radius:8px;">
+                <button id="adminResetPasswordButton" class="btn" style="width:auto;padding:10px 16px;font-size:13px;background:#147a83;" onclick="changeUserPasswordByAdmin()">Password Reset</button>
+                <p id="adminPasswordResetStatus" role="status" style="width:100%;margin:4px 0;line-height:1.6;"></p>
               </div>
             </div>
           </div>
@@ -1144,7 +1149,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.04.10';
+    const APP_RELEASE_VERSION = '2026.10.04.11';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1663,7 +1668,38 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       }catch(err){alert(err.message);}
     }
 
-    async function changeUserPasswordByAdmin(){if(currentUser!=='admin'){alert('শুধু মূল Admin করতে পারবেন।');return;}alert('setup ফোল্ডারের RESET_PASSWORD_WINDOWS.bat চালিয়ে User ID দিন। Temporary password স্থানীয় ফাইলে পাবেন।');}
+    async function changeUserPasswordByAdmin(){
+      if(currentUser!=='admin'){alert('শুধু মূল Admin করতে পারবেন।');return;}
+      const button=document.getElementById('adminResetPasswordButton'),status=document.getElementById('adminPasswordResetStatus');
+      if(button.disabled)return;
+      const id=document.getElementById('targetUserSelect').value;
+      const password=document.getElementById('targetNewPassword').value,repeat=document.getElementById('targetConfirmPassword').value;
+      const own=document.getElementById('resetAdminConfirmation').value;
+      let endpoint;
+      try{endpoint=new URL(document.getElementById('passwordResetWorkerUrl').value.trim());if(endpoint.protocol!=='https:'||!endpoint.hostname.endsWith('.workers.dev')||endpoint.username||endpoint.password||endpoint.port)throw Error();endpoint.pathname='/reset-password';endpoint.search='';endpoint.hash='';}catch{status.textContent='Cloudflare Worker-এর সঠিক https URL দিন।';return;}
+      if(!id){status.textContent='User ID নির্বাচন করুন।';return;}
+      if(password.length<8||password.length>128||password.trim()!==password){status.textContent='৮–১২৮ অক্ষরের password দিন; শুরু বা শেষে space দেবেন না।';return;}
+      if(password!==repeat){status.textContent='নতুন password দুটি মিলছে না।';return;}
+      if(!own){status.textContent='নিশ্চিত করার জন্য আপনার Admin password দিন।';return;}
+      if(!confirm(id+'-এর password reset করবেন? তার চলমান login বন্ধ হবে।'))return;
+      button.disabled=true;status.textContent='Password reset হচ্ছে…';
+      let controller;
+      try{
+        await credentialAuth.currentUser.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(accountEmail('admin'),own));
+        const tokens=await Promise.all([credentialAuth.currentUser.getIdToken(true),portalFinancialApp.auth().currentUser.getIdToken(true)]);
+        controller=new AbortController();const timer=setTimeout(()=>controller.abort(),90000);
+        let response;
+        try{response=await fetch(endpoint.href,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tokens[0],'X-Device-Token':tokens[1]},body:JSON.stringify({userId:id,password}),signal:controller.signal,credentials:'omit',cache:'no-store'});}finally{clearTimeout(timer);}
+        let result;try{result=await response.json();}catch{throw Error('Worker-এর উত্তর সঠিক নয়। সেটআপ যাচাই করুন।');}
+        if(!response.ok||!result.ok)throw Error(result.message||'Password reset হয়নি।');
+        try{localStorage.setItem('portalPasswordResetWorkerUrl',endpoint.origin);}catch{}
+        status.textContent=result.message;
+        document.getElementById('targetNewPassword').value='';document.getElementById('targetConfirmPassword').value='';
+      }catch(error){status.textContent=error.code?.startsWith('auth/')?loginErrorMessage(error):error.name==='AbortError'?'উত্তর পেতে দেরি হয়েছে। Reset হয়েছে কি না user-এর login দিয়ে যাচাই করুন।':error instanceof TypeError?'Worker-এ সংযোগ হয়নি। Worker URL ও Secret যাচাই করুন।':error.message;}
+      finally{document.getElementById('resetAdminConfirmation').value='';button.disabled=false;}
+    }
+    try{document.getElementById('passwordResetWorkerUrl').value=localStorage.getItem('portalPasswordResetWorkerUrl')||'';}catch{}
+
 
     async function refreshCurrentData() {
       const btn=document.getElementById('refreshDataBtn');
