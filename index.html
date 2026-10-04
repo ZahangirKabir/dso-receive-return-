@@ -499,6 +499,7 @@
 #deviceAdminContent [data-status=approved] .device-status-badge{background:#e3f4e9}#deviceAdminContent [data-status=pending] .device-status-badge{background:#fff1cc}#deviceAdminContent [data-status=blocked] .device-status-badge{background:#ffe3e6}
 #deviceAdminContent tr:hover{background:#f1f8fa}#deviceAdminContent .device-empty{text-align:center;padding:32px 16px;color:#657e8b}
 @media(max-width:700px){#deviceAdminModal .device-admin-header h3{font-size:21px}#deviceAdminModal .device-summary{gap:7px}#deviceAdminModal .device-summary>div{padding:12px 8px}#deviceAdminModal .device-summary strong{font-size:23px}#deviceAdminModal .device-summary span{font-size:11px}#deviceAdminContent .device-actions{display:flex;flex-wrap:wrap;gap:4px}#deviceAdminContent .device-actions:before{width:100%}}
+#passwordGate{box-sizing:border-box;overflow:auto;padding:16px!important;background:#f3f8f7!important}#passwordGate input{box-sizing:border-box;border:1px solid #bdd5d0;border-radius:8px}#passwordGate h2{font-size:22px;line-height:1.5}#passwordGate button{white-space:normal}@media(max-width:480px){#passwordGate h2{font-size:19px}}
 </style>
 </head>
 <body>
@@ -930,7 +931,7 @@
     <div style="width:min(100%,420px);background:#fff;border-radius:18px;padding:28px 22px;box-shadow:0 25px 70px rgba(0,0,0,.25);border-top:5px solid #00695c"><div style="font-size:39px" aria-hidden="true">🔄</div><h2 id="releaseGateTitle" style="margin:7px 0;color:#004d40">নতুনে স্বাগতম!</h2><p id="releaseGateMessage" style="margin:12px 0 20px;line-height:1.6">আপনার অভিজ্ঞতা আরও চমৎকার করতে আমরা অ্যাপটি আপডেট করেছি।</p><button class="btn" style="width:100%;min-height:46px" onclick="applyRequiredUpdate()">এখনই আপডেট করুন</button></div>
   </div>
   <div id="passwordGate" role="alertdialog" aria-modal="true" style="display:none;position:fixed;inset:0;background:#fff;z-index:999998;padding:25px;align-items:center;justify-content:center;text-align:center;">
-    <div style="max-width:440px;width:100%"><h2>🔑 ডিফল্ট পাসওয়ার্ড পরিবর্তন বাধ্যতামূলক</h2><input id="gateOldPassword" type="password" placeholder="বর্তমান পাসওয়ার্ড" style="width:100%;padding:12px;margin:8px 0"><input id="gateNewPassword" type="password" placeholder="নতুন পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)" style="width:100%;padding:12px;margin:8px 0"><button class="btn" onclick="changePasswordAtGate()">পাসওয়ার্ড পরিবর্তন করুন</button><p id="passwordGateError" style="color:#c62828;margin-top:10px"></p></div>
+    <div style="max-width:440px;width:100%;padding:20px;background:#fff;border:1px solid #d6e7e6;border-radius:16px;box-shadow:0 8px 28px #004d4014"><h2>🔑 ডিফল্ট পাসওয়ার্ড পরিবর্তন বাধ্যতামূলক</h2><input id="gateOldPassword" type="password" placeholder="বর্তমান পাসওয়ার্ড" style="width:100%;padding:12px;margin:8px 0"><input id="gateNewPassword" type="password" placeholder="নতুন পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)" style="width:100%;padding:12px;margin:8px 0"><button class="btn" onclick="changePasswordAtGate()">পাসওয়ার্ড পরিবর্তন করুন</button><p id="passwordGateError" role="alert" style="color:#c62828;margin-top:10px;overflow-wrap:anywhere;white-space:normal;font-size:14px;line-height:1.6"></p><button type="button" onclick="logout()" style="background:transparent;border:0;color:#557573;padding:10px;cursor:pointer">লগইনে ফিরে যান</button></div>
   </div>
 <script>
 /* Billing-free canonical daily ledger. No images are stored in financial records. */
@@ -1137,7 +1138,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       }catch(e){status.textContent=e.message;}
     }
     const rawDatabase = {ref(...args){return (portalFinancialApp||firebase.app()).database().ref(...args);}};
-    const portalLedger=PortalLedger.create(rawDatabase,{scope:()=>currentUser==='admin'?null:isGroupAdmin(currentUser)?SUB_ADMIN_GROUPS[currentUser]:currentUser?[String(currentUser)]:[]});
+    const portalLedger=PortalLedger.create(rawDatabase,{scope:()=>currentUser==='admin'?null:isGroupAdmin(currentUser)?Array.from(SUB_ADMIN_GROUPS[currentUser]||[],String):currentUser?[String(currentUser)]:[]});
     const database = portalLedger.database;
     // Stable one-time connection used by Investment.html. Its future code stays separate.
     window.portalInvestmentContext = {
@@ -1149,7 +1150,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.04.11';
+    const APP_RELEASE_VERSION = '2026.10.04.12';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1194,10 +1195,10 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     // index.html has its own release; Investment.html is compared independently.
     async function checkHostedRelease(force=false) {
       if(releaseCheckPromise)return releaseCheckPromise;
-      if(!force&&Date.now()-hostedReleaseCheckedAt<60000)return !hostedReleaseMismatch;
+      if(!force&&Date.now()-hostedReleaseCheckedAt<10000)return !hostedReleaseMismatch;
       releaseCheckPromise=(async()=>{
         if(location.protocol!=='http:'&&location.protocol!=='https:')return !hostedReleaseMismatch;
-        const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
+        const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8000);
         try{
           const urls=[new URL(location.pathname,location.origin),new URL('Investment.html',location.href)];
           // Once both versions are known, HEAD avoids downloading the entire
@@ -1480,7 +1481,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
     // Restricted Group Admin groups: each account can VIEW ONLY the report of its assigned DSO IDs.
     const SUB_ADMIN_GROUPS = {
-      adminSadar: new Set(["801","802","803","804","806","808","809","811","812","813","814","815"]),
+      adminSadar: new Set(["801","802","803","804","806","808","809","811","812","813","814"]),
       adminSaturia: new Set(["805","807","816","817","818","819","820","821","822","823"]),
       adminSingair: new Set(["810","835","836","837","838","839","840","841","842","843","844","845"]),
       adminGhior: new Set(["824","825","826","827","828","829","830","831","832","833","834"])
@@ -1587,6 +1588,16 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     function timedLoginStep(trace,label,work){return trace?trace.run(label,work):work();}
 
     let loginInProgress = false;
+    const loginAttemptMemory=new Map();
+    function readLoginAttempts(id){
+      let value=loginAttemptMemory.get(id)||{};try{value=JSON.parse(localStorage.getItem('portalLoginAttempts:'+id)||'null')||value;}catch{}
+      if(value.until&&value.until<=Date.now()){value={count:0,until:0};saveLoginAttempts(id,value);}
+      return value;
+    }
+    function saveLoginAttempts(id,value){loginAttemptMemory.set(id,value);try{localStorage.setItem('portalLoginAttempts:'+id,JSON.stringify(value));}catch{}}
+    function loginWaitMessage(id){const left=Math.ceil(((readLoginAttempts(id).until||0)-Date.now())/1000);return left>0?'ভুল password-এর সীমা অতিক্রম হয়েছে। '+Math.ceil(left/60)+' মিনিট পর আবার চেষ্টা করুন।':'';}
+    function isWrongLogin(error){return ['auth/invalid-login-credentials','auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email'].includes(error?.code)||/INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND/.test(String(error?.message||''));}
+    function recordWrongLogin(id){const state=readLoginAttempts(id);state.count=(Number(state.count)||0)+1;if(state.count>3){state.until=Date.now()+5*60000;state.count=0;}saveLoginAttempts(id,state);return loginWaitMessage(id);}
     function loginErrorMessage(error){
       const code=String(error?.code||'');
       const detail=String(error?.message||'');
@@ -1607,17 +1618,19 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if (!isPrivileged && (isNaN(userIdNum) || userIdNum < 801 || userIdNum > 845)) {
         alert("ইউজার আইডি অথবা পাসওয়ার্ড সঠিক নয়। আবার চেষ্টা করুন।"); return;
       }
+      const wait=loginWaitMessage(id);if(wait){alert(wait);return;}
       credentialActionEpoch++;loginInProgress = true;
       if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Checking…';}
       const trace=startLoginTiming();let devicePermissionPending=false;
       try {
         const checks=await Promise.allSettled([
-          trace.run('অ্যাপের আপডেট',()=>checkHostedRelease(true)),
+          trace.run('অ্যাপের আপডেট',()=>checkHostedRelease(false)),
           trace.run('হিসাবের প্রস্তুতি',()=>id!=='admin'?portalLedger.enabled():Promise.resolve(true)),
           trace.run('পাসওয়ার্ড যাচাই',async()=>{await credentialAuth.setPersistence(firebase.auth.Auth.Persistence.SESSION);return credentialAuth.signInWithEmailAndPassword(accountEmail(id),pass);})
         ]);
         for(const check of checks)if(check.status==='rejected')throw check.reason;
         if(!checks[0].value||firebaseReleaseMismatch)return;
+        saveLoginAttempts(id,{count:0,until:0});
         const preparation=await Promise.allSettled([trace.run('অ্যাকাউন্টের অনুমতি',()=>getCredentialMeta()),trace.run('ডিভাইসের পরিচয়',()=>prepareDeviceApp(id))]);
         for(const task of preparation)if(task.status==='rejected')throw task.reason;
         const meta=preparation[0].value,app=preparation[1].value;
@@ -1627,7 +1640,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         await trace.run('পেজ খোলা',()=>openPortalForUser(id, {freshLogin:true,meta,app,trace}));
       } catch (e) {
         devicePermissionPending=e.code==='portal/device-permission-required';
-        if(!devicePermissionPending)alert(loginErrorMessage(e));
+        if(!devicePermissionPending){const wait=isWrongLogin(e)?recordWrongLogin(id):'';alert(wait||loginErrorMessage(e));}
       } finally {
         trace.finish(devicePermissionPending);
         loginInProgress = false;
@@ -1643,6 +1656,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if (newPass === oldPass || newPass === defaultPasswordFor(currentUser)) throw new Error('নতুন পাসওয়ার্ড আলাদা হতে হবে।');
       const user=credentialAuth.currentUser;if(!user)throw Error('আবার Login করুন।');
       await user.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(accountEmail(currentUser),oldPass));
+      saveLoginAttempts(currentUser,{count:0,until:0});
       await user.updatePassword(newPass);
       await credentialApp.database().ref('accountMeta/'+user.uid+'/forceChange').set(false);
       await rememberPortalSession(currentUser,newPass);
@@ -1652,10 +1666,13 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
     async function changePasswordAtGate() {
       const error=document.getElementById('passwordGateError');error.textContent='';
+      const wait=loginWaitMessage(currentUser);if(wait){error.textContent=wait;return;}
+      const button=document.querySelector('#passwordGate .btn');if(button.disabled)return;button.disabled=true;
       try { await updateOwnPassword(document.getElementById('gateOldPassword').value,document.getElementById('gateNewPassword').value.trim());
         document.getElementById('gateOldPassword').value='';document.getElementById('gateNewPassword').value='';
         alert('পাসওয়ার্ড পরিবর্তন হয়েছে।');
-      } catch(err) {error.textContent=err.message;}
+      } catch(err) {if(err.code==='portal/device-permission-required'){error.textContent='';return;}const wait=isWrongLogin(err)?recordWrongLogin(currentUser):'';error.textContent=wait||(isWrongLogin(err)?'বর্তমান password সঠিক নয়। আপনার login-এর password দিন।':err.code?.startsWith('auth/')?loginErrorMessage(err):'পাসওয়ার্ড পরিবর্তন সম্পন্ন হয়নি। বর্তমান password এবং কমপক্ষে ৮ অক্ষরের আলাদা নতুন password দিন।');}
+      finally{button.disabled=false;}
     }
     async function changePassword() {
       try {await updateOwnPassword(document.getElementById('oldPassword').value,document.getElementById('newPassword').value.trim());
@@ -2847,11 +2864,18 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       });
     }
     async function initializeSlipWorker(){
-      let expired=false,timer;
-      const creating=Tesseract.createWorker('eng+ben',1,{logger:()=>{}});
-      const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{expired=true;reject(new Error('OCR প্রস্তুত হতে সময় বেশি লাগছে। Manual Correction দিয়ে ছবি দেখে তথ্য নিশ্চিত করুন।'));},60000);});
-      creating.then(worker=>{if(expired)worker.terminate().catch(()=>{});},()=>{});
-      try{return await Promise.race([creating,deadline]);}finally{clearTimeout(timer);}
+      const sources=[
+        {logger:()=>{},workerPath:'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',corePath:'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.0.0'},
+        {logger:()=>{},workerPath:'https://unpkg.com/tesseract.js@5/dist/worker.min.js',corePath:'https://unpkg.com/tesseract.js-core@5.0.0',langPath:'https://tessdata.projectnaptha.com/4.0.0',cacheMethod:'none'}
+      ];
+      for(const options of sources){
+        let expired=false,timer;
+        const creating=window.Tesseract.createWorker('eng+ben',1,options);
+        const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{expired=true;reject(new Error('OCR প্রস্তুত হতে সময় বেশি লাগছে।'));},35000);});
+        creating.then(worker=>{if(expired)worker.terminate().catch(()=>{});},()=>{});
+        try{return await Promise.race([creating,deadline]);}catch(error){/* Try the independent worker/core/language host. */}finally{clearTimeout(timer);}
+      }
+      throw new Error('OCR চালু হয়নি। ইন্টারনেট সংযোগ দেখে আবার ছবি নির্বাচন করুন।');
     }
     async function recognizeSlipWithDeadline(worker,image){
       let timer;
@@ -3348,7 +3372,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         console.error('Bank Slip OCR failed:',err);
         if(ocrStatus) ocrStatus.value='failed';
         enableManualSlipEdit(id);
-        document.getElementById('slipSubmitMessage').textContent='OCR সম্পূর্ণ হয়নি। OCR সম্পূর্ণ হয়নি। ছবি দেখে সব তথ্য সংশোধন করে অনুমোদিত Account নির্বাচন করুন এবং তথ্য নিশ্চিত করুন।';
+        document.getElementById('slipSubmitMessage').textContent='OCR সম্পূর্ণ হয়নি। ছবি দেখে সব তথ্য সংশোধন করে অনুমোদিত Account নির্বাচন করুন এবং তথ্য নিশ্চিত করুন।';
         validateFormAndSubmitBtn();
       }finally{
         // OCR must never leave the main submit button permanently disabled.
