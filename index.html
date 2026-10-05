@@ -1150,7 +1150,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.04.12';
+    const APP_RELEASE_VERSION = '2026.10.05.01';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1911,6 +1911,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       return !!(a?.img && b?.img && a.img===b.img) || sameSlipTransaction(a,b);
     }
     function extractSlipTransactionId(ocrResults){
+      ocrResults=(ocrResults||[]).filter(result=>!result.accountOnly);
       // Each bank prints a different heading. Accept an ID only after a known
       // heading; do not treat amounts, dates or unrelated account numbers as IDs.
       const label=/(?:\b(?:tracking|track)\s*(?:number\b|no\b\.?|id\b|#)|\b(?:transaction|trans|txn)\b\s*(?:i[d1l]\b|no\b\.?|number\b|#)?|\b(?:trx|tx|tr)\s*\.?\s*(?:i[d1l]\b|no\b\.?|number\b)|\b(?:reference|ref)\s*(?:i[d1l]\b|no\b\.?|number\b|#)?|লেনদেন\s*(?:আইডি|নং|নম্বর)|রেফারেন্স\s*(?:আইডি|নং|নম্বর)|ট্র্যাকিং\s*(?:নং|নম্বর|আইডি))/ig;
@@ -2198,7 +2199,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
           readUserSlipRequests(user),findDailyCollectionKey(date,user),
           (async()=>{const prepared=[];for(const draft of drafts){
             const image=draft.file?await prepareSlipImageForSave(draft.row,draft.file):draft.image;
-            if(!image)throw new Error('ছবি পড়া যায়নি। আবার স্লিপ নির্বাচন করুন।');
+            if(!image)throw new Error('ছবির upload copy প্রস্তুত হয়নি। JPG/PNG ছবি আবার নির্বাচন করুন।');
             prepared.push({...draft.slip,img:image});
           }return prepared;})()
         ]);
@@ -2684,6 +2685,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
     // Fast, high-quality local image preprocessing. The decoded image is cached
     // per File so recovery OCR passes do not repeatedly read/decode the same file.
+    const slipSourceDataCache = new WeakMap();
     const slipOCRImageCache = new WeakMap();
     const slipOCRDecodedCache = new WeakMap();
     function loadSlipOCRSource(file){
@@ -2713,7 +2715,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if(cache?.[key])return cache[key];
       if(!cache){cache={};slipOCRImageCache.set(file,cache);}
       const img=await loadSlipOCRSource(file);
-      const max=2200;
+      const max=1800;
       let iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;
       const scale=Math.min(1,max/Math.max(iw,ih));
       iw=Math.max(1,Math.round(iw*scale));ih=Math.max(1,Math.round(ih*scale));
@@ -2870,10 +2872,10 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       ];
       for(const options of sources){
         let expired=false,timer;
-        const creating=window.Tesseract.createWorker('eng+ben',1,options);
+        const creating=window.Tesseract.createWorker('eng',1,options);
         const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{expired=true;reject(new Error('OCR প্রস্তুত হতে সময় বেশি লাগছে।'));},35000);});
         creating.then(worker=>{if(expired)worker.terminate().catch(()=>{});},()=>{});
-        try{return await Promise.race([creating,deadline]);}catch(error){/* Try the independent worker/core/language host. */}finally{clearTimeout(timer);}
+        try{const worker=await Promise.race([creating,deadline]);worker._portalLanguages='eng';return worker;}catch(error){/* Try the independent worker/core/language host. */}finally{clearTimeout(timer);}
       }
       throw new Error('OCR চালু হয়নি। ইন্টারনেট সংযোগ দেখে আবার ছবি নির্বাচন করুন।');
     }
@@ -2958,39 +2960,48 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       slipOCRQueue=task.catch(()=>{});
       return task;
     }
+    function applyProgressiveSlipOCR(results,id,file){
+      const row=document.getElementById(`slipRow_${id}`);if(!row?.isConnected||row.querySelector('.slip-file-input')?.files?.[0]!==file)return;
+      const account=chooseKnownSlipAccount(results);
+      if(account){
+        row.dataset.ocrAccountNumber=account.accountNumber;
+        row.querySelector('.slip-account-number').value=account.accountNumber;
+        selectApprovedSlipAccount(id);
+        document.getElementById(`slipOcrBank_${id}`).value=account.bank;
+      }
+      const date=chooseConsensusDate(results);if(date){document.getElementById(`slipDate_${id}`).value=date;document.getElementById(`slipOcrDate_${id}`).value=date;}
+      const amount=chooseConsensusAmount(results);if(amount?.value>0){row.querySelector('.slip-amt-val').value=formatBD(amount.value);document.getElementById(`slipOcrAmt_${id}`).value=String(amount.value);}
+      const transaction=extractSlipTransactionId(results);if(transaction)row.querySelector('.slip-transaction-id').value=transaction;
+    }
     async function runSlipOCRExclusive(file, statusEl, id) {
       const current=()=>document.getElementById(`slipRow_${id}`)?.querySelector('.slip-file-input')?.files?.[0]===file;
       if(!current())return [];
-      const basePromise=preprocessImage(file,3,0);
-      basePromise.catch(()=>{});
-      const worker=await getSlipOCRWorker();
-      if(!current())return [];
-      const results=[];
-
-      // Pass 1: structured receipt/slip layout. This is the fastest useful scan.
-      const base=await basePromise;
-      if(!current())return [];
-      const first=await recognizeSlipPass(worker,base,'6');
-      results.push(first);
-      if(!current())return [];
-
-      // Pass 2 only when the first pass is incomplete. PSM 11 is stronger for
-      // scattered/thermal bank-slip text and broken line layouts.
-      if(ocrNeedsRecovery(first)||!extractSlipTransactionId([first])||!chooseKnownSlipAccount(results)){
+      const basePromise=preprocessImage(file,3,0);basePromise.catch(()=>{});
+      const worker=await getSlipOCRWorker();if(!current())return [];
+      const results=[],publish=()=>{if(current())applyProgressiveSlipOCR(results,id,file);};
+      const base=await basePromise;if(!current())return [];
+      try{
+        // A numeric account search immediately fills bank/account from the approved list.
+        results.push({...await recognizeSlipPass(worker,base,'11',{tessedit_char_whitelist:'0123456789০১২৩৪৫৬৭৮৯ -'}),accountOnly:true});publish();
+        if(!current())return [];
+        // Read labelled date, amount and transaction ID with the unrestricted alphabet.
+        results.push(await recognizeSlipPass(worker,base,'6'));publish();
+        if(!current())return [];
+        const complete=()=>!!chooseKnownSlipAccount(results)&&!!chooseConsensusDate(results)&&!!chooseConsensusAmount(results)&&!!extractSlipTransactionId(results);
+        if(complete())return results.filter(r=>r.text);
+        // Download Bengali only when a field is still missing, avoiding two language loads on every phone.
+        if(worker._portalLanguages!=='eng+ben'){
+          let timer;const loading=worker.reinitialize('eng+ben',1);
+          const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{if(slipOCRWorker===worker)slipOCRWorker=null;worker.terminate().catch(()=>{});reject(new Error('বাংলা OCR প্রস্তুত হয়নি।'));},35000);});
+          try{await Promise.race([loading,deadline]);worker._portalLanguages='eng+ben';}finally{clearTimeout(timer);}
+        }
+        if(!current())return [];
         const enhanced=await preprocessImage(file,4,0);
-        results.push(await recognizeSlipPass(worker,enhanced,'11'));
-      }
-      if(!current())return [];
-
-      // Numeric recovery only when amount/date evidence is still weak. It uses
-      // a character whitelist, making amount/date extraction both faster and cleaner.
-      const hasDate=!!chooseConsensusDate(results);
-      const hasAmount=!!chooseConsensusAmount(results);
-      if(!hasDate||!hasAmount){
-        const numeric=await preprocessImage(file,2,0);
-        results.push(await recognizeSlipPass(worker,numeric,'11',{
-          tessedit_char_whitelist:'0123456789০১২৩৪৫৬৭৮৯.,/-৳TKBDT:'
-        }));
+        results.push(await recognizeSlipPass(worker,enhanced,'11'));publish();
+      }catch(error){
+        if(slipOCRWorker===worker)slipOCRWorker=null;worker.terminate().catch(()=>{});
+        if(!results.some(r=>r.text))throw error;
+        // Keep account and any valid fields already found. Missing fields remain manually editable.
       }
       return results.filter(r=>r.text);
     }
@@ -3016,6 +3027,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
     function chooseConsensusAmount(ocrResults) {
+      ocrResults=(ocrResults||[]).filter(result=>!result.accountOnly);
       const candidates=(ocrResults||[]).flatMap(r=>slipLabeledAmountCandidates(r.text));
       if(!candidates.length)return null;
       // Transfer Amount is more specific than a separate generic Amount.
@@ -3224,6 +3236,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
     function chooseConsensusDate(ocrResults) {
+      ocrResults=(ocrResults||[]).filter(result=>!result.accountOnly);
       const scores={};
       const today = new Date();
       const todayMs = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
@@ -3617,7 +3630,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const cached = slipImageDataCache.get(file);
       if (cached) return cached;
 
-      let originalDataUrl = "";
+      let originalDataUrl = slipSourceDataCache.get(file)||"";
       let objectUrl="";
       try {
         const img=await loadSlipOCRSource(file);
@@ -3671,15 +3684,16 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     async function prepareSlipImageForSave(row, file) {
       if (!file) return "";
       // Start conversion once, immediately after selection. Reuse the same Promise on Submit.
+      if(row?._preparedSlipFile===file&&row._preparedSlipImage)return row._preparedSlipImage;
       const cached = slipImageDataCache.get(file);
-      if (cached) return await Promise.resolve(cached);
+      if (cached){const data=await Promise.resolve(cached);if(row&&data){row._preparedSlipFile=file;row._preparedSlipImage=data;row.dataset.slipImageReady='1';}return data;}
       const pending = getBase64(file);
       slipImageDataCache.set(file, pending);
       try {
         const data = await pending;
         if (data) slipImageDataCache.set(file, data);
         else slipImageDataCache.delete(file);
-        if (row) row.dataset.slipImageReady = data ? "1" : "0";
+        if(row && row._previewFile===file){row.dataset.slipImageReady=data?"1":"0";if(data){row._preparedSlipFile=file;row._preparedSlipImage=data;}}
         return data || "";
       } catch (err) {
         slipImageDataCache.delete(file);
@@ -3701,14 +3715,15 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if(!file)return Promise.resolve();
       row._previewPromise=(async()=>{
         // Keep a durable data URL: worker/canvas cleanup cannot revoke it.
-        const data=await fileToDataURL(file);
+        const data=slipSourceDataCache.get(file)||await fileToDataURL(file);
+        if(data)slipSourceDataCache.set(file,data);
         if(!active())return;
         if(!data)throw Error('ছবির ফাইল পড়া যায়নি।');
         await new Promise((resolve,reject)=>{
           const timer=setTimeout(()=>reject(Error('ছবির প্রিভিউ লোড হয়নি। ছবি আবার নির্বাচন করুন।')),20000);
           preview.onload=()=>{clearTimeout(timer);if(!active())return resolve();
             if(!preview.naturalWidth)return reject(Error('ছবিটি পড়া যাচ্ছে না।'));
-            row.dataset.previewReady='1';preview.classList.add('visible');resolve();};
+            row.dataset.previewReady='1';slipOCRDecodedCache.set(file,Promise.resolve(preview));preview.classList.add('visible');resolve();};
           preview.onerror=()=>{clearTimeout(timer);reject(Error('ছবিটি পড়া যাচ্ছে না। Gallery থেকে JPG/PNG ছবি নির্বাচন করুন।'));};
           preview.src=data;preview.classList.add('visible');
         });
@@ -3719,7 +3734,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
     function cleanupSlipPreview(row) {
       clearTimeout(row?._previewTimer);
-      if(row){row._previewToken=null;row._previewFile=null;row._previewPromise=null;row.dataset.previewReady='0';}
+      if(row){const file=row._previewFile;if(file){slipSourceDataCache.delete(file);slipOCRDecodedCache.delete(file);slipOCRImageCache.delete(file);slipImageDataCache.delete(file);}row._preparedSlipFile=null;row._preparedSlipImage='';row._previewToken=null;row._previewFile=null;row._previewPromise=null;row.dataset.previewReady='0';}
       const url = row?.dataset?.previewObjectUrl || "";
       if (url) {
         try { URL.revokeObjectURL(url); } catch (_) {}
