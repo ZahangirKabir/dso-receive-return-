@@ -1150,7 +1150,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.05.01';
+    const APP_RELEASE_VERSION = '2026.10.06.01';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1481,7 +1481,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
     // Restricted Group Admin groups: each account can VIEW ONLY the report of its assigned DSO IDs.
     const SUB_ADMIN_GROUPS = {
-      adminSadar: new Set(["801","802","803","804","806","808","809","811","812","813","814"]),
+      adminSadar: new Set(["801","802","803","804","806","808","809","811","812","813","814","815"]),
       adminSaturia: new Set(["805","807","816","817","818","819","820","821","822","823"]),
       adminSingair: new Set(["810","835","836","837","838","839","840","841","842","843","844","845"]),
       adminGhior: new Set(["824","825","826","827","828","829","830","831","832","833","834"])
@@ -4489,7 +4489,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         for (let i = 801; i <= 845; i++) { dsoSet.add(String(i)); }
         if (data) {
           Object.values(data).forEach(r => {
-            if (r.userId && r.userId !== "admin" && !isGroupAdmin(r.userId)) dsoSet.add(String(r.userId));
+            if (/^(80[1-9]|8[1-3][0-9]|84[0-5])$/.test(String(r.userId))) dsoSet.add(String(r.userId));
           });
         }
       }
@@ -5168,7 +5168,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         let card = document.createElement("div");
         card.className = "card bank-card";
         card.innerHTML = `
-          <h3>${bName}</h3>
+          <h3>${escapeHtml(bName)}</h3>
           <p>৳ ${formatBD(bankTotals[bName].amount)}</p>
           <span style="font-size: 10px; color: #555;">(${bankTotals[bName].slipsCount} টি স্লিপ)</span>
         `;
@@ -5187,11 +5187,11 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       let headerTr = document.createElement("tr");
       headerTr.innerHTML = `
         <th class="th-info">তারিখ</th>
-        <th class="th-info">DSO ID (A-Z)</th>
+        <th class="th-info">DSO ID</th>
         <th class="th-info">Credit / Account Name</th>
       `;
       uniqueBanks.forEach(bName => {
-        headerTr.innerHTML += `<th class="th-bank">${bName} (Amount)</th>`;
+        headerTr.innerHTML += `<th class="th-bank">${escapeHtml(bName)} (Amount)</th>`;
       });
       headerTr.innerHTML += `
         <th class="th-return">মোট ডিপোজিট</th>
@@ -5206,8 +5206,8 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       entriesList.forEach(entry => {
         let tr = document.createElement("tr");
         let rowHtml = `
-          <td>${entry.date}</td>
-          <td><strong>DSO ${entry.dsoId}</strong></td>
+          <td>${escapeHtml(entry.date)}</td>
+          <td><strong>DSO ${escapeHtml(entry.dsoId)}</strong></td>
           <td style="text-align:left; max-width:180px; white-space:normal;">${escapeHtml(entry.accountName || '-')}</td>
         `;
 
