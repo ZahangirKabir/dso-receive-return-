@@ -976,7 +976,14 @@ function create(raw,options={}){
   constructor(refs){this.refs=refs;this.handlers=new Map();this.key='ledgerAccounts';}
   async once(){const all=await Promise.all(this.refs.map(r=>r.once('value')));return this.merge(all);}
   merge(all){const out={};for(const s of all){if(!s)continue;if(s.key==='ledgerAccounts')s.forEach(c=>{if(c.val())out[c.key]=c.val();});else if(s.val())out[s.key]=s.val();}return snapshot('ledgerAccounts',out);}
-  on(event,fn,error){const data=Array(this.refs.length),seen=new Set(),handlers=[];this.refs.forEach((r,i)=>{const h=s=>{data[i]=s;seen.add(i);if(seen.size===this.refs.length)fn(this.merge(data));};handlers.push(h);r.on(event,h,error);});this.handlers.set(fn,handlers);if(!this.refs.length)Promise.resolve().then(()=>fn(snapshot('ledgerAccounts',{})));}
+  on(event,fn,error){
+   const data=Array(this.refs.length),seen=new Set(),handlers=[];
+   const emit=()=>{if(seen.size===this.refs.length)fn(this.merge(data));};
+   this.refs.forEach((r,i)=>{const h=s=>{data[i]=s;seen.add(i);emit();};handlers.push(h);
+    r.on(event,h,e=>{data[i]=null;seen.add(i);emit();error?.(e);});
+   });this.handlers.set(fn,handlers);
+   if(!this.refs.length)Promise.resolve().then(()=>fn(snapshot('ledgerAccounts',{})));
+  }
   off(event,fn){const handlers=this.handlers.get(fn)||[];this.refs.forEach((r,i)=>{if(handlers[i])r.off(event,handlers[i]);});this.handlers.delete(fn);}
  }
  class Ref{
@@ -1150,7 +1157,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.06.01';
+    const APP_RELEASE_VERSION = '2026.10.06.02';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1394,6 +1401,8 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
     let slipReturnState=null;
     function switchAdminTab(tab) {
+      if(isGroupAdmin(currentUser)&&tab!=='report')tab='report';
+      if(currentUser!=='admin'&&!isGroupAdmin(currentUser))return;
       rememberPortalPage(tab);
       const previousTab=activeAdminTab;
       if(tab==='slipApproval'&&previousTab!=='slipApproval')slipReturnState={mode:masterAdminDataMode,date:document.getElementById('filterDate').value};
@@ -1556,6 +1565,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         document.getElementById("tabAdminSettingsBtn").style.display = currentUser === "admin" ? "inline-block" : "none";
         document.getElementById("tabAdminBankBtn").style.display = isGroupAdmin(currentUser) ? "none" : "inline-block";
         document.getElementById("tabAdminSlipApprovalBtn").style.display = currentUser === "admin" ? "inline-block" : "none";
+        document.getElementById("tabAdminInvestmentBtn").style.display = currentUser === "admin" ? "inline-block" : "none";
         document.getElementById("tabAdminNotesBtn").style.display = isGroupAdmin(currentUser) ? "none" : "inline-block";
         document.getElementById("dsoView").style.display = "none";
         document.getElementById("dsoTabNav").style.display = "none";
@@ -4185,10 +4195,17 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       dsoFullHistoryError = '';
       adminDsoOptionsSignature = '';
       groupQueryData = {};
+      document.getElementById("groupReportLoadError")?.remove();
     }
 
     function attachRealtimeValueListener(ref, handler) {
-      ref.on('value', handler);
+      ref.on('value', handler, error => {
+        console.error('Report permission/load failure:',error);
+        if(!isGroupAdmin(currentUser))return;
+        let note=document.getElementById('groupReportLoadError');
+        if(!note){note=document.createElement('p');note.id='groupReportLoadError';note.setAttribute('role','alert');note.style.cssText='padding:12px;color:#a32121;background:#fff1f1;border-radius:8px;white-space:normal';document.getElementById('adminFilterPanel').after(note);}
+        note.textContent='কিছু assigned DSO-এর ডাটা পড়ার অনুমতি পাওয়া যায়নি। দেখানো হিসাব অসম্পূর্ণ হতে পারে। Firebase Rules এবং accountMeta-এর allowedDso ঠিক করুন।';
+      });
       realtimeListenerRefs.push({ref, handler});
     }
 
