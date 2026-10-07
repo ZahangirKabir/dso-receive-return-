@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.10.07.2">
+<meta name="investment-release-version" content="2026.10.07.3">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -129,6 +129,19 @@ input[type="date"],input[type="month"]{box-sizing:border-box!important;width:100
 input[type="date"]:focus,input[type="month"]:focus{outline:2px solid #48a99a!important;outline-offset:2px;box-shadow:0 0 0 4px #0d998211!important}
 input[type="date"]::-webkit-calendar-picker-indicator,input[type="month"]::-webkit-calendar-picker-indicator{cursor:pointer;padding:4px;opacity:.75}
 @media(max-width:560px){input[type="date"],input[type="month"]{font-size:16px!important;max-width:100%}}
+</style><style id="investment-uniform-fields">
+.bank-form{grid-template-columns:repeat(3,minmax(0,1fr));align-items:start;gap:18px}
+.bank-form .bank-field,.fields .field{min-width:0;width:100%;box-sizing:border-box}
+.bank-form .bank-field>input,.bank-form .bank-field>select,.fields .field>input,.fields .field>select,.repeat-row input,.repeat-row select{width:100%!important;max-width:none!important;box-sizing:border-box!important;min-height:46px!important;border-radius:10px!important;padding:11px 12px!important;font-size:14px}
+form button.save{box-sizing:border-box;display:block;width:min(100%,280px);min-height:48px;padding:12px 22px;border:1px solid #087e70;border-radius:12px;background:linear-gradient(135deg,#087e70,#086477);color:#fff;font-size:15px;font-weight:700;letter-spacing:.2px;box-shadow:0 5px 12px #075b6426;cursor:pointer;transition:background .15s,box-shadow .15s}
+.bank-form>button.save{grid-column:1/-1;justify-self:start;margin-top:6px}
+form button.save:hover{background:linear-gradient(135deg,#06695e,#064e60);box-shadow:0 6px 16px #075b6433}
+form button.save:focus-visible{outline:3px solid #75cfc1;outline-offset:3px}
+form button.save:disabled{background:#91aaa7;border-color:#91aaa7;box-shadow:none;cursor:default;opacity:.75}
+.bank-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end}
+.bank-filters .bank-field{max-width:none;width:100%}.bank-filters input,.bank-filters select{max-width:none!important;width:100%!important;min-height:46px!important}
+@media(max-width:900px){.bank-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.bank-form,.bank-filters{grid-template-columns:1fr}.bank-form .bank-field>input,.bank-form .bank-field>select,.fields .field>input,.fields .field>select,.repeat-row input,.repeat-row select{font-size:16px}form button.save{width:100%;max-width:none}}
 </style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden>
  <details id="navWorkingCapital" class="module-dropdown"><summary>💼 Working Capital <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Working Capital submenu"><button type="button" id="showWorkingCapital">Daily Working Capital</button><button type="button" id="showWorkingCapitalReport">Working Capital Report</button><button type="button" id="showBalanceCalculator">MA &amp; Bank Balance Calculator</button></div></details>
  <details id="navPettyCash" class="module-dropdown"><summary>💵 Petty Cash <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Petty Cash submenu"><button type="button" id="showPettyCash">Daily Petty Cash</button><button type="button" id="showPettyCashReport">Daily Petty Cash Report</button></div></details>
