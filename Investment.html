@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.10.07.3">
+<meta name="investment-release-version" content="2026.10.07.4">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -142,6 +142,18 @@ form button.save:disabled{background:#91aaa7;border-color:#91aaa7;box-shadow:non
 .bank-filters .bank-field{max-width:none;width:100%}.bank-filters input,.bank-filters select{max-width:none!important;width:100%!important;min-height:46px!important}
 @media(max-width:900px){.bank-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.bank-form,.bank-filters{grid-template-columns:1fr}.bank-form .bank-field>input,.bank-form .bank-field>select,.fields .field>input,.fields .field>select,.repeat-row input,.repeat-row select{font-size:16px}form button.save{width:100%;max-width:none}}
+</style><style id="investment-compact-fields">
+.fields,.bank-form{grid-template-columns:repeat(auto-fit,minmax(170px,210px))!important;gap:12px!important;justify-content:start}
+.repeat-row{gap:10px!important}
+.field,.bank-field{gap:5px!important}.field label,.bank-field label{font-size:13px!important;line-height:1.4;font-weight:600!important;margin-bottom:4px}
+#app input,#app select,#bankApp input,#bankApp select,.cheque-dialog input,.cheque-dialog select{box-sizing:border-box!important;min-height:38px!important;height:38px!important;padding:7px 10px!important;border-radius:8px!important;font-size:13px!important;border-color:#bfd6d1!important;background:#fcfefd!important;box-shadow:0 1px 3px #16483b08}
+#app input:focus,#app select:focus,#bankApp input:focus,#bankApp select:focus{border-color:#26998a!important;box-shadow:0 0 0 3px #26998a16!important}
+.bank-filters{grid-template-columns:repeat(auto-fit,minmax(160px,210px))!important;gap:10px!important;padding:14px 0!important}
+.report-filter{gap:8px;padding:10px}.report-filter input{min-height:38px!important;height:38px!important;padding:7px 10px!important;max-width:210px!important;font-size:13px!important}
+form button.save{width:180px;min-height:40px!important;padding:9px 16px!important;font-size:14px!important;border-radius:9px!important;box-shadow:0 3px 8px #075b6420!important}
+.card{padding:18px}.finance-section{padding:12px}.working-level{padding:14px}
+@media(max-width:560px){.fields,.bank-form,.bank-filters{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}.card{padding:12px}#app input,#app select,#bankApp input,#bankApp select,.cheque-dialog input,.cheque-dialog select,.report-filter input{height:42px!important;min-height:42px!important;font-size:16px!important;padding:8px!important}.bank-form>button.save{width:100%}form button.save{max-width:100%;min-height:44px!important}}
+@media(max-width:380px){.fields,.bank-form,.bank-filters{grid-template-columns:minmax(0,1fr)!important}}
 </style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden>
  <details id="navWorkingCapital" class="module-dropdown"><summary>💼 Working Capital <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Working Capital submenu"><button type="button" id="showWorkingCapital">Daily Working Capital</button><button type="button" id="showWorkingCapitalReport">Working Capital Report</button><button type="button" id="showBalanceCalculator">MA &amp; Bank Balance Calculator</button></div></details>
  <details id="navPettyCash" class="module-dropdown"><summary>💵 Petty Cash <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Petty Cash submenu"><button type="button" id="showPettyCash">Daily Petty Cash</button><button type="button" id="showPettyCashReport">Daily Petty Cash Report</button></div></details>
