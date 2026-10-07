@@ -531,7 +531,7 @@
         <button class="tab-btn" id="tabAdminSlipApprovalBtn" onclick="switchAdminTab('slipApproval')">🧾 Bank Slip Approval</button>
         <button class="tab-btn" id="tabAdminNotesBtn" onclick="switchAdminTab('notes')">💵 Note Summary</button>
         <button class="tab-btn" id="tabAdminSettingsBtn" onclick="switchAdminTab('settings')">⚙️ Settings</button>
-        <button class="tab-btn" id="tabAdminInvestmentBtn" onclick="switchAdminTab('investment')">💼 Investment</button>
+        <button style="display:none" class="tab-btn" id="tabAdminInvestmentBtn" onclick="switchAdminTab('investment')">💼 Investment</button>
       </div>
 
       <!-- DSO PANEL NAVIGATION -->
@@ -1074,7 +1074,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     firebase.initializeApp(firebaseConfig);
     const credentialApp=firebase.initializeApp(firebaseConfig,'portal-credentials');
     const credentialAuth=credentialApp.auth();let credentialActionEpoch=0;
-    const devicePersistenceReady=new WeakMap();
+    const devicePersistenceReady=new WeakMap(),devicePreparationTasks=new Map();
     let portalFinancialApp=null,devicePermissionRef=null,devicePermissionHandler=null,deviceSessionRef=null,deviceSessionHandler=null,deviceSessionExpiryTimer=null,portalDeviceUid='';
     function authReady(auth){return new Promise((resolve,reject)=>{const stop=auth.onAuthStateChanged(user=>{stop();resolve(user);},reject);});}
     function accountEmail(id){return 'portal-'+String(id).toLowerCase()+'@collection-app-479e0.invalid';}
@@ -1083,15 +1083,26 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const meta=(await credentialApp.database().ref('accountMeta/'+user.uid).once('value')).val();
       if(!meta?.enabled||!meta.userId)throw Error('এই ID অনুমোদিত তালিকায় নেই। Admin-কে জানান।');return meta;
     }
-    async function prepareDeviceApp(id){
-      const name='portal-device-'+String(id).toLowerCase();
-      let app=firebase.apps.find(a=>a.name===name);if(!app)app=firebase.initializeApp(firebaseConfig,name);
-      const auth=app.auth();
-      if(!devicePersistenceReady.has(auth)){const ready=auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(error=>{devicePersistenceReady.delete(auth);throw error;});devicePersistenceReady.set(auth,ready);}
-      await devicePersistenceReady.get(auth);
-      if(!auth.currentUser&&!await authReady(auth))await auth.signInAnonymously();
-      if(!auth.currentUser?.isAnonymous)throw Error('Device identity সঠিক নয়। অন্য browser profile ব্যবহার করুন।');
-      portalFinancialApp=app;portalDeviceUid=auth.currentUser.uid;return app;
+    function prepareDeviceApp(id){
+      const key=String(id).trim().toLowerCase();
+      if(devicePreparationTasks.has(key))return devicePreparationTasks.get(key);
+      const task=(async()=>{
+        const name='portal-device-'+key;
+        let app=firebase.apps.find(a=>a.name===name);if(!app)app=firebase.initializeApp(firebaseConfig,name);
+        const auth=app.auth();
+        if(!devicePersistenceReady.has(auth)){
+          const ready=auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(error=>{devicePersistenceReady.delete(auth);throw error;});
+          devicePersistenceReady.set(auth,ready);
+        }
+        await devicePersistenceReady.get(auth);
+        const restored=auth.currentUser||await authReady(auth);
+        if(!restored)await auth.signInAnonymously();
+        if(!auth.currentUser?.isAnonymous)throw Error('Device identity সঠিক নয়। অন্য browser profile ব্যবহার করুন।');
+        return app;
+      })();
+      devicePreparationTasks.set(key,task);
+      const clear=()=>{if(devicePreparationTasks.get(key)===task)devicePreparationTasks.delete(key);};
+      task.then(clear,clear);return task;
     }
     function showPendingDevice(){
       document.getElementById('pendingDeviceModal')?.remove();
@@ -1108,7 +1119,8 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const credentialUid=credentialAuth.currentUser?.uid;
       if(!credentialUid)throw Error('আবার Login করুন।');
       const uid=app.auth().currentUser.uid;
-      const access=(await timedLoginStep(prepared.trace,'ডিভাইসের অনুমতি',()=>app.database().ref('deviceAccess/'+uid).once('value'))).val();
+      portalFinancialApp=app;portalDeviceUid=uid;
+      const access=(await timedLoginStep(prepared.trace,'ডিভাইসের অনুমতি',()=>app.database().ref('deviceAccess/'+uid).get())).val();
       if(access?.status!=='approved'||access.userId!==id||access.credentialUid!==credentialUid){
         const current=(await timedLoginStep(prepared.trace,'ডিভাইসের আবেদন',()=>app.database().ref('deviceRequests/'+uid).once('value'))).val();
         if(!current)await credentialApp.database().ref('deviceRequests/'+uid).set({userId:id,credentialUid,deviceUid:uid,name:(navigator.userAgent||'Browser').slice(0,160),requestedAt:firebase.database.ServerValue.TIMESTAMP});
@@ -1157,7 +1169,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.06.02';
+    const APP_RELEASE_VERSION = '2026.10.07.01';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1632,6 +1644,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       credentialActionEpoch++;loginInProgress = true;
       if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Checking…';}
       const trace=startLoginTiming();let devicePermissionPending=false;
+      const devicePreparation=trace.run('ডিভাইসের পরিচয়',()=>prepareDeviceApp(id)).then(app=>({app}),error=>({error}));
       try {
         const checks=await Promise.allSettled([
           trace.run('অ্যাপের আপডেট',()=>checkHostedRelease(false)),
@@ -1641,7 +1654,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         for(const check of checks)if(check.status==='rejected')throw check.reason;
         if(!checks[0].value||firebaseReleaseMismatch)return;
         saveLoginAttempts(id,{count:0,until:0});
-        const preparation=await Promise.allSettled([trace.run('অ্যাকাউন্টের অনুমতি',()=>getCredentialMeta()),trace.run('ডিভাইসের পরিচয়',()=>prepareDeviceApp(id))]);
+        const preparation=await Promise.allSettled([trace.run('অ্যাকাউন্টের অনুমতি',()=>getCredentialMeta()),devicePreparation.then(result=>{if(result.error)throw result.error;return result.app;})]);
         for(const task of preparation)if(task.status==='rejected')throw task.reason;
         const meta=preparation[0].value,app=preparation[1].value;
         if(meta.userId!==id)throw Error('Login ID মেলেনি।');
