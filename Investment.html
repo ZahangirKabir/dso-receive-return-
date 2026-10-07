@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.10.03.4">
+<meta name="investment-release-version" content="2026.10.07.1">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -124,11 +124,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 </style><style>.date-selection-section{border:0!important;background:transparent!important;padding:0!important;margin-bottom:12px}.date-selection-section .compact-capital-date{margin-bottom:0}</style><style>
 .date-selection-section .compact-capital-date{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;width:210px;max-width:100%}
 .date-selection-section{border:0!important;box-shadow:none!important;background:transparent!important}
-</style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden>
+</style><style>.bank-field[hidden]{display:none!important}.bank-card{border-top:4px solid #087f8c}.bank-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}.bank-field{display:flex;flex-direction:column;gap:7px;min-width:0}.bank-field label{font-size:14px;font-weight:600}.bank-field input,.bank-field select{box-sizing:border-box;width:100%;min-height:44px;padding:10px 12px;border:1px solid #c9dce3;border-radius:9px;font:inherit;background:#fff}.bank-filters{display:flex;flex-wrap:wrap;align-items:end;gap:12px;padding:18px 0}.bank-filters .bank-field{max-width:210px}.bank-card th{background:#e6f4f5;position:sticky;top:0}.bank-card td{font-size:14px;max-width:300px;white-space:normal;overflow-wrap:anywhere}.cheque-modal{position:fixed;inset:0;z-index:9999;background:#142b45a8;display:flex;align-items:center;justify-content:center;padding:16px}.cheque-dialog{background:white;border-radius:18px;padding:24px;max-width:520px;width:100%;max-height:85vh;overflow:auto}.cheque-dialog p{overflow-wrap:anywhere;line-height:1.7}.cheque-dialog button{margin:14px 8px 0 0}@media(max-width:560px){.bank-form{grid-template-columns:1fr}.bank-filters .bank-field{max-width:none;width:100%}.bank-field input,.bank-field select{font-size:16px}.bank-card{padding:14px}.bank-card table{min-width:850px}}</style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden>
  <details id="navWorkingCapital" class="module-dropdown"><summary>💼 Working Capital <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Working Capital submenu"><button type="button" id="showWorkingCapital">Daily Working Capital</button><button type="button" id="showWorkingCapitalReport">Working Capital Report</button><button type="button" id="showBalanceCalculator">MA &amp; Bank Balance Calculator</button></div></details>
  <details id="navPettyCash" class="module-dropdown"><summary>💵 Petty Cash <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Petty Cash submenu"><button type="button" id="showPettyCash">Daily Petty Cash</button><button type="button" id="showPettyCashReport">Daily Petty Cash Report</button></div></details>
  <button type="button" id="showTotalInvestment">📊 Total Investment</button>
- <details id="navBank" class="module-dropdown"><summary>🏦 Bank <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Bank submenu"><button type="button" id="showBankCheque">Bank Cheque Tracker</button><button type="button" id="showBankDebit">Bank Debit</button></div></details>
+ <details id="navBank" class="module-dropdown"><summary>🏦 Bank <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Bank submenu"><button type="button" id="showChequeEntry">Cheque Number Entry</button><button type="button" id="showBankWithdraw">Bank Cheque Withdraw</button><button type="button" id="showBankCheque">Bank Cheque Tracker</button><button type="button" id="showBankDebit">Bank Debit</button></div></details>
  <button type="button" id="clearInvestmentData" class="clear-investment-data" hidden>🗑 পরীক্ষার ডাটা পরিষ্কার</button>
 </nav><main id="app" hidden><nav id="menu" class="menu" aria-label="Investment submenu"></nav><section id="content"></section></main><p id="bankAccess" hidden></p><main id="bankApp" hidden><nav id="bankMenu" class="menu"></nav><section id="bankContent"></section></main><footer id="investmentCopyright" class="investment-footer" hidden>Copyright © 2026 <strong>Zahangir Kabir</strong>. All rights reserved.</footer>
 <script>
@@ -451,51 +451,43 @@ window.addEventListener('pagehide',stop);show('capital');
 window.investmentNavigate=show;
 })();
 </script><script>
-// Bank Cheque Tracker and Bank Debit stay in this standalone Investment.html.
-(()=>{'use strict';let bridge;
-try{bridge=parent!==window && parent.location.origin===location.origin && parent.portalInvestmentContext;}catch(_){bridge=null;}
-const preview=!bridge?.database||!bridge.getUser();
-if(preview)bridge={database:null,getUser:()=>null,serverTimestamp:null};
-const owner=preview?'preview':String(bridge.getUser());
-document.getElementById('bankAccess').hidden=true;document.getElementById('bankApp').hidden=false;
-const database=bridge.database,menu=document.getElementById('bankMenu'),content=document.getElementById('bankContent');let mode='cheque',ref=null,handler=null,items={};
-function el(tag,value){const e=document.createElement(tag);if(value!==undefined)e.textContent=String(value);return e;}
-function today(){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const v=k=>p.find(x=>x.type===k).value;return `${v('year')}-${v('month')}-${v('day')}`;}
-function fmt(n){return Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});}
-function field(form,label,name,type='text',required=true){const box=el('div'),i=el('input');i.name=name;i.type=type==='number'?'text':type;i.required=required;if(type==='date')i.value=today();if(type==='number'){i.inputMode='decimal';i.addEventListener('blur',()=>{const raw=i.value.trim().replace(/,/g,'');if(raw&&/^\d+(?:\.\d{0,2})?$/.test(raw))i.value=Number(raw)===0?'':fmt(Number(raw));});}box.append(el('label',label),i);form.append(box);return i;}
-function stop(){if(ref){ref.off('value',handler);ref=null;handler=null;}}
-function show(type){mode=type;menu.replaceChildren();content.replaceChildren();
-[['cheque','Bank Cheque Tracker'],['debit','Bank Debit']].forEach(([name,title])=>{const b=el('button',title);b.type='button';b.classList.toggle('active',name===type);b.onclick=()=>show(name);menu.append(b);});
-const card=el('div');card.className='card';card.append(el('h2',type==='cheque'?'Bank Name - Cheque Number':'Bank Debit'));content.append(card);
-const form=el('form');form.className='fields';field(form,'Date','date','date');
-const bank=field(form,'Bank Name','bankName');bank.maxLength=80;const cheque=field(form,type==='cheque'?'Cheque Number':'Cheque Number (optional)','chequeNumber','text',type==='cheque');cheque.maxLength=50;
-field(form,type==='cheque'?'Cheque Amount':'Bank Debit Amount','amount','number');field(form,'Details / Note','note','text',false);
-const box=el('div'),save=el('button','Submit');save.type='submit';save.className='save';
-if(preview){save.disabled=true;save.title='Collection Portal-এ Admin login করে Investment menu খুললে Submit চালু হবে।';}
-box.append(save);form.append(box);card.append(form);
-const message=el('p');message.id='bankMessage';card.append(message);
-form.onsubmit=async event=>{event.preventDefault();if(!form.reportValidity()||String(bridge.getUser())!==owner)return;
- const data=Object.fromEntries(new FormData(form)),rawAmount=String(data.amount||'').trim().replace(/,/g,''),amount=Number(rawAmount),bankName=(data.bankName||'').trim(),chequeNumber=(data.chequeNumber||'').trim();
- if(!bankName || (type==='cheque'&&!chequeNumber) || !/^\d+(?:\.\d{1,2})?$/.test(rawAmount)||!Number.isFinite(amount)||amount<=0||amount>1e12){message.textContent='Bank Name, Cheque Number এবং সঠিক Amount দিন।';return;}
- save.disabled=true;message.textContent='Saving…';
- try{await database.ref('bankTrackerEntries').push().set({type,date:data.date,scope:'company',bankName,chequeNumber,amount,note:(data.note||'').trim(),createdBy:owner,createdAt:bridge.serverTimestamp});form.reset();form.elements.date.value=today();message.textContent='✅ তথ্য জমা হয়েছে।';}
- catch(err){message.textContent='Submit হয়নি: '+err.message;}finally{save.disabled=false;}
-};
-const summary=el('div');summary.id='bankSummary';content.append(summary);
-const list=el('div');list.id='bankList';list.className='card scroll';content.append(list);
-if(preview){items={};render();return;}
-if(!ref){
- ref=database.ref('bankTrackerEntries');
- handler=snap=>{if(String(bridge.getUser())!==owner)return;items=snap.val()||{};render();};
- ref.on('value',handler,err=>{list.textContent='ডাটা লোড হয়নি: '+err.message;});
-}else render();
+// Bank entries and cheque sequence are saved together in one Firebase transaction.
+(()=>{'use strict';let bridge;try{bridge=parent!==window&&parent.location.origin===location.origin&&parent.portalInvestmentContext;}catch(_){}
+const preview=!bridge?.database||!bridge.getUser();if(preview)bridge={database:null,getUser:()=>null,serverTimestamp:null};
+if(!preview&&bridge.getUser()!=='admin'){document.getElementById('bankApp').hidden=true;return;}
+const db=bridge.database,content=document.getElementById('bankContent'),menu=document.getElementById('bankMenu'),banks=['Islami','Pubali','City','Agroni','UCB','Sonali'];let items={},mode='range',ready=preview,stream;
+const el=(t,v)=>{const e=document.createElement(t);if(v!==undefined)e.textContent=v;return e;};
+const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).reduce((o,p)=>(o[p.type]=p.value,o),{});
+const dateNow=()=>{const d=today();return d.year+'-'+d.month+'-'+d.day;};const fmt=n=>Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+function input(form,label,name,type='text',required=true,choices){const box=el('div'),l=el('label',label),i=el(choices?'select':'input');i.name=name;i.id='bank_'+name;l.htmlFor=i.id;i.required=required;if(choices){for(const [v,text]of choices){const o=el('option',text);o.value=v;i.append(o);}}else{i.type=type;i.maxLength=200;if(name==='amount')i.inputMode='decimal';if(name.startsWith('cheque'))i.inputMode='numeric';}box.className='bank-field';box.append(l,i);form.append(box);return i;}
+const choices=[['','Select Bank'],...banks.map(b=>[b,b])];
+function number(s){if(!/^\d{1,15}$/.test(s))throw Error('Cheque number শুধু সংখ্যা হবে (সর্বোচ্চ ১৫ অঙ্ক)।');const n=Number(s);if(!Number.isSafeInteger(n)||n<1)throw Error('Cheque number সঠিক নয়।');return n;}
+function plan(data,entry){const rows=Object.values(data||{}).filter(x=>x?.bankName===entry.bankName);if(entry.type==='range'){const a=number(entry.chequeFrom),b=number(entry.chequeTo);if(b<a)throw Error('From-এর চেয়ে To ছোট হতে পারবে না।');if(rows.some(r=>r.type==='range'&&a<=number(r.chequeTo)&&b>=number(r.chequeFrom)))throw Error('এই bank-এর cheque range আগে যোগ হয়েছে বা overlap করছে।');return [];}
+if(entry.type!=='withdrawal'||entry.withdrawBy!=='Cheque')return [];
+const n=number(entry.chequeNumber),ranges=rows.filter(r=>r.type==='range').sort((a,b)=>number(a.chequeFrom)-number(b.chequeFrom));if(!ranges.some(r=>n>=number(r.chequeFrom)&&n<=number(r.chequeTo)))throw Error('এই cheque number নিবন্ধিত range-এর বাইরে।');
+const used=new Set();for(const r of rows){if(r.type==='cheque'||r.type==='withdrawal'&&r.withdrawBy==='Cheque'){if(/^\d+$/.test(r.chequeNumber||''))used.add(Number(r.chequeNumber));for(const skip of r.missingCheques||[])used.add(Number(skip.number));}}
+if(used.has(n))throw Error('এই cheque আগে ব্যবহার হয়েছে বা missing হিসেবে কারণ জমা আছে।');
+const missing=[];for(const range of ranges){const end=Math.min(n-1,number(range.chequeTo));for(let k=number(range.chequeFrom);k<=end;k++){if(!used.has(k)){missing.push(String(k).padStart(range.chequeFrom.length,'0'));if(missing.length>200)throw Error('২০০টির বেশি cheque বাদ পড়েছে। আগে ছোট cheque number থেকে হিসাব সম্পূর্ণ করুন।');}}}return missing;
 }
-function render(){const list=document.getElementById('bankList');if(!list)return;list.replaceChildren();const rows=Object.values(items).filter(x=>x && x.scope==='company' && x.type===mode).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||(b.createdAt||0)-(a.createdAt||0));document.getElementById('bankSummary').textContent=`Total ৳${fmt(rows.reduce((n,x)=>n+(Number(x.amount)||0),0))} · ${rows.length} entries`;
-if(!rows.length){list.textContent='কোনো তথ্য পাওয়া যায়নি।';return;}
-const table=el('table'),thead=el('thead'),tr=el('tr');['Date','Bank Name','Cheque Number','Amount','Details'].forEach(x=>tr.append(el('th',x)));thead.append(tr);table.append(thead);
-const body=el('tbody');rows.forEach(x=>{const row=el('tr');[x.date,x.bankName,x.chequeNumber||'—',`৳${fmt(x.amount)}`,x.note||'—'].forEach(v=>row.append(el('td',v)));body.append(row);});table.append(body);list.append(table);
+window.investmentChequePlan=plan;
+function ask(bank,numbers){return new Promise(resolve=>{const overlay=el('div');overlay.className='cheque-modal';const card=el('div');card.className='cheque-dialog';card.setAttribute('role','dialog');card.setAttribute('aria-modal','true');card.append(el('h3',bank+' — Missing Cheque'),el('p','বাদ পড়া cheque: '+numbers.join(', ')));const f=el('form');const reason=input(f,'কারণ','reason','text',true,[['','Select reason'],['Wrong amount','Wrong amount'],['Writing mistake','Writing mistake'],['Bank Balance problem','Bank Balance problem']]);const yes=el('button','কারণ দিয়ে Submit'),no=el('button','বাতিল');yes.type='submit';no.type='button';no.onclick=()=>finish(null);f.onsubmit=e=>{e.preventDefault();if(f.reportValidity())finish(numbers.map(number=>({number,reason:reason.value})));};function finish(v){overlay.remove();resolve(v);}f.append(yes,no);card.append(f);overlay.append(card);document.body.append(overlay);reason.focus();});}
+function show(type){mode=type;content.replaceChildren();menu.replaceChildren();document.getElementById('bankApp').hidden=false;
+const card=el('div');card.className='card bank-card';card.append(el('h2',({range:'Cheque Number Entry',withdrawal:'Bank Cheque Withdraw',cheque:'Bank Cheque Tracker',debit:'Bank Debit'})[type]));content.append(card);
+if(type==='range'||type==='withdrawal'||type==='debit'){
+const form=el('form');form.className='bank-form';const date=input(form,'Date','date','date');date.max=dateNow();if(type!=='withdrawal')date.value=dateNow();const bank=input(form,'Bank Name','bankName','text',true,choices);
+if(type==='range'){input(form,'Cheque Number From','chequeFrom');input(form,'Cheque Number To','chequeTo');}
+else{const amt=input(form,'Amount','amount');amt.addEventListener('blur',()=>{const n=Number(amt.value.replace(/,/g,''));if(n>0)amt.value=fmt(n);});
+if(type==='withdrawal'){const via=input(form,'Withdraw By','withdrawBy','text',true,[['','Select'],['Cheque','Cheque'],['APP','APP']]);const cheque=input(form,'Cheque Number','chequeNumber');cheque.parentElement.hidden=true;cheque.required=false;via.onchange=()=>{cheque.parentElement.hidden=via.value!=='Cheque';cheque.required=via.value==='Cheque';if(!cheque.required)cheque.value='';};input(form,'Withdrawer Name','withdrawerName');const purpose=input(form,'Reason','purpose','text',true,[['','Select reason'],['For lifting','For lifting'],['For DSO Cash','For DSO Cash'],['Others','Others']]);const note=input(form,'Details','note','text',false);note.parentElement.hidden=true;purpose.onchange=()=>{note.required=purpose.value==='Others';note.parentElement.hidden=!note.required;if(!note.required)note.value='';};}else input(form,'Details','note','text',false);}
+const message=el('p');message.setAttribute('role','status');const save=el('button','Submit');save.type='submit';save.className='save';save.disabled=preview;form.append(save);card.append(form,message);
+form.onsubmit=async e=>{e.preventDefault();if(preview||bridge.getUser()!=='admin'||!form.reportValidity())return;save.disabled=true;try{const entry=Object.fromEntries(new FormData(form));for(const k of Object.keys(entry))entry[k]=entry[k].trim();entry.type=type;entry.scope='company';if(!/^\d{4}-\d{2}-\d{2}$/.test(entry.date)||entry.date>dateNow())throw Error('সঠিক Date নির্বাচন করুন।');if(!banks.includes(entry.bankName))throw Error('Bank নির্বাচন করুন।');if(type!=='range'){const raw=entry.amount.replace(/,/g,'');if(!/^\d+(\.\d{1,2})?$/.test(raw)||Number(raw)<=0||Number(raw)>1e12)throw Error('সঠিক Amount দিন।');entry.amount=Number(raw);}message.textContent='তথ্য যাচাই হচ্ছে…';const ref=db.ref('bankTrackerEntries');const current=(await ref.get()).val()||{};const missing=plan(current,entry);entry.missingCheques=missing.length?await ask(entry.bankName,missing):[];if(entry.missingCheques===null){message.textContent='Submit বাতিল হয়েছে।';return;}
+entry.createdBy='admin';entry.createdAt=bridge.serverTimestamp;const key=ref.push().key;let problem='';const result=await ref.transaction(data=>{if(bridge.getUser()!=='admin'){problem='আবার admin login করুন।';return;}data=data||{};try{const latest=plan(data,entry);if(JSON.stringify(latest)!==JSON.stringify(missing))throw Error('অন্য browser-এ cheque হিসাব পরিবর্তিত হয়েছে। আবার Submit করুন।');}catch(error){problem=error.message;return;}return {...data,[key]:entry};},undefined,false);if(!result.committed)throw Error(problem||'Save হয়নি। আবার চেষ্টা করুন।');form.reset();if(type!=='withdrawal')date.value=dateNow();form.elements.withdrawBy?.dispatchEvent(new Event('change'));form.elements.purpose?.dispatchEvent(new Event('change'));message.textContent='✅ Submit successfully';setTimeout(()=>{if(message.isConnected)message.textContent='';},3000);
+}catch(error){message.textContent='Submit হয়নি: '+error.message;}finally{save.disabled=preview;}};
 }
-window.addEventListener('pagehide',stop);window.bankNavigate=show;show('cheque');
+const filters=el('div');filters.className='bank-filters';const fd=input(filters,'Date filter','filterDate','date',false);fd.value=dateNow();const fb=input(filters,'Bank Name filter','filterBank','text',false,[['','All Banks'],...banks.map(b=>[b,b])]);const all=el('button','All dates');all.type='button';all.onclick=()=>{fd.value='';render();};filters.append(all);fd.onchange=fb.onchange=render;card.append(filters);const summary=el('p');summary.id='bankSummary';card.append(summary);const list=el('div');list.id='bankList';list.className='scroll';card.append(list);render();
+}
+function render(){const list=document.getElementById('bankList');if(!list)return;list.replaceChildren();if(!ready){list.append(el('p','ডাটা আসছে…'));return;}const d=document.getElementById('bank_filterDate').value,b=document.getElementById('bank_filterBank').value;const rows=Object.values(items).filter(x=>x?.scope==='company'&&(mode==='range'?x.type==='range':mode==='debit'?x.type==='debit':['withdrawal','cheque'].includes(x.type))&&(!d||x.date===d)&&(!b||x.bankName===b)).sort((a,b)=>String(b.date).localeCompare(String(a.date))||(b.createdAt||0)-(a.createdAt||0));document.getElementById('bankSummary').textContent=rows.length+' entries · Total ৳'+fmt(rows.reduce((sum,x)=>sum+(Number(x.amount)||0),0));if(!rows.length){list.append(el('p','নির্বাচিত filter-এ কোনো তথ্য নেই।'));return;}const table=el('table'),head=el('thead'),tr=el('tr');const labels=mode==='range'?['Date','Bank','Cheque From','Cheque To']:['Date','Bank','Withdraw By','Cheque','Amount','Withdrawer','Reason / Details','Missing Cheques'];labels.forEach(x=>tr.append(el('th',x)));head.append(tr);table.append(head);const body=el('tbody');for(const x of rows){const row=el('tr');const values=mode==='range'?[x.date,x.bankName,x.chequeFrom,x.chequeTo]:[x.date,x.bankName,x.withdrawBy||(x.type==='cheque'?'Cheque':'—'),x.chequeNumber||'—','৳'+fmt(x.amount),x.withdrawerName||'—',[x.purpose,x.note].filter(Boolean).join(' · ')||'—',(x.missingCheques||[]).map(k=>k.number+': '+k.reason).join('; ')||'—'];values.forEach(v=>row.append(el('td',v)));body.append(row);}table.append(body);list.append(table);}
+if(!preview){stream=db.ref('bankTrackerEntries');stream.on('value',s=>{if(bridge.getUser()!=='admin')return;items=s.val()||{};ready=true;render();},e=>{ready=false;const list=document.getElementById('bankList');if(list)list.textContent='ডাটা পড়া যায়নি: '+e.message;});window.addEventListener('pagehide',()=>stream.off());}
+window.bankNavigate=show;show('range');
 })();
 </script><script>
 (()=>{
@@ -515,7 +507,7 @@ window.addEventListener('pagehide',stop);window.bankNavigate=show;show('cheque')
    catch(error){alert('ডাটা পরিষ্কার হয়নি: '+error.message);clear.disabled=false;clear.textContent='🗑 পরীক্ষার ডাটা পরিষ্কার';}
   };
  }
- const ids={capital:'showWorkingCapital',capitalReport:'showWorkingCapitalReport',calculator:'showBalanceCalculator',petty:'showPettyCash',pettyReport:'showPettyCashReport',total:'showTotalInvestment',bankCheque:'showBankCheque',bankDebit:'showBankDebit'};
+ const ids={capital:'showWorkingCapital',capitalReport:'showWorkingCapitalReport',calculator:'showBalanceCalculator',petty:'showPettyCash',pettyReport:'showPettyCashReport',total:'showTotalInvestment',bankRange:'showChequeEntry',bankWithdraw:'showBankWithdraw',bankCheque:'showBankCheque',bankDebit:'showBankDebit'};
  const groups=[...tabs.querySelectorAll('.module-dropdown')];
  const closeDropdowns=except=>groups.forEach(group=>{if(group!==except)group.open=false;});
  groups.forEach(group=>{
@@ -527,13 +519,13 @@ window.addEventListener('pagehide',stop);window.bankNavigate=show;show('cheque')
  document.addEventListener('keydown',event=>{if(event.key==='Escape'){const openGroup=groups.find(group=>group.open);closeDropdowns();openGroup?.querySelector('summary')?.focus();}});
  function open(which){
   try{sessionStorage.setItem('investmentLastPage',which);}catch(e){}
-  const isBank=which==='bankCheque'||which==='bankDebit';
+  const isBank=['bankRange','bankWithdraw','bankCheque','bankDebit'].includes(which);
   investment.hidden=isBank;bank.hidden=!isBank;
   Object.entries(ids).forEach(([key,id])=>document.getElementById(id).classList.toggle('active',key===which));
   const group=which==='capital'||which==='capitalReport'||which==='calculator'?'navWorkingCapital':which==='petty'||which==='pettyReport'?'navPettyCash':isBank?'navBank':'';
   groups.forEach(item=>item.classList.toggle('active',item.id===group));
   closeDropdowns();
-  if(isBank)window.bankNavigate(which==='bankDebit'?'debit':'cheque');
+  if(isBank)window.bankNavigate(({bankRange:'range',bankWithdraw:'withdrawal',bankCheque:'cheque',bankDebit:'debit'})[which]);
   else window.investmentNavigate(which);
  }
  Object.entries(ids).forEach(([key,id])=>document.getElementById(id).onclick=()=>open(key));
