@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.10.08.1">
+<meta name="investment-release-version" content="2026.10.08.2">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -534,7 +534,7 @@ window.bankNavigate=show;show('range');
    if(!approved)return;
    if(bridge.getUser()!=='admin')return;
    clear.disabled=true;clear.textContent='ডাটা পরিষ্কার হচ্ছে…';
-   try{await bridge.database.ref().update({investmentEntries:null,bankTrackerEntries:null});alert('Investment পেজের পরীক্ষার ডাটা পরিষ্কার হয়েছে।');location.reload();}
+   try{await bridge.database.ref('investmentEntries').root.update({investmentEntries:null,bankTrackerEntries:null});alert('Investment পেজের পরীক্ষার ডাটা পরিষ্কার হয়েছে।');location.reload();}
    catch(error){alert('ডাটা পরিষ্কার হয়নি: '+error.message);clear.disabled=false;clear.textContent='🗑 Investment-এর সব পরীক্ষার ডাটা মুছুন';}
   };
  }
