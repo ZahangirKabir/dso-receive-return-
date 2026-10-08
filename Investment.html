@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.10.08.2">
+<meta name="investment-release-version" content="2026.10.08.3">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -217,7 +217,7 @@ function cashBalances(date){let deposits=0,spentBefore=0,spentToday=0;
  });
  return {opening:Math.round((deposits-spentBefore)*100)/100,available:Math.round((deposits-spentBefore-spentToday)*100)/100};
 }
-function show(key){page=key;menu.replaceChildren();content.replaceChildren();
+function show(key){window.stopCalculatorWithdrawalSync?.();page=key;menu.replaceChildren();content.replaceChildren();
  const children=key==='capital'||key==='capitalReport'?
   [['capital','Daily Working Capital'],['capitalReport','Working Capital Report']]:
   key==='petty'||key==='pettyReport'?
@@ -338,15 +338,23 @@ function balanceCalculator(){
  [maOpening,receive,send,netMA].forEach(x=>x.readOnly=true);
  const bankArea=section(form,'Bank Balance Calculation'),choice=select(bankArea,'Bank','calc_bank',[['','—'],...banks.map(b=>[b,b])]);choice.required=false;
  const bankOpening=field(bankArea,'Opening Balance','calc_bank_opening'),deposit=field(bankArea,'Bank Deposit','calc_bank_deposit'),transfer=field(bankArea,'Fund Transfer','calc_bank_transfer'),withdraw=field(bankArea,'Withdraw by Cheque','calc_bank_withdraw'),netBank=field(bankArea,'Net Bank Balance','calc_net_bank');
- [bankOpening,deposit,netBank].forEach(x=>x.readOnly=true);
+ [bankOpening,deposit,transfer,withdraw,netBank].forEach(x=>x.readOnly=true);
  const results=node('div');results.className='card';form.append(results);
  const refresh=node('button','↻ Refresh Source Data');refresh.type='button';refresh.className='add-row';form.append(refresh);
- const {save,status}=submitTools(form,box);let loading=true,busy=false,loaded=false,sourceEpoch=0,bankDrafts={},previous=null,approved=[],maValue=0,bankValue=0;
+ const {save,status}=submitTools(form,box);let loading=true,busy=false,loaded=false,sourceEpoch=0,bankDrafts={},previous=null,approved=[],withdrawalRows=[],maValue=0,bankValue=0;
  const numeric=x=>amount(x.value);
  const prior=()=>Object.values(items).filter(x=>x?.scope==='company'&&x.type==='capital'&&x.date<date.value&&x.closing).sort((a,b)=>b.date.localeCompare(a.date))[0];
  const bankKey=x=>String(x||'').toLowerCase().replace(/[^a-z]/g,'');
  const matching=(name,bank)=>{const x=bankKey(name),b=bankKey(bank);return x===b||x.startsWith(b)||(bank==='Agroni'&&x.startsWith('agrani'))||(bank==='Islami'&&x.startsWith('islamibank'))||(bank==='DBBL'&&(x.includes('dutchbangla')||x==='dbbl'));};
  const countBank=bank=>approved.filter(x=>matching(x.bankName,bank)).reduce((n,x)=>n+Number(x.amount||0),0);
+ const withdrawalTotal=(bank,via)=>withdrawalRows.filter(x=>x?.type==='withdrawal'&&x.scope==='company'&&x.date===date.value&&x.withdrawBy===via&&matching(x.bankName,bank)).reduce((n,x)=>n+Math.round((Number(x.amount)||0)*100),0)/100;
+ function syncWithdrawalDrafts(){Object.entries(bankDrafts).forEach(([b,x])=>{x.fundTransfer=withdrawalTotal(b,'APP');x.chequeWithdrawal=withdrawalTotal(b,'Cheque');x.net=Math.round((Number(x.opening||0)+Number(x.deposit||0)-x.fundTransfer-x.chequeWithdrawal)*100)/100;});}
+ function watchWithdrawals(selectedDate,epoch){
+  window.stopCalculatorWithdrawalSync?.();const ref=database.ref('bankTrackerEntries').orderByChild('date').equalTo(selectedDate);
+  const handler=snap=>{if(!form.isConnected||epoch!==sourceEpoch||date.value!==selectedDate||String(bridge.getUser())!==owner){stop();return;}withdrawalRows=Object.values(snap.val()||{});syncWithdrawalDrafts();choice.onchange();};
+  const stop=()=>{ref.off('value',handler);if(window.stopCalculatorWithdrawalSync===stop)window.stopCalculatorWithdrawalSync=null;};
+  window.stopCalculatorWithdrawalSync=stop;ref.on('value',handler,e=>{if(!form.isConnected||epoch!==sourceEpoch)return;loaded=false;status.textContent='Withdrawal হিসাব লোড হয়নি: '+e.message;paint();});
+ }
  function paint(){
   save.disabled=preview||loading||busy||!loaded;
   if(loading)return;
@@ -357,25 +365,26 @@ function balanceCalculator(){
    netMA.closest('.field').style.color=maValue<0?'#b91c1c':'#00695c';
   }catch(e){status.textContent=e.message;}
  }
- choice.onchange=()=>{const b=choice.value,x=bankDrafts[b]||{};bankOpening.value=inputMoney(previous?.closing?.banks?.[b]||0);deposit.value=inputMoney(countBank(b));transfer.value=inputMoney(x.fundTransfer||0);withdraw.value=inputMoney(x.chequeWithdrawal||0);netBank.closest('.field').querySelector('label').textContent=b?'Net '+b+' Balance':'Net Bank Balance';paint();};
+ choice.onchange=()=>{const b=choice.value,x=bankDrafts[b]||{};bankOpening.value=inputMoney(previous?.closing?.banks?.[b]||0);deposit.value=inputMoney(countBank(b));transfer.value=inputMoney(withdrawalTotal(b,'APP'));withdraw.value=inputMoney(withdrawalTotal(b,'Cheque'));netBank.closest('.field').querySelector('label').textContent=b?'Net '+b+' Balance':'Net Bank Balance';paint();};
  form.addEventListener('input',paint);
  async function source(){
+  window.stopCalculatorWithdrawalSync?.();withdrawalRows=[];
   if(!date.value){++sourceEpoch;loading=false;loaded=false;save.disabled=true;refresh.disabled=false;status.textContent='প্রথমে তারিখ নির্বাচন করুন।';return;}
   if(preview){loading=false;status.textContent='Admin হিসেবে Collection Portal-এর Investment menu থেকে খুলুন।';paint();return;}
   const selectedDate=date.value,epoch=++sourceEpoch;
   loading=true;loaded=false;save.disabled=true;refresh.disabled=true;status.textContent='Opening এবং দিনের হিসাব লোড হচ্ছে…';
   let timer;
   try{
-   const snapshots=await Promise.race([Promise.all([database.ref('investmentEntries').once('value'),database.ref('collections').orderByChild('date').equalTo(selectedDate).once('value'),database.ref('bankSlipRequests').orderByChild('date').equalTo(selectedDate).once('value'),database.ref('ledgerAccounts').orderByChild('date').equalTo(selectedDate).once('value')]),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Source data load timeout. Refresh করুন।')),12000);})]);
+   const snapshots=await Promise.race([Promise.all([database.ref('investmentEntries').once('value'),database.ref('collections').orderByChild('date').equalTo(selectedDate).once('value'),database.ref('bankSlipRequests').orderByChild('date').equalTo(selectedDate).once('value'),database.ref('ledgerAccounts').orderByChild('date').equalTo(selectedDate).once('value'),database.ref('bankTrackerEntries').orderByChild('date').equalTo(selectedDate).once('value')]),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Source data load timeout. Refresh করুন।')),12000);})]);
    if(!form.isConnected||String(bridge.getUser())!==owner||epoch!==sourceEpoch||selectedDate!==date.value)return;
-   items=snapshots[0].val()||{};dataReady=true;previous=prior();
+   items=snapshots[0].val()||{};withdrawalRows=Object.values(snapshots[4].val()||{});dataReady=true;previous=prior();
    const totals=selectedDateDsoTotals(snapshots[1].val(),snapshots[3].val(),selectedDate);
    approved=Object.values(snapshots[2].val()||{}).filter(x=>x&&x.date===date.value&&x.status==='approved').flatMap(x=>Array.isArray(x.slips)?x.slips.map(slip=>({bankName:slip.bankName,amount:Number(slip.amt||0)})):[x]);
    const saved=items[date.value+'_calculator'];bankDrafts=saved?.bankCalculations||{};
    maOpening.value=inputMoney(previous?.closing?.maWallet||0);lifting.value=inputMoney(saved?.lifting||0);
    receive.value=inputMoney(totals.receive);send.value=inputMoney(totals.send);
-   Object.entries(bankDrafts).forEach(([b,x])=>{x.opening=Number(previous?.closing?.banks?.[b]||0);x.deposit=countBank(b);x.net=Math.round((x.opening+x.deposit-Number(x.fundTransfer||0)-Number(x.chequeWithdrawal||0))*100)/100;});loaded=true;loading=false;choice.onchange();paint();
-   status.textContent=(previous?'Opening source: '+previous.date:'আগের Working Capital নেই; Opening ০।')+' · '+totals.count+' DSO reports · Approved Bank Slip থেকে Deposit। Lifting লিখুন।';
+   Object.entries(bankDrafts).forEach(([b,x])=>{x.opening=Number(previous?.closing?.banks?.[b]||0);x.deposit=countBank(b);x.net=Math.round((x.opening+x.deposit-Number(x.fundTransfer||0)-Number(x.chequeWithdrawal||0))*100)/100;});syncWithdrawalDrafts();loaded=true;loading=false;choice.onchange();paint();watchWithdrawals(selectedDate,epoch);
+   status.textContent=(previous?'Opening source: '+previous.date:'আগের Working Capital নেই; Opening ০।')+' · '+totals.count+' DSO reports · Approved Bank Slip থেকে Deposit · একই তারিখের APP → Fund Transfer, Cheque → Withdraw by Cheque। Lifting লিখুন।';
   }catch(e){if(epoch!==sourceEpoch)return;loading=false;status.textContent='ডাটা পাওয়া যায়নি: '+e.message;paint();}finally{clearTimeout(timer);if(epoch===sourceEpoch)refresh.disabled=false;}
  }
  refresh.onclick=source;
@@ -501,7 +510,7 @@ const missing=[];for(const range of ranges){const end=Math.min(n-1,number(range.
 }
 window.investmentChequePlan=plan;
 function ask(bank,numbers){return new Promise(resolve=>{const overlay=el('div');overlay.className='cheque-modal';const card=el('div');card.className='cheque-dialog';card.setAttribute('role','dialog');card.setAttribute('aria-modal','true');card.append(el('h3',bank+' — Missing Cheque'),el('p','বাদ পড়া cheque: '+numbers.join(', ')));const f=el('form');const reason=input(f,'কারণ','reason','text',true,[['','—'],['Wrong amount','Wrong amount'],['Writing mistake','Writing mistake'],['Bank Balance problem','Bank Balance problem']]);const yes=el('button','কারণ দিয়ে Submit'),no=el('button','বাতিল');yes.type='submit';no.type='button';no.onclick=()=>finish(null);f.onsubmit=e=>{e.preventDefault();if(f.reportValidity())finish(numbers.map(number=>({number,reason:reason.value})));};function finish(v){overlay.remove();resolve(v);}f.append(yes,no);card.append(f);overlay.append(card);document.body.append(overlay);reason.focus();});}
-function show(type){mode=type;content.replaceChildren();menu.replaceChildren();document.getElementById('bankApp').hidden=false;
+function show(type){window.stopCalculatorWithdrawalSync?.();mode=type;content.replaceChildren();menu.replaceChildren();document.getElementById('bankApp').hidden=false;
 const card=el('div');card.className='card bank-card';card.append(el('h2',({range:'Cheque Number Entry',withdrawal:'witdrow',cheque:'Bank Cheque Tracker',debit:'Bank Debit'})[type]));content.append(card);
 if(type==='range'||type==='withdrawal'||type==='debit'){
 const form=el('form');form.className='bank-form';const date=input(form,'Date','date','date');date.max=dateNow();if(type!=='withdrawal')date.value=dateNow();const bank=input(form,'Bank Name','bankName','text',true,choices);
