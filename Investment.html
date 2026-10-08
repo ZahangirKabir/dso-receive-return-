@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.10.08.3">
+<meta name="investment-release-version" content="2026.10.08.4">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -162,6 +162,19 @@ form button.save{width:180px;min-height:40px!important;padding:9px 16px!importan
  <button type="button" id="clearInvestmentData" class="clear-investment-data" hidden>🗑 Investment-এর সব পরীক্ষার ডাটা মুছুন</button>
 </nav><main id="app" hidden><nav id="menu" class="menu" aria-label="Investment submenu"></nav><section id="content"></section></main><p id="bankAccess" hidden></p><main id="bankApp" hidden><nav id="bankMenu" class="menu"></nav><section id="bankContent"></section></main><footer id="investmentCopyright" class="investment-footer" hidden>Copyright © 2026 <strong>Zahangir Kabir</strong>. All rights reserved.</footer>
 <script>
+// Temporary manual testing mode. Disable/remove this module for the final release.
+window.INVESTMENT_MANUAL_TEST=true;
+window.prepareInvestmentTestInput=function(input){
+ if(!window.INVESTMENT_MANUAL_TEST)return input;
+ const value=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');
+ let automatic=false;
+ Object.defineProperty(input,'readOnly',{configurable:true,get:()=>false,set:v=>{automatic=automatic||!!v;}});
+ Object.defineProperty(input,'value',{configurable:true,get:()=>value.get.call(input),set:v=>{if(!automatic||input.dataset.testManual!=='true')value.set.call(input,v);}});
+ input.addEventListener('input',()=>{if(automatic)input.dataset.testManual='true';});
+ return input;
+};
+document.addEventListener('change',event=>{if(event.target.matches('input[type=date],select[name=calc_bank]'))document.querySelectorAll('[data-test-manual]').forEach(input=>delete input.dataset.testManual);},true);
+</script><script>
 // All Investment form, Working Capital reports and Petty Cash accounting live here.
 (()=>{'use strict';
 let bridge;
@@ -180,7 +193,7 @@ const inputMoney=n=>Number(n||0)===0?'':money(n);
 function today(){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const part=key=>parts.find(x=>x.type===key).value;return `${part('year')}-${part('month')}-${part('day')}`;}
 function stop(){if(stream){stream.off('value',handler);stream=null;handler=null;}}
 function field(area,label,name,type='number',required=false){
- const box=node('div');box.className='field';box.append(node('label',label));const input=node('input');input.name=name;input.type=type==='number'?'text':type;input.required=required;
+ const box=node('div');box.className='field';box.append(node('label',label));const input=window.prepareInvestmentTestInput(node('input'));input.name=name;input.type=type==='number'?'text':type;input.required=required;
  if(type==='number'){input.inputMode='decimal';input.addEventListener('blur',()=>{if(input.value.trim()){try{input.value=inputMoney(amount(input.value));}catch{input.setCustomValidity('সঠিক টাকার অঙ্ক লিখুন।');input.reportValidity();}}});input.addEventListener('input',()=>input.setCustomValidity(''));}
  if(type==='date')input.value=today();box.append(input);area.append(box);return input;
 }
@@ -295,9 +308,9 @@ function capitalForm(){
    const commission=collectCommissions(commissions),headOfficeReceive=collectReceived(receipts),headOfficeTransfer=collectReceived(headTransfers);
    const transfers={salary:amount(form.elements.transfer_salary.value),routeConvence:amount(form.elements.transfer_route.value),petty:amount(form.elements.transfer_petty.value)};
    const total=a=>a.maWallet+a.cashInHand+a.cashInOffice+Object.values(a.banks).reduce((s,n)=>s+n,0);
-   const openingTotal=total(opening)+commission.reduce((sum,x)=>sum+x.amount,0)+headOfficeReceive.reduce((sum,x)=>sum+x.amount,0);
-   const closingTotal=total(closing)+headOfficeTransfer.reduce((sum,x)=>sum+x.amount,0)+transfers.salary+transfers.routeConvence+transfers.petty;
-   if(Math.round(openingTotal*100)!==Math.round(closingTotal*100))throw Error(`Total Opening Balance ৳${money(openingTotal)} এবং Total Closing Balance ৳${money(closingTotal)} সমান নয়। পার্থক্য থাকলে Submit হবে না।`);
+   const openingTotal=form.elements.opening_total.dataset.testManual==='true'?amount(form.elements.opening_total.value):total(opening)+commission.reduce((sum,x)=>sum+x.amount,0)+headOfficeReceive.reduce((sum,x)=>sum+x.amount,0);
+   const closingTotal=form.elements.closing_total.dataset.testManual==='true'?amount(form.elements.closing_total.value):total(closing)+headOfficeTransfer.reduce((sum,x)=>sum+x.amount,0)+transfers.salary+transfers.routeConvence+transfers.petty;
+   if(!window.INVESTMENT_MANUAL_TEST&&Math.round(openingTotal*100)!==Math.round(closingTotal*100))throw Error(`Total Opening Balance ৳${money(openingTotal)} এবং Total Closing Balance ৳${money(closingTotal)} সমান নয়। পার্থক্য থাকলে Submit হবে না।`);
    const record={type:'capital',date,scope:'company',opening,closing,commission,headOfficeReceive,headOfficeTransfer,transfers,
     openingTotal,closingTotal,pettyCashTransfer:transfers.petty,createdBy:owner,createdAt:bridge.serverTimestamp};
    saving=true;selectedDate.disabled=true;syncCapitalState();status.textContent='Saving…';
@@ -359,8 +372,8 @@ function balanceCalculator(){
   save.disabled=preview||loading||busy||!loaded;
   if(loading)return;
   try{
-   maValue=Math.round((numeric(maOpening)+numeric(lifting)+numeric(receive)-numeric(send))*100)/100;netMA.value=inputMoney(maValue);
-   if(choice.value){bankValue=Math.round((numeric(bankOpening)+numeric(deposit)-numeric(transfer)-numeric(withdraw))*100)/100;netBank.value=inputMoney(bankValue);bankDrafts[choice.value]={opening:numeric(bankOpening),deposit:numeric(deposit),fundTransfer:numeric(transfer),chequeWithdrawal:numeric(withdraw),net:bankValue};}
+   maValue=netMA.dataset.testManual==='true'?numeric(netMA):Math.round((numeric(maOpening)+numeric(lifting)+numeric(receive)-numeric(send))*100)/100;netMA.value=inputMoney(maValue);
+   if(choice.value){bankValue=netBank.dataset.testManual==='true'?numeric(netBank):Math.round((numeric(bankOpening)+numeric(deposit)-numeric(transfer)-numeric(withdraw))*100)/100;netBank.value=inputMoney(bankValue);bankDrafts[choice.value]={opening:numeric(bankOpening),deposit:numeric(deposit),fundTransfer:numeric(transfer),chequeWithdrawal:numeric(withdraw),net:bankValue};}
    results.replaceChildren();Object.entries(bankDrafts).forEach(([b,x])=>results.append(node('p',b+' Net Balance: ৳'+money(x.net))));
    netMA.closest('.field').style.color=maValue<0?'#b91c1c':'#00695c';
   }catch(e){status.textContent=e.message;}
@@ -392,8 +405,8 @@ function balanceCalculator(){
  form.onsubmit=async event=>{
   event.preventDefault();if(busy||!loaded||loading||preview||!form.reportValidity()||String(bridge.getUser())!==owner)return;
   try{paint();const ma={opening:numeric(maOpening),lifting:numeric(lifting),b2bReceive:numeric(receive),b2bSend:numeric(send)};
-   const net=Math.round((ma.opening+ma.lifting+ma.b2bReceive-ma.b2bSend)*100)/100;
-   if(net<0||Object.values(bankDrafts).some(x=>x.net<0))throw Error('Net balance ঋণাত্মক। অঙ্কগুলো যাচাই করুন।');
+   const net=netMA.dataset.testManual==='true'?numeric(netMA):Math.round((ma.opening+ma.lifting+ma.b2bReceive-ma.b2bSend)*100)/100;
+   if(!window.INVESTMENT_MANUAL_TEST&&(net<0||Object.values(bankDrafts).some(x=>x.net<0)))throw Error('Net balance ঋণাত্মক। অঙ্কগুলো যাচাই করুন।');
    busy=true;date.disabled=true;paint();status.textContent='Saving…';
    const record={type:'calculator',scope:'company',date:date.value,...ma,netMA:net,bankCalculations:bankDrafts,updatedAt:bridge.serverTimestamp,updatedBy:owner};
    await database.ref('investmentEntries/'+date.value+'_calculator').set(record);
@@ -501,7 +514,7 @@ const dateNow=()=>{const d=today();return d.year+'-'+d.month+'-'+d.day;};const f
 function input(form,label,name,type='text',required=true,choices){const box=el('div'),l=el('label',label),i=el(choices?'select':'input');i.name=name;i.id='bank_'+name;l.htmlFor=i.id;i.required=required;if(choices){for(const [v,text]of choices){const o=el('option',text);o.value=v;i.append(o);}}else{i.type=type;i.maxLength=200;if(name==='amount')i.inputMode='decimal';if(name.startsWith('cheque'))i.inputMode='numeric';}box.className='bank-field';box.append(l,i);form.append(box);return i;}
 const choices=[['','—'],...banks.map(b=>[b,b])];
 function number(s){if(!/^\d{1,15}$/.test(s))throw Error('Cheque number শুধু সংখ্যা হবে (সর্বোচ্চ ১৫ অঙ্ক)।');const n=Number(s);if(!Number.isSafeInteger(n)||n<1)throw Error('Cheque number সঠিক নয়।');return n;}
-function plan(data,entry){const rows=Object.values(data||{}).filter(x=>x?.bankName===entry.bankName);if(entry.type==='range'){const a=number(entry.chequeFrom),b=number(entry.chequeTo);if(b<a)throw Error('From-এর চেয়ে To ছোট হতে পারবে না।');if(rows.some(r=>r.type==='range'&&a<=number(r.chequeTo)&&b>=number(r.chequeFrom)))throw Error('এই bank-এর cheque range আগে যোগ হয়েছে বা overlap করছে।');return [];}
+function plan(data,entry){if(window.INVESTMENT_MANUAL_TEST)return [];const rows=Object.values(data||{}).filter(x=>x?.bankName===entry.bankName);if(entry.type==='range'){const a=number(entry.chequeFrom),b=number(entry.chequeTo);if(b<a)throw Error('From-এর চেয়ে To ছোট হতে পারবে না।');if(rows.some(r=>r.type==='range'&&a<=number(r.chequeTo)&&b>=number(r.chequeFrom)))throw Error('এই bank-এর cheque range আগে যোগ হয়েছে বা overlap করছে।');return [];}
 if(entry.type!=='withdrawal'||entry.withdrawBy!=='Cheque')return [];
 const n=number(entry.chequeNumber),ranges=rows.filter(r=>r.type==='range').sort((a,b)=>number(a.chequeFrom)-number(b.chequeFrom));if(!ranges.some(r=>n>=number(r.chequeFrom)&&n<=number(r.chequeTo)))throw Error('এই cheque number নিবন্ধিত range-এর বাইরে।');
 const used=new Set();for(const r of rows){if(r.type==='cheque'||r.type==='withdrawal'&&r.withdrawBy==='Cheque'){if(/^\d+$/.test(r.chequeNumber||''))used.add(Number(r.chequeNumber));for(const skip of r.missingCheques||[])used.add(Number(skip.number));}}
