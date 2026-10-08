@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investment · Collection Portal</title>
-<meta name="investment-release-version" content="2026.10.07.4">
+<meta name="investment-release-version" content="2026.10.08.1">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -159,7 +159,7 @@ form button.save{width:180px;min-height:40px!important;padding:9px 16px!importan
  <details id="navPettyCash" class="module-dropdown"><summary>💵 Petty Cash <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Petty Cash submenu"><button type="button" id="showPettyCash">Daily Petty Cash</button><button type="button" id="showPettyCashReport">Daily Petty Cash Report</button></div></details>
  <button type="button" id="showTotalInvestment">📊 Total Investment</button>
  <details id="navBank" class="module-dropdown"><summary>🏦 Bank <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Bank submenu"><button type="button" id="showChequeEntry">Cheque Number Entry</button><button type="button" id="showBankWithdraw">witdrow</button><button type="button" id="showBankCheque">Bank Cheque Tracker</button><button type="button" id="showBankDebit">Bank Debit</button></div></details>
- <button type="button" id="clearInvestmentData" class="clear-investment-data" hidden>🗑 পরীক্ষার ডাটা পরিষ্কার</button>
+ <button type="button" id="clearInvestmentData" class="clear-investment-data" hidden>🗑 Investment-এর সব পরীক্ষার ডাটা মুছুন</button>
 </nav><main id="app" hidden><nav id="menu" class="menu" aria-label="Investment submenu"></nav><section id="content"></section></main><p id="bankAccess" hidden></p><main id="bankApp" hidden><nav id="bankMenu" class="menu"></nav><section id="bankContent"></section></main><footer id="investmentCopyright" class="investment-footer" hidden>Copyright © 2026 <strong>Zahangir Kabir</strong>. All rights reserved.</footer>
 <script>
 // All Investment form, Working Capital reports and Petty Cash accounting live here.
@@ -528,13 +528,14 @@ window.bankNavigate=show;show('range');
  const clear=document.getElementById('clearInvestmentData');let bridge=null;
  try{bridge=parent!==window&&parent.location.origin===location.origin?parent.portalInvestmentContext:null;}catch(_){bridge=null;}
  if(bridge?.database&&bridge.getUser?.()==='admin'){
-  clear.hidden=false;clear.onclick=async()=>{
-   const answer=prompt('শুধু Investment.html-এর জমা দেওয়া Working Capital, Petty Cash ও Bank Tracker পরীক্ষার সব ডাটা স্থায়ীভাবে মুছে যাবে। নিশ্চিত হলে CLEAR লিখুন:');
-   if(answer!=='CLEAR')return;
+  clear.hidden=false;clear.title='শুধু পরীক্ষা চলাকালীন ব্যবহার করুন। Final version-এ এই বাটন সরানো হবে।';clear.onclick=async()=>{
+   if(clear.disabled)return;
+   const approved=confirm('Investment-এর সব পরীক্ষার ডাটা মুছবেন?\n\nWorking Capital, MA & Bank Calculator, Petty Cash, Cheque Range, Withdrawal ও Bank Debit-এর সব জমা তথ্য মুছে যাবে।\n\nCollection Portal-এর DSO report ও Bank Slip মুছবে না।');
+   if(!approved)return;
    if(bridge.getUser()!=='admin')return;
    clear.disabled=true;clear.textContent='ডাটা পরিষ্কার হচ্ছে…';
    try{await bridge.database.ref().update({investmentEntries:null,bankTrackerEntries:null});alert('Investment পেজের পরীক্ষার ডাটা পরিষ্কার হয়েছে।');location.reload();}
-   catch(error){alert('ডাটা পরিষ্কার হয়নি: '+error.message);clear.disabled=false;clear.textContent='🗑 পরীক্ষার ডাটা পরিষ্কার';}
+   catch(error){alert('ডাটা পরিষ্কার হয়নি: '+error.message);clear.disabled=false;clear.textContent='🗑 Investment-এর সব পরীক্ষার ডাটা মুছুন';}
   };
  }
  const ids={capital:'showWorkingCapital',capitalReport:'showWorkingCapitalReport',calculator:'showBalanceCalculator',petty:'showPettyCash',pettyReport:'showPettyCashReport',total:'showTotalInvestment',bankRange:'showChequeEntry',bankWithdraw:'showBankWithdraw',bankCheque:'showBankCheque',bankDebit:'showBankDebit'};
