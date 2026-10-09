@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hisab360 · Investment</title>
-<meta name="investment-release-version" content="2026.10.09.1">
+<meta name="investment-release-version" content="2026.10.09.2">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -156,7 +156,7 @@ form button.save{width:180px;min-height:40px!important;padding:9px 16px!importan
 @media(max-width:380px){.fields,.bank-form,.bank-filters{grid-template-columns:minmax(0,1fr)!important}}
 </style><style id="hisab360-investment-brand">.hisab-investment-brand{display:flex;align-items:center;gap:18px;margin:0 0 16px;padding:15px 18px;background:#fff;border:1px solid #d7e8e4;border-radius:12px}.hisab-investment-brand img{width:170px;max-width:65%;height:auto}.hisab-investment-brand span{border-left:1px solid #bfd9d4;padding-left:18px;font-size:15px;font-weight:600;color:#245358}@media(max-width:560px){.hisab-investment-brand{padding:12px;gap:12px}.hisab-investment-brand img{width:140px}.hisab-investment-brand span{font-size:13px;padding-left:12px}}</style></head><body><p id="access" hidden></p><nav id="moduleMenu" class="menu" aria-label="Investment main navigation" hidden>
  <details id="navWorkingCapital" class="module-dropdown"><summary>💼 Working Capital <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Working Capital submenu"><button type="button" id="showWorkingCapital">Daily Working Capital</button><button type="button" id="showWorkingCapitalReport">Working Capital Report</button><button type="button" id="showBalanceCalculator">MA &amp; Bank Balance Calculator</button></div></details>
- <details id="navPettyCash" class="module-dropdown"><summary>💵 Petty Cash <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Petty Cash submenu"><button type="button" id="showPettyCash">Daily Petty Cash</button><button type="button" id="showPettyCashReport">Daily Petty Cash Report</button></div></details>
+ <details id="navPettyCash" class="module-dropdown"><summary>💵 Petty Cash <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Petty Cash submenu"><button type="button" id="showPettyDeclaration">Petty Cash Declaration</button><button type="button" id="showPettyCash">Daily Expense</button><button type="button" id="showPettyCashReport">Daily Petty Cash Report</button></div></details>
  <button type="button" id="showTotalInvestment">📊 Total Investment</button>
  <details id="navBank" class="module-dropdown"><summary>🏦 Bank <span aria-hidden="true" class="dropdown-arrow">⌄</span></summary><div class="module-dropdown-panel" role="group" aria-label="Bank submenu"><button type="button" id="showChequeEntry">Cheque Number Entry</button><button type="button" id="showBankWithdraw"> Withdraw</button><button type="button" id="showBankCheque">Bank Cheque Tracker</button><button type="button" id="showBankDebit">Bank Debit</button></div></details>
  <button type="button" id="clearInvestmentData" class="clear-investment-data" hidden>🗑 Investment-এর সব পরীক্ষার ডাটা মুছুন</button>
@@ -185,7 +185,7 @@ const owner=preview?'preview':String(bridge.getUser());
 const database=bridge.database,menu=document.getElementById('menu'),content=document.getElementById('content');
 document.getElementById('access').hidden=true;document.getElementById('app').hidden=false;
 const banks=['Islami','Pubali','City','DBBL','Agroni','UCB','Sonali'];
-const pages=[['capital','Daily Working Capital'],['capitalReport','Working Capital Report'],['petty','Daily Petty Cash'],['pettyReport','Daily Petty Cash Report'],['total','Total Investment']];
+const pages=[['capital','Daily Working Capital'],['capitalReport','Working Capital Report'],['declaration','Petty Cash Declaration'],['petty','Daily Expense'],['pettyReport','Daily Petty Cash Report'],['total','Total Investment']];
 let page='capital',items={},stream=null,handler=null,dataReady=false;
 const node=(tag,label)=>{const x=document.createElement(tag);if(label!==undefined)x.textContent=String(label);return x;};
 const money=n=>Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});
@@ -233,18 +233,18 @@ function cashBalances(date){let deposits=0,spentBefore=0,spentToday=0;
 function show(key){window.stopCalculatorWithdrawalSync?.();page=key;menu.replaceChildren();content.replaceChildren();
  const children=key==='capital'||key==='capitalReport'?
   [['capital','Daily Working Capital'],['capitalReport','Working Capital Report']]:
-  key==='petty'||key==='pettyReport'?
-  [['petty','Daily Petty Cash'],['pettyReport','Daily Petty Cash Report']]:[];
+  key==='declaration'||key==='petty'||key==='pettyReport'?
+  [['declaration','Petty Cash Declaration'],['petty','Daily Expense'],['pettyReport','Daily Petty Cash Report']]:[];
  menu.hidden=children.length===0;
  children.forEach(([name,label])=>{
   const button=node('button',label);button.type='button';button.classList.toggle('active',name===key);
   button.onclick=()=>show(name);menu.append(button);
  });
- if(key==='capital')capitalForm();else if(key==='calculator')balanceCalculator();else if(key==='petty')pettyForm();else report(key);
+ if(key==='capital')capitalForm();else if(key==='calculator')balanceCalculator();else if(key==='declaration')pettyDeclaration();else if(key==='petty')pettyForm();else report(key);
  if(preview){items={};render();return;}
  if(!stream){
   stream=database.ref('investmentEntries');
-  handler=snap=>{if(String(bridge.getUser())!==owner)return;items=snap.val()||{};dataReady=true;if(page==='capital'){window.investmentSyncOpening?.();window.investmentSyncCapitalState?.();window.investmentSyncCalculatorClosing?.();}render();};
+  handler=snap=>{if(String(bridge.getUser())!==owner)return;items=snap.val()||{};dataReady=true;if(page==='declaration')window.syncPettyDeclaration?.();if(page==='capital'){window.investmentSyncOpening?.();window.investmentSyncCapitalState?.();window.investmentSyncCalculatorClosing?.();}render();};
   stream.on('value',handler,err=>{const box=document.getElementById('investList');if(box)box.textContent='ডাটা লোড হয়নি: '+err.message;});
  }else{if(page==='capital'){window.investmentSyncOpening?.();window.investmentSyncCapitalState?.();window.investmentSyncCalculatorClosing?.();}render();}
 }
@@ -416,29 +416,28 @@ function balanceCalculator(){
  source();
 }
 
-function pettyForm(){const box=card('Daily Petty Cash'),form=node('form');form.id='pettyForm';baseFields(form);
- const balance=node('p');balance.className='balance';balance.id='pettyOpening';box.append(balance);
- const grid=section(form,'Petty Cash Entry');field(grid,'Petty Cash Expense','amount');field(grid,'Purpose / Details','note','text',true);
- const {save,status}=submitTools(form,box);let pettySaving=false;listBox();
- const update=()=>{const date=form.elements.date.value;if(!date)return;
- const b=cashBalances(date);balance.textContent=`Opening Balance (Working Capital থেকে Petty Cash transfer যোগ): ৳${money(b.opening)} · বর্তমান জমা: ৳${money(b.available)}`;};
- form.elements.date.addEventListener('change',update);
- form.onsubmit=async event=>{event.preventDefault();if(pettySaving||!form.reportValidity()||String(bridge.getUser())!==owner)return;
- try{if(!dataReady)throw Error('আগের হিসাব লোড শেষ হলে Submit করুন।');const date=form.elements.date.value,n=amount(form.elements.amount.value);
-  if(n<=0)throw Error('Petty Cash Expense ০-এর বেশি হতে হবে।');
-  const b=cashBalances(date);if(n>b.available)throw Error('Petty Cash-এর বর্তমান জমার চেয়ে Expense বেশি।');
-  pettySaving=true;save.disabled=true;status.textContent='Saving…';
-  const key=database.ref('investmentEntries').push().key;const note=form.elements.note.value.trim();
-  const result=await database.ref('investmentEntries').transaction(current=>{
-   const entries=current||{};let deposits=0,spentBefore=0,spentToday=0;
-   Object.values(entries).forEach(x=>{if(x?.scope!=='company'||!x.date)return;if(x.type==='capital'&&x.date<=date)deposits+=Number(x.transfers?.petty??x.pettyCashTransfer??0);if(x.type==='petty'&&x.date<date)spentBefore+=Number(x.amount)||0;if(x.type==='petty'&&x.date===date)spentToday+=Number(x.amount)||0;});
-   const available=Math.round((deposits-spentBefore-spentToday)*100);if(Math.round(n*100)>available)return;
-   entries[key]={type:'petty',date,scope:'company',amount:n,note,openingBalance:Math.round((deposits-spentBefore)*100)/100,closingBalance:(available-Math.round(n*100))/100,createdBy:owner,createdAt:bridge.serverTimestamp};return entries;
-  },undefined,false);if(!result.committed)throw Error('জমা পরিবর্তিত হয়েছে; বর্তমান balance দেখে আবার চেষ্টা করুন।');items=result.snapshot.val()||{};
-  status.textContent='✅ Petty Cash সেভ হয়েছে।';form.elements.amount.value='';form.elements.note.value='';update();
- }catch(err){status.textContent='Submit হয়নি: '+err.message;}finally{pettySaving=false;save.disabled=preview;}};
- update();
+
+const expenseTypes=['Salary','Festival Bonus','Transportation Expenditure (DSO)','Transportation Expenditure (DSS & DM)','DH Rent',"Electric Bill (June'25)",'WIFI Bill','Mobile Bill','Printing and Stationery','Office Maintenance','First Aid Medicine','Bank Charge','Bank Transport','Courier Charge','Lunch Bill (Nagad Audit Team)','Entertainment','Uddokta Camapign','Employee ID'];
+const declarations=entries=>Object.values(entries).filter(x=>x?.scope==='company'&&x.type==='pettyDeclaration').sort((a,b)=>a.date.localeCompare(b.date));
+function priorDeclaration(entries,date){return declarations(entries).filter(x=>x.date<date).at(-1);}
+function recalculateDeclarations(entries){let previous=null;for(const record of declarations(entries)){if(previous)record.openingBalance=previous.totalBalance;record.totalBalance=Math.round((Number(record.openingBalance||0)+Number(record.receivedBalance||0))*100)/100;previous=record;}return entries;}
+function pettyDeclaration(){const box=card('Petty Cash Declaration'),form=node('form');form.id='declarationForm';baseFields(form);form.elements.date.value='';
+ const grid=section(form,'Petty Cash Balance'),opening=field(grid,'Opening Balance','opening'),received=field(grid,'Received Balance','received'),totalInput=field(grid,'Total Balance','total');
+ // A calculated total is always derived from the two balance inputs.
+ totalInput.disabled=true;let busy=false;const {save,status}=submitTools(form,box);listBox();
+ const sum=()=>{try{totalInput.value=inputMoney(amount(opening.value)+amount(received.value));}catch{totalInput.value='';}};
+ window.syncPettyDeclaration=()=>{const date=form.elements.date.value;if(!date)return;const existing=items[date+'_pettyDeclaration'],prior=priorDeclaration(items,date);opening.value=inputMoney(prior?prior.totalBalance:existing?.openingBalance);received.value=inputMoney(existing?.receivedBalance);sum();save.textContent=existing?'Update':'Submit';};
+ form.elements.date.onchange=()=>{window.syncPettyDeclaration();render();};opening.addEventListener('input',sum);received.addEventListener('input',sum);
+ form.onsubmit=async e=>{e.preventDefault();if(busy||preview||!form.reportValidity()||bridge.getUser()!==owner)return;try{if(!dataReady)throw Error('ডাটা লোড শেষ হলে আবার চেষ্টা করুন।');const date=form.elements.date.value,initial=amount(opening.value),incoming=amount(received.value);busy=true;save.disabled=true;status.textContent='Saving…';const result=await database.ref('investmentEntries').transaction(current=>{const entries=current||{},prior=priorDeclaration(entries,date),old=entries[date+'_pettyDeclaration'];entries[date+'_pettyDeclaration']={type:'pettyDeclaration',scope:'company',date,openingBalance:prior?prior.totalBalance:initial,receivedBalance:incoming,totalBalance:0,createdBy:old?.createdBy||owner,createdAt:old?.createdAt||bridge.serverTimestamp,updatedAt:bridge.serverTimestamp};return recalculateDeclarations(entries);},undefined,false);if(!result.committed)throw Error('সেভ হয়নি। আবার চেষ্টা করুন।');items=result.snapshot.val()||{};window.syncPettyDeclaration();render();status.textContent='✅ Petty Cash Declaration সেভ হয়েছে।';}catch(error){status.textContent='Submit হয়নি: '+error.message;}finally{busy=false;save.disabled=preview;}};
 }
+function pettyForm(){const box=card('Daily Expense'),form=node('form');form.id='pettyForm';baseFields(form);form.elements.date.value='';
+ const rows=repeatRows(form,'Expense Entries',row=>{select(row,'Expense Type','expense_type',[['','—'],...expenseTypes.map(x=>[x,x])]);const details=field(row,'Expense Purpose / Details','expense_details','text',true);details.maxLength=500;field(row,'Amount','expense_amount','number',true);});
+ const sum=node('p');sum.className='balance';form.append(sum);const update=()=>{sum.textContent='Total Expense: ৳'+money([...rows.children].reduce((n,row)=>n+(Number(row.querySelector('[name=expense_amount]').value.replace(/,/g,''))||0),0));};form.addEventListener('input',update);update();
+ let busy=false;const {save,status}=submitTools(form,box);listBox();form.elements.date.onchange=render;
+ form.onsubmit=async e=>{e.preventDefault();if(busy||preview||!form.reportValidity()||bridge.getUser()!==owner)return;try{if(!dataReady)throw Error('ডাটা লোড শেষ হলে আবার চেষ্টা করুন।');const date=form.elements.date.value,expenses=[...rows.children].map(row=>({expenseType:row.querySelector('[name=expense_type]').value,note:row.querySelector('[name=expense_details]').value.trim(),amount:amount(row.querySelector('[name=expense_amount]').value)}));if(expenses.some(x=>!x.expenseType||!x.note||x.amount<=0))throw Error('প্রতিটি খরচের ধরন, বিবরণ ও ০-এর বেশি Amount দিন।');busy=true;save.disabled=true;status.textContent='Saving…';const key=database.ref('investmentEntries').push().key;const result=await database.ref('investmentEntries/'+key).transaction(existing=>existing?undefined:{type:'petty',scope:'company',date,expenses,amount:Math.round(expenses.reduce((n,x)=>n+x.amount,0)*100)/100,note:expenses.map(x=>x.expenseType+': '+x.note).join('; '),createdBy:owner,createdAt:bridge.serverTimestamp},undefined,false);if(!result.committed)throw Error('সেভ হয়নি। আবার চেষ্টা করুন।');items[key]=result.snapshot.val();rows.replaceChildren();rows.parentElement.querySelector('.add-row').click();update();render();status.textContent='✅ Daily Expense সেভ হয়েছে।';}catch(error){status.textContent='Submit হয়নি: '+error.message;}finally{busy=false;save.disabled=preview;}};
+}
+function renderPetty(){const list=document.getElementById('investList');if(!list)return;list.replaceChildren();if(!preview&&!dataReady){list.textContent='ডাটা আসছে…';return;}const date=document.querySelector('#declarationForm [name=date],#pettyForm [name=date]')?.value;if(!date){list.textContent='তারিখ নির্বাচন করুন।';return;}
+ const records=Object.values(items).filter(x=>x?.scope==='company'&&x.date===date&&x.type===(page==='declaration'?'pettyDeclaration':'petty'));if(!records.length){list.textContent='এই তারিখে কোনো তথ্য নেই।';return;}const table=node('table'),head=node('thead'),tr=node('tr');(page==='declaration'?['Date','Opening Balance','Received Balance','Total Balance']:['Date','Expense Type','Purpose / Details','Amount']).forEach(x=>tr.append(node('th',x)));head.append(tr);table.append(head);const body=node('tbody');for(const x of records){const lines=page==='declaration'?[[x.date,'৳'+money(x.openingBalance),'৳'+money(x.receivedBalance),'৳'+money(x.totalBalance)]]:(x.expenses||[{expenseType:'—',note:x.note,amount:x.amount}]).map(y=>[x.date,y.expenseType,y.note,'৳'+money(y.amount)]);for(const values of lines){const row=node('tr');values.forEach(v=>row.append(node('td',v)));body.append(row);}}table.append(body);list.append(table);}
 function report(key){
  const box=card(pages.find(([k])=>k===key)[1]);
  if(key==='capitalReport'){
@@ -470,8 +469,7 @@ function capitalReportTable(list,records){const table=node('table');table.classN
  const difference=Math.round(((Number(x.openingTotal)||0)-(Number(closing.maWallet)||0)-closeCash-bankTotal(closing))*100)/100;
  const values=[dateLabel(x.date),opening.maWallet,openCash,bankTotal(opening),totalRows(x.commission),totalRows(x.headOfficeReceive),x.openingTotal,closing.maWallet,closeCash,bankTotal(closing),totalRows(x.headOfficeTransfer),outflow,x.closingTotal,difference];
  values.forEach((value,index)=>{const td=node('td',index===0?value:`৳${money(value)}`);if(index===13&&difference!==0)td.className='report-difference';tr.append(td);});const detailCell=node('td'),button=node('button','Details দেখুন');button.type='button';button.className='report-detail-button';button.onclick=()=>showCapitalClosingDetails(x);detailCell.append(button);tr.append(detailCell);body.append(tr);});table.append(body);list.append(table);}
-function render(){if(page==='petty'){
- const form=document.getElementById('pettyForm');if(form){const b=cashBalances(form.elements.date.value);document.getElementById('pettyOpening').textContent=`Opening Balance (Working Capital থেকে Petty Cash transfer যোগ): ৳${money(b.opening)} · বর্তমান জমা: ৳${money(b.available)}`;}}
+function render(){if(page==='declaration'||page==='petty'){renderPetty();return;}
  const list=document.getElementById('investList');if(!list)return;list.replaceChildren();const month=document.getElementById('investMonth')?.value||'';
  const capitalMode=document.querySelector('.report-filter')?.dataset.mode||'';
  const capitalDate=document.getElementById('capitalReportDate')?.value||'';
@@ -485,7 +483,8 @@ function render(){if(page==='petty'){
  const through=month?`${month}-31`:'9999-12-31';
  const historical=Object.values(items).filter(x=>x&&x.scope==='company'&&String(x.date||'')<=through);
  const historicalCapital=historical.filter(x=>x.type==='capital').sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||(b.createdAt||0)-(a.createdAt||0));
- const historicalPettyBalance=historical.reduce((sum,x)=>sum+(x.type==='capital'?Number(x.transfers?.petty||x.pettyCashTransfer||0):x.type==='petty'?-(Number(x.amount)||0):0),0);
+ let historicalPettyBalance=historical.reduce((sum,x)=>sum+(x.type==='capital'?Number(x.transfers?.petty||x.pettyCashTransfer||0):x.type==='petty'?-(Number(x.amount)||0):0),0);
+ const declared=declarations(items).filter(x=>x.date<=through).at(-1);if(declared)historicalPettyBalance=Number(declared.totalBalance||0)-historical.filter(x=>x.type==='petty').reduce((sum,x)=>sum+Number(x.amount||0),0);
  const last=historicalCapital[0];const closingCapital=last?.closing ? (Number(last.closing.maWallet)||0)+(Number(last.closing.cashInHand)||0)+(Number(last.closing.cashInOffice)||0)+Object.values(last.closing.banks||{}).reduce((sum,n)=>sum+(Number(n)||0),0) : Number(last?.amount||0);
  const summary=document.getElementById('investSummary');if(summary)summary.textContent=page==='total'?
   `Latest Working Capital Closing: ৳${money(closingCapital)} · Petty Cash Balance: ৳${money(historicalPettyBalance)} · Total Investment: ৳${money(closingCapital+historicalPettyBalance)}`:
@@ -560,7 +559,7 @@ window.bankNavigate=show;show('range');
    catch(error){alert('ডাটা পরিষ্কার হয়নি: '+error.message);clear.disabled=false;clear.textContent='🗑 Investment-এর সব পরীক্ষার ডাটা মুছুন';}
   };
  }
- const ids={capital:'showWorkingCapital',capitalReport:'showWorkingCapitalReport',calculator:'showBalanceCalculator',petty:'showPettyCash',pettyReport:'showPettyCashReport',total:'showTotalInvestment',bankRange:'showChequeEntry',bankWithdraw:'showBankWithdraw',bankCheque:'showBankCheque',bankDebit:'showBankDebit'};
+ const ids={capital:'showWorkingCapital',capitalReport:'showWorkingCapitalReport',calculator:'showBalanceCalculator',declaration:'showPettyDeclaration',petty:'showPettyCash',pettyReport:'showPettyCashReport',total:'showTotalInvestment',bankRange:'showChequeEntry',bankWithdraw:'showBankWithdraw',bankCheque:'showBankCheque',bankDebit:'showBankDebit'};
  const groups=[...tabs.querySelectorAll('.module-dropdown')];
  const closeDropdowns=except=>groups.forEach(group=>{if(group!==except)group.open=false;});
  groups.forEach(group=>{
@@ -575,7 +574,7 @@ window.bankNavigate=show;show('range');
   const isBank=['bankRange','bankWithdraw','bankCheque','bankDebit'].includes(which);
   investment.hidden=isBank;bank.hidden=!isBank;
   Object.entries(ids).forEach(([key,id])=>document.getElementById(id).classList.toggle('active',key===which));
-  const group=which==='capital'||which==='capitalReport'||which==='calculator'?'navWorkingCapital':which==='petty'||which==='pettyReport'?'navPettyCash':isBank?'navBank':'';
+  const group=which==='capital'||which==='capitalReport'||which==='calculator'?'navWorkingCapital':which==='declaration'||which==='petty'||which==='pettyReport'?'navPettyCash':isBank?'navBank':'';
   groups.forEach(item=>item.classList.toggle('active',item.id===group));
   closeDropdowns();
   if(isBank)window.bankNavigate(({bankRange:'range',bankWithdraw:'withdrawal',bankCheque:'cheque',bankDebit:'debit'})[which]);
