@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hisab360 · Investment</title>
-<meta name="investment-release-version" content="2026.10.10.2">
+<meta name="investment-release-version" content="2026.10.10.3">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -268,7 +268,7 @@ function capitalForm(){
  openingLevel.addEventListener('input',updateOpeningSum);updateOpeningSum();
  const syncOpening=()=>{if(!form.isConnected)return;const prior=Object.values(items).filter(x=>x?.scope==='company'&&x.type==='capital'&&x.date<selectedDate.value&&x.closing).sort((a,b)=>b.date.localeCompare(a.date))[0];
   const balances=prior?.closing;const pairs=[['opening_wallet',balances?.maWallet],['opening_cashHand',balances?.cashInHand],['opening_cashOffice',balances?.cashInOffice],...banks.map(bank=>[`openingBank_${bank}`,balances?.banks?.[bank]])];
-  pairs.forEach(([name,value])=>{const input=form.elements[name];if(!prior&&input.readOnly)input.value='';input.readOnly=!!prior;if(prior)input.value=inputMoney(Number(value)||0);});updateOpeningSum();};
+  pairs.forEach(([name,value])=>{const input=form.elements[name];if(!prior&&input.readOnly)input.value='';input.readOnly=!!prior;if(prior){delete input.dataset.testManual;input.value=inputMoney(Number(value)||0);}});updateOpeningSum();};
  window.investmentSyncOpening=syncOpening;syncOpening();
  const closingLevel=node('fieldset');closingLevel.className='working-level closing-level';closingLevel.append(node('legend','Closing Balance'));form.append(closingLevel);
  grid=node('div');grid.className='fields';closingLevel.append(grid);field(grid,'MA Wallet','closing_wallet');field(grid,'Cash In Hand','closing_cashHand');field(grid,'Cash In Shivalaya','closing_cashOffice');
@@ -280,7 +280,7 @@ function capitalForm(){
  const updateClosingSum=()=>{const names=['closing_wallet','closing_cashHand','closing_cashOffice',...banks.map(bank=>`closingBank_${bank}`),'transfer_salary','transfer_route','transfer_petty'];const extra=[...headTransfers.querySelectorAll('[name=received_amount]')];closingSum.value=inputMoney([...names.map(name=>form.elements[name]),...extra].reduce((sum,input)=>sum+(Number(input.value.replace(/,/g,''))||0),0));updateDifference();};
  closingLevel.addEventListener('input',updateClosingSum);updateClosingSum();
  const {save,status}=submitTools(form,box);const edit=node('button','✏️ আজকের হিসাব Edit করুন');edit.type='button';edit.className='add-row';edit.hidden=true;form.insertBefore(edit,save);let editing=false,saving=false,editRevision=null;
- const setAmount=(name,value)=>{form.elements[name].value=value==null?'':inputMoney(value);};
+ const setAmount=(name,value)=>{delete form.elements[name].dataset.testManual;form.elements[name].value=value==null?'':inputMoney(value);};
  const populateRows=(container,entries,kind)=>{const values=Array.isArray(entries)?entries:(entries?.amount?[entries]:[]);while(container.children.length>1)container.lastElementChild.remove();
   while(container.children.length<Math.max(1,values.length))container.nextElementSibling.click();
   values.forEach((item,i)=>{const row=container.children[i];row.querySelector('[name='+kind+'_amount]').value=inputMoney(item.amount);if(kind==='commission')row.querySelector('[name=commission_type]').value=item.type||'';
@@ -302,7 +302,7 @@ function capitalForm(){
   status.textContent='Calculator-এর MA ও Bank Balance Closing-এ বসেছে। অন্য ঘরগুলো পূরণ করে Submit করুন।';
  };
  window.investmentSyncCalculatorClosing=applyCalculator;applyCalculator();
- selectedDate.onchange=()=>{editing=false;editRevision=null;delete form.dataset.calculatorRevision;syncOpening();syncCapitalState();applyCalculator();status.textContent=selectedDate.value?'নির্বাচিত তারিখ: '+selectedDate.value:'তারিখ নির্বাচন করুন।';};
+ selectedDate.onchange=()=>{editing=false;editRevision=null;delete form.dataset.calculatorRevision;syncOpening();syncCapitalState();applyCalculator();if(!items[selectedDate.value+'_calculator'])status.textContent=selectedDate.value?'নির্বাচিত তারিখ: '+selectedDate.value:'তারিখ নির্বাচন করুন।';};
  form.onsubmit=async event=>{event.preventDefault();if(saving||!form.reportValidity()||String(bridge.getUser())!==owner)return;
   try{if(!dataReady)throw Error('আগের হিসাব লোড শেষ হলে Submit করুন।');const date=selectedDate.value;syncOpening();
    const opening={maWallet:amount(form.elements.opening_wallet.value),cashInHand:amount(form.elements.opening_cashHand.value),cashInOffice:amount(form.elements.opening_cashOffice.value),banks:collectBank(form,'openingBank')};
@@ -412,7 +412,7 @@ function balanceCalculator(){
    busy=true;date.disabled=true;paint();status.textContent='Saving…';
    const record={type:'calculator',scope:'company',date:date.value,...ma,netMA:net,bankCalculations:bankDrafts,updatedAt:bridge.serverTimestamp,updatedBy:owner};
    await database.ref('investmentEntries/'+date.value+'_calculator').set(record);
-   items[date.value+'_calculator']={...record,updatedAt:Date.now()};show('capital');
+   const submittedDate=record.date;items[submittedDate+'_calculator']={...record,updatedAt:Date.now()};show('capital');const capitalDate=document.querySelector('#capitalForm [name=capital_date]');if(capitalDate){capitalDate.value=submittedDate;capitalDate.dispatchEvent(new Event('change',{bubbles:true}));}
   }catch(e){status.textContent='Submit হয়নি: '+e.message;}finally{busy=false;date.disabled=false;paint();}
  };
  source();
