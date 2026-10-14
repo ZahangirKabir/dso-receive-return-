@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hisab360 · Investment</title>
-<meta name="investment-release-version" content="2026.10.15.1">
+<meta name="investment-release-version" content="2026.10.15.2">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -368,11 +368,11 @@ function selectedDateDsoTotals(legacy,ledger,selectedDate){
   if(account.report)reports.set(uid,account.report);
  }
  const moneyValue=value=>{const n=Number(String(value??0).replace(/,/g,''));if(!Number.isFinite(n))throw Error('DSO B2B amount সঠিক নয়।');return Math.round(n*100);};
- let received=0,sent=0;for(const report of reports.values()){received+=moneyValue(report.emReturn);sent+=moneyValue(report.emReceived);}
+ let received=0,sent=0,cashIssued=0;for(const report of reports.values()){received+=moneyValue(report.emReturn);sent+=moneyValue(report.emReceived);cashIssued+=moneyValue(report.cashReceived);}
  const teams={Sadar:['801','802','803','804','806','808','809','811','812','813','814','815'],Saturia:['805','807','816','817','818','819','820','821','822','823'],Singair:['810','835','836','837','838','839','840','841','842','843','844','845'],Shivalaya:['824','825','826','827','828','829','830','831','832','833','834']};
  const marketCash=Object.fromEntries(Object.entries(teams).map(([team,ids])=>[team,ids.reduce((sum,id)=>sum+moneyValue(reports.get(id)?.cashReturn??reports.get(id)?.cashDeposit),0)/100]));
  const bankDeposits=[];for(const report of reports.values()){const slips=report.bankSlips||report.slips; if(Array.isArray(slips)&&slips.length){for(const slip of slips){if(slip.status==='rejected')continue;bankDeposits.push({bankName:slip.bankName||report.bankName,amount:moneyValue(slip.amt??slip.amount)/100});}}else if(Number(report.bankDeposit)>0)bankDeposits.push({bankName:report.bankName,amount:moneyValue(report.bankDeposit)/100});}
- return {receive:received/100,send:sent/100,count:reports.size,marketCash,bankDeposits};
+ return {receive:received/100,send:sent/100,count:reports.size,cashIssueDso:cashIssued/100,marketCash,bankDeposits};
 }
 
 function selectedDateLiftingTotal(entries,date){return Object.values(entries||{}).filter(x=>x?.type==='withdrawal'&&x.scope==='company'&&x.date===date).reduce((sum,x)=>sum+(Array.isArray(x.reasonAmounts)?x.reasonAmounts.filter(r=>String(r.reason||'').trim().toLowerCase()==='for lifting').reduce((n,r)=>n+Math.round((Number(r.amount)||0)*100),0):String(x.purpose||'').trim().toLowerCase()==='for lifting'?Math.round((Number(x.amount)||0)*100):0),0)/100;}
@@ -438,7 +438,7 @@ function balanceCalculator(){
    const saved=items[date.value+'_calculator'];bankDrafts=Object.fromEntries(banks.map(bank=>[bank,{...(saved?.bankCalculations?.[bank]||{})}]));
    maOpening.value=inputMoney(previous?.closing?.maWallet||0);lifting.value=inputMoney(selectedDateLiftingTotal(withdrawalRows,selectedDate));maRefund.value=inputMoney(saved?.refund??refundTotal());
    receive.value=inputMoney(totals.receive);send.value=inputMoney(totals.send);
-   cashOpening.value=inputMoney(previous?.closing?.cashInHand);cashRefund.value=inputMoney(saved?.cashCalculation?.refundCash);cashIssue.value=inputMoney(saved?.cashCalculation?.cashIssueDso);cashLifting.value=inputMoney(saved?.cashCalculation?.cashDepositLifting);
+   cashOpening.value=inputMoney(previous?.closing?.cashInHand);cashRefund.value=inputMoney(saved?.cashCalculation?.refundCash);delete cashIssue.dataset.testManual;cashIssue.value=inputMoney(totals.cashIssueDso);cashLifting.value=inputMoney(saved?.cashCalculation?.cashDepositLifting);
    delete marketTeam.dataset.testManual;marketTeam.value=inputMoney(Math.round((totals.marketCash.Sadar+totals.marketCash.Saturia+totals.marketCash.Singair+totals.marketCash.Shivalaya)*100)/100);
    Object.entries(bankDrafts).forEach(([b,x])=>{x.opening=Number(previous?.closing?.banks?.[b]||0);x.deposit=countBank(b);x.net=Math.round((x.opening+x.deposit-Number(x.fundTransfer||0)-Number(x.chequeWithdrawal||0))*100)/100;});syncWithdrawalDrafts();loaded=true;loading=false;choice.onchange();paint();watchWithdrawals(selectedDate,epoch);
    status.textContent=(previous?'Opening source: '+previous.date:'আগের Working Capital নেই; Opening ০।')+' · '+totals.count+' DSO reports · Bank Details থেকে তারিখভিত্তিক Deposit · একই তারিখের APP → Fund Transfer, Cheque → Withdraw by Cheque। Bank Withdrawal-এর For lifting থেকে Lifting নেওয়া হয়েছে।';
