@@ -1060,7 +1060,7 @@ function create(raw,options={}){
  const db={ref(path=''){const root=path.split('/')[0];return root==='collections'||root==='bankSlipRequests'?new Ref(path):raw.ref(path);}};
  async function thumbnail(data){if(!global.document?.createElement)return '';return new Promise(resolve=>{let done=false;const img=new Image();const finish=v=>{if(done)return;done=true;clearTimeout(timer);resolve(v);};const timer=setTimeout(()=>finish(''),8000);img.onerror=()=>finish('');img.onload=()=>{try{const scale=Math.min(1,160/img.naturalWidth,160/img.naturalHeight);const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.naturalWidth*scale));c.height=Math.max(1,Math.round(img.naturalHeight*scale));const context=c.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,c.width,c.height);context.drawImage(img,0,0,c.width,c.height);finish(c.toDataURL('image/jpeg',0.65));}catch(_){finish('');}};img.src=data;});}
  async function putImage(data){if(!/^data:image\//.test(data))return data;const bytes=new TextEncoder().encode(data);const [hash,small]=await Promise.all([crypto.subtle.digest('SHA-256',bytes),thumbnail(data)]);const key=[...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');const r=await raw.ref('slipImages/'+key).transaction(v=>v===null?{data,...(small?{thumbnail:small}:{})}:undefined,undefined,false);if(!r.snapshot.val()?.data)throw Error('স্লিপের ছবি সেভ হয়নি।');return 'rtdb:'+key;}
- async function imageData(value,small=false){if(!String(value).startsWith('rtdb:'))return value;const key=value.slice(5);if(!/^[a-f0-9]{64}$/.test(key))throw Error('স্লিপের ছবির পরিচয় সঠিক নয়।');const cacheKey=key+(small?':thumbnail':':data');if(assetCache.has(cacheKey))return assetCache.get(cacheKey);const result=raw.ref('slipImages/'+key+'/'+(small?'thumbnail':'data')).once('value').then(async s=>{if(!s.val()&&small)return imageData(value,false);if(!s.val())throw Error('স্লিপের ছবি পাওয়া যায়নি।');return s.val();}).catch(e=>{assetCache.delete(cacheKey);throw e;});assetCache.set(cacheKey,result);if(assetCache.size>12)assetCache.delete(assetCache.keys().next().value);return result;}
+ async function imageData(value,small=false){if(!String(value).startsWith('rtdb:'))return value;const key=value.slice(5);if(!/^[a-f0-9]{64}$/.test(key))throw Error('স্লিপের ছবির পরিচয় সঠিক নয়।');const cacheKey=key+(small?':thumbnail':':data');if(assetCache.has(cacheKey))return assetCache.get(cacheKey);const result=raw.ref('slipImages/'+key+'/'+(small?'thumbnail':'data')).once('value').then(async s=>{if(!s.val()&&small)return imageData(value,false);if(!s.val())throw Error('স্লিপের ছবি পাওয়া যায়নি।');return s.val();}).catch(e=>{assetCache.delete(cacheKey);throw e;});assetCache.set(cacheKey,result);if(assetCache.size>((navigator.deviceMemory||4)<=2?4:8))assetCache.delete(assetCache.keys().next().value);return result;}
  return {database:db,raw,enabled,putImage,imageData,accountKey,requestsForDate:(date)=>new Ref('bankSlipRequests',{order:'date',equal:[date]}),collectionsRange:(user,start,end)=>new Ref('collections',{userDates:[String(user),start,end]}),reset:()=>{ready=null;locations.clear();assetCache.clear();}};
 }
 global.PortalLedger={create,sync,balance,same,snapshot};
@@ -1203,7 +1203,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.15.03';
+    const APP_RELEASE_VERSION = '2026.10.15.04';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -2976,11 +2976,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if(!xlsxLoadPromise) xlsxLoadPromise=loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js','XLSX');
       return xlsxLoadPromise;
     }
-    function scheduleHeavyLibrariesPreload(){
-      const run=()=>{ getSlipOCRWorker().catch(()=>ensureTesseractLoaded().catch(()=>{})); };
-      if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:3500});
-      else setTimeout(run,1200);
-    }
+    function scheduleHeavyLibrariesPreload(){/* Load OCR only after a photo is selected, avoiding idle RAM and network use. */}
 
     async function getSlipOCRWorker() {
       if(slipOCRWorker) return slipOCRWorker;
@@ -3025,11 +3021,13 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       return !text || r.confidence<42 || !hasBank || !hasMoney || !hasDate || !hasAccount || digits<5 || compact.length<45;
     }
 
-    let slipOCRQueue=Promise.resolve();
+    let slipOCRQueue=Promise.resolve(),slipOCRPending=0,slipOCRIdleTimer=null;
+    function releaseIdleOCR(){clearTimeout(slipOCRIdleTimer);slipOCRIdleTimer=setTimeout(()=>{if(slipOCRPending||slipOCRWorkerPromise)return;const worker=slipOCRWorker;slipOCRWorker=null;if(worker)worker.terminate().catch(()=>{});},45000);}
+
     function runSlipOCR(file,statusEl,id){
       // Tesseract exposes one shared worker. Keep parameter changes and scans
       // together when two photos are selected quickly.
-      const task=slipOCRQueue.catch(()=>{}).then(()=>runSlipOCRExclusive(file,statusEl,id));
+      clearTimeout(slipOCRIdleTimer);slipOCRPending++;const task=slipOCRQueue.catch(()=>{}).then(()=>runSlipOCRExclusive(file,statusEl,id)).finally(()=>{slipOCRPending--;releaseIdleOCR();});
       slipOCRQueue=task.catch(()=>{});
       return task;
     }
@@ -5824,14 +5822,17 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     const ledgerImageObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{
       entries.forEach(entry=>{if(entry.isIntersecting){ledgerImageObserver.unobserve(entry.target);loadLedgerImage(entry.target);}});
     },{rootMargin:'100px'}):null;
-    async function loadLedgerImage(img){const token=img.dataset.ledgerSrc;if(!token)return;
-      try{const data=await portalLedger.imageData(token,!img.hasAttribute('data-slip-image'));if(img.isConnected&&img.dataset.ledgerSrc===token){img.src=data;img.removeAttribute('data-ledger-src');}}
+    const ledgerImageJobs=[];let ledgerImageActive=0;
+    function loadLedgerImage(img){if(img._ledgerImageJob)return img._ledgerImageJob;img._ledgerImageJob=new Promise(resolve=>{ledgerImageJobs.push({img,resolve});pumpLedgerImages();}).finally(()=>{img._ledgerImageJob=null;});return img._ledgerImageJob;}
+    function pumpLedgerImages(){const limit=(navigator.deviceMemory||4)<=2?1:2;while(ledgerImageActive<limit&&ledgerImageJobs.length){const job=ledgerImageJobs.shift();if(!job.img.isConnected){job.resolve();continue;}ledgerImageActive++;loadLedgerImageNow(job.img).finally(()=>{ledgerImageActive--;job.resolve();pumpLedgerImages();});}}
+    async function loadLedgerImageNow(img){const token=img.dataset.ledgerSrc;if(!token)return;
+      try{const data=await portalLedger.imageData(token,true);if(img.isConnected&&img.dataset.ledgerSrc===token){img.src=data;img.removeAttribute('data-ledger-src');}}
       catch(e){img.alt='ছবি লোড হয়নি — আবার দেখুন';img.title=e.message;img.onclick=()=>loadLedgerImage(img);}
     }
-    function setLedgerImage(img,src){if(!String(src).startsWith('rtdb:')){img.src=src;return;}img.dataset.ledgerSrc=src;
+    function setLedgerImage(img,src){img.loading='lazy';img.decoding='async';if(!String(src).startsWith('rtdb:')){img.src=src;return;}img.dataset.ledgerSrc=src;
       img.style.minWidth='40px';img.style.minHeight='40px';if(ledgerImageObserver)ledgerImageObserver.observe(img);else loadLedgerImage(img);
     }
-    new MutationObserver(changes=>{changes.forEach(change=>change.addedNodes.forEach(node=>{
+    new MutationObserver(changes=>{changes.forEach(change=>change.removedNodes.forEach(node=>{if(node.nodeType!==1)return;const images=[...(node.matches?.('img')?[node]:[]),...node.querySelectorAll('img')];images.forEach(img=>ledgerImageObserver?.unobserve(img));}));changes.forEach(change=>change.addedNodes.forEach(node=>{
       if(node.nodeType!==1)return;const imgs=[...(node.matches?.('img[data-ledger-src]')?[node]:[]),...node.querySelectorAll('img[data-ledger-src]')];
       imgs.forEach(img=>setLedgerImage(img,img.dataset.ledgerSrc));
     }));}).observe(document.body,{childList:true,subtree:true});
