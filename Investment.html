@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hisab360 · Investment</title>
-<meta name="investment-release-version" content="2026.10.15.2">
+<meta name="investment-release-version" content="2026.10.15.3">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -376,6 +376,7 @@ function selectedDateDsoTotals(legacy,ledger,selectedDate){
 }
 
 function selectedDateLiftingTotal(entries,date){return Object.values(entries||{}).filter(x=>x?.type==='withdrawal'&&x.scope==='company'&&x.date===date).reduce((sum,x)=>sum+(Array.isArray(x.reasonAmounts)?x.reasonAmounts.filter(r=>String(r.reason||'').trim().toLowerCase()==='for lifting').reduce((n,r)=>n+Math.round((Number(r.amount)||0)*100),0):String(x.purpose||'').trim().toLowerCase()==='for lifting'?Math.round((Number(x.amount)||0)*100):0),0)/100;}
+function selectedDateBankCashReceived(entries,date){const accepted=reason=>['for dso cash','cash for dso','refund'].includes(String(reason||'').trim().toLowerCase());return Object.values(entries||{}).filter(x=>x?.type==='withdrawal'&&x.scope==='company'&&x.date===date).reduce((sum,x)=>sum+(Array.isArray(x.reasonAmounts)?x.reasonAmounts.filter(r=>accepted(r.reason)).reduce((n,r)=>n+Math.round((Number(r.amount)||0)*100),0):accepted(x.purpose)?Math.round((Number(x.amount)||0)*100):0),0)/100;}
 function balanceCalculator(){
  const box=card('MA | Cash | Bank Balance Calculator'),form=node('form');form.id='balanceCalculatorForm';
  const top=section(form,'Date'),date=field(top,'Date','calc_date','date',true);date.readOnly=false;date.value='';top.classList.add('compact-capital-date');
@@ -383,8 +384,8 @@ function balanceCalculator(){
  const maOpening=field(maArea,'MA Opening Balance','calc_ma_opening'),lifting=field(maArea,'Lifting','calc_lifting'),maRefund=field(maArea,'Refund','calc_refund'),receive=field(maArea,'B2B Receive','calc_receive'),send=field(maArea,'B2B Send','calc_send'),netMA=field(maArea,'Net MA Balance','calc_net_ma');
  [maOpening,receive,send,netMA].forEach(x=>x.readOnly=true);
  const cashArea=section(form,'Cash Calculation');
- const cashOpening=field(cashArea,'Opening Cash','calc_cash_opening'),cashRefund=field(cashArea,'Refund Cash','calc_cash_refund'),cashIssue=field(cashArea,'Cash Issue DSO','calc_cash_issue'),cashLifting=field(cashArea,'Cash Deposit Lifting','calc_cash_lifting'),cashHand=field(cashArea,'Cash In Hand','calc_cash_hand');
- cashOpening.readOnly=true;cashHand.readOnly=true;
+ const cashOpening=field(cashArea,'Opening Cash','calc_cash_opening'),cashBankReceived=field(cashArea,'Cash Received from Bank','calc_cash_bank_received'),cashIssue=field(cashArea,'Cash Issue DSO','calc_cash_issue'),cashLifting=field(cashArea,'Cash Deposit Lifting','calc_cash_lifting'),cashHand=field(cashArea,'Cash In Hand','calc_cash_hand');
+ cashOpening.readOnly=true;cashBankReceived.readOnly=true;cashHand.readOnly=true;
  const marketTeam=field(cashArea,'Market Cash','calc_market_team'),netCash=field(cashArea,'Net Cash','calc_net_cash');
  [marketTeam,netCash].forEach(input=>input.readOnly=true);
  const bankArea=section(form,'Bank Balance Calculation'),choice=select(bankArea,'Bank','calc_bank',[['','—'],...banks.map(b=>[b,b])]);choice.required=false;
@@ -405,7 +406,7 @@ function balanceCalculator(){
  function syncWithdrawalDrafts(){Object.entries(bankDrafts).forEach(([b,x])=>{x.fundTransfer=withdrawalTotal(b,'APP');x.chequeWithdrawal=withdrawalTotal(b,'Cheque');x.net=Math.round((Number(x.opening||0)+Number(x.deposit||0)-x.fundTransfer-x.chequeWithdrawal)*100)/100;});}
  function watchWithdrawals(selectedDate,epoch){
   window.stopCalculatorWithdrawalSync?.();const ref=database.ref('bankTrackerEntries').orderByChild('date').equalTo(selectedDate);
-  const handler=snap=>{if(!form.isConnected||epoch!==sourceEpoch||date.value!==selectedDate||String(bridge.getUser())!==owner){stop();return;}withdrawalRows=Object.values(snap.val()||{});if(!liftingManual){lifting.value=inputMoney(selectedDateLiftingTotal(withdrawalRows,selectedDate));delete netMA.dataset.testManual;}if(!refundManual)maRefund.value=inputMoney(refundTotal());syncWithdrawalDrafts();choice.onchange();};
+  const handler=snap=>{if(!form.isConnected||epoch!==sourceEpoch||date.value!==selectedDate||String(bridge.getUser())!==owner){stop();return;}withdrawalRows=Object.values(snap.val()||{});delete cashBankReceived.dataset.testManual;cashBankReceived.value=inputMoney(selectedDateBankCashReceived(withdrawalRows,selectedDate));if(!liftingManual){lifting.value=inputMoney(selectedDateLiftingTotal(withdrawalRows,selectedDate));delete netMA.dataset.testManual;}if(!refundManual)maRefund.value=inputMoney(refundTotal());syncWithdrawalDrafts();choice.onchange();};
   const stop=()=>{ref.off('value',handler);if(window.stopCalculatorWithdrawalSync===stop)window.stopCalculatorWithdrawalSync=null;};
   window.stopCalculatorWithdrawalSync=stop;ref.on('value',handler,e=>{if(!form.isConnected||epoch!==sourceEpoch)return;loaded=false;status.textContent='Withdrawal হিসাব লোড হয়নি: '+e.message;paint();});
  }
@@ -413,7 +414,7 @@ function balanceCalculator(){
   save.disabled=preview||loading||busy||!loaded;
   if(loading)return;
   try{
-   const cashNet=Math.round((numeric(cashOpening)+numeric(cashRefund)-numeric(cashIssue)-numeric(cashLifting))*100)/100;cashHand.value=inputMoney(cashNet);delete netCash.dataset.testManual;netCash.value=inputMoney(numeric(cashHand)+numeric(marketTeam));
+   const cashNet=Math.round((numeric(cashOpening)+numeric(cashBankReceived)-numeric(cashIssue)-numeric(cashLifting))*100)/100;cashHand.value=inputMoney(cashNet);delete netCash.dataset.testManual;netCash.value=inputMoney(numeric(cashHand)+numeric(marketTeam));
    maValue=netMA.dataset.testManual==='true'?numeric(netMA):Math.round((numeric(maOpening)+numeric(lifting)+numeric(receive)-numeric(send)-numeric(maRefund))*100)/100;netMA.value=inputMoney(maValue);
    if(choice.value){bankValue=netBank.dataset.testManual==='true'?numeric(netBank):Math.round((numeric(bankOpening)+numeric(deposit)-numeric(transfer)-numeric(withdraw))*100)/100;netBank.value=inputMoney(bankValue);bankDrafts[choice.value]={opening:numeric(bankOpening),deposit:numeric(deposit),fundTransfer:numeric(transfer),chequeWithdrawal:numeric(withdraw),net:bankValue};}
    results.replaceChildren();results.className='card bank-net-grid';let bankSum=0;Object.entries(bankDrafts).forEach(([b,x])=>{bankSum+=Math.round(Number(x.net||0)*100);const card=node('div');card.className='bank-net-card';card.append(node('span',b),node('strong','৳'+money(x.net)));results.append(card);});const bankTotal=bankSum/100;const summary=node('div');summary.className='bank-net-sum';summary.append(node('span','Total Net Bank Balance'),node('strong','৳'+money(bankTotal)));results.append(summary);totalClosing.value=inputMoney(Math.round((maValue+numeric(netCash)+bankTotal)*100)/100);
@@ -438,7 +439,7 @@ function balanceCalculator(){
    const saved=items[date.value+'_calculator'];bankDrafts=Object.fromEntries(banks.map(bank=>[bank,{...(saved?.bankCalculations?.[bank]||{})}]));
    maOpening.value=inputMoney(previous?.closing?.maWallet||0);lifting.value=inputMoney(selectedDateLiftingTotal(withdrawalRows,selectedDate));maRefund.value=inputMoney(saved?.refund??refundTotal());
    receive.value=inputMoney(totals.receive);send.value=inputMoney(totals.send);
-   cashOpening.value=inputMoney(previous?.closing?.cashInHand);cashRefund.value=inputMoney(saved?.cashCalculation?.refundCash);delete cashIssue.dataset.testManual;cashIssue.value=inputMoney(totals.cashIssueDso);cashLifting.value=inputMoney(saved?.cashCalculation?.cashDepositLifting);
+   cashOpening.value=inputMoney(previous?.closing?.cashInHand);delete cashBankReceived.dataset.testManual;cashBankReceived.value=inputMoney(selectedDateBankCashReceived(withdrawalRows,selectedDate));delete cashIssue.dataset.testManual;cashIssue.value=inputMoney(totals.cashIssueDso);cashLifting.value=inputMoney(saved?.cashCalculation?.cashDepositLifting);
    delete marketTeam.dataset.testManual;marketTeam.value=inputMoney(Math.round((totals.marketCash.Sadar+totals.marketCash.Saturia+totals.marketCash.Singair+totals.marketCash.Shivalaya)*100)/100);
    Object.entries(bankDrafts).forEach(([b,x])=>{x.opening=Number(previous?.closing?.banks?.[b]||0);x.deposit=countBank(b);x.net=Math.round((x.opening+x.deposit-Number(x.fundTransfer||0)-Number(x.chequeWithdrawal||0))*100)/100;});syncWithdrawalDrafts();loaded=true;loading=false;choice.onchange();paint();watchWithdrawals(selectedDate,epoch);
    status.textContent=(previous?'Opening source: '+previous.date:'আগের Working Capital নেই; Opening ০।')+' · '+totals.count+' DSO reports · Bank Details থেকে তারিখভিত্তিক Deposit · একই তারিখের APP → Fund Transfer, Cheque → Withdraw by Cheque। Bank Withdrawal-এর For lifting থেকে Lifting নেওয়া হয়েছে।';
@@ -452,7 +453,7 @@ function balanceCalculator(){
    const net=netMA.dataset.testManual==='true'?numeric(netMA):Math.round((ma.opening+ma.lifting+ma.b2bReceive-ma.b2bSend-ma.refund)*100)/100;
    if(!window.INVESTMENT_MANUAL_TEST&&(net<0||Object.values(bankDrafts).some(x=>x.net<0)))throw Error('Net balance ঋণাত্মক। অঙ্কগুলো যাচাই করুন।');
    busy=true;date.disabled=true;paint();status.textContent='Saving…';
-   const record={type:'calculator',scope:'company',date:date.value,...ma,netMA:net,cashCalculation:{openingCash:numeric(cashOpening),refundCash:numeric(cashRefund),cashIssueDso:numeric(cashIssue),cashDepositLifting:numeric(cashLifting),cashInHand:numeric(cashHand),marketCash:{total:numeric(marketTeam)},netCash:numeric(netCash)},totalClosing:amount(totalClosing.value),bankCalculations:bankDrafts,updatedAt:bridge.serverTimestamp,updatedBy:owner};
+   const record={type:'calculator',scope:'company',date:date.value,...ma,netMA:net,cashCalculation:{openingCash:numeric(cashOpening),cashReceivedFromBank:numeric(cashBankReceived),cashIssueDso:numeric(cashIssue),cashDepositLifting:numeric(cashLifting),cashInHand:numeric(cashHand),marketCash:{total:numeric(marketTeam)},netCash:numeric(netCash)},totalClosing:amount(totalClosing.value),bankCalculations:bankDrafts,updatedAt:bridge.serverTimestamp,updatedBy:owner};
    await database.ref('investmentEntries/'+date.value+'_calculator').set(record);
    const submittedDate=record.date;items[submittedDate+'_calculator']={...record,updatedAt:Date.now()};show('capital');const capitalDate=document.querySelector('#capitalForm [name=capital_date]');if(capitalDate){capitalDate.value=submittedDate;capitalDate.dispatchEvent(new Event('change',{bubbles:true}));}
   }catch(e){status.textContent='Submit হয়নি: '+e.message;}finally{busy=false;date.disabled=false;paint();}
