@@ -1093,14 +1093,21 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       catch(error){if(error.code)throw error;const problem=Error('নিরাপদ Login session-এর সংযোগ হয়নি। আবার চেষ্টা করুন।');problem.code='portal/session-network';throw problem;}
       finally{clearTimeout(timer);}
     }
+    function loginServerXHR(url){return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('GET',url,true);xhr.timeout=12000;xhr.withCredentials=false;xhr.onload=()=>{if(xhr.status<200||xhr.status>=300){const error=Error('Server response HTTP '+xhr.status);error.httpStatus=xhr.status;reject(error);return;}try{resolve(JSON.parse(xhr.responseText));}catch{reject(Error('Server response JSON সঠিক নয়।'));}};xhr.onerror=()=>reject(Error('Firebase request blocked or unreachable'));xhr.ontimeout=()=>reject(Error('Firebase request timeout'));xhr.send();});}
     async function readLoginServer(app,path){
       const user=app.auth().currentUser;if(!user)throw Error('Login session পাওয়া যায়নি। আবার Login করুন।');
+      const stage=path.startsWith('accountMeta/')?'Account':path.startsWith('deviceAccess/')?'Device':'Request';let last;
       for(let attempt=0;attempt<2;attempt++){
-        const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
-        try{const token=await loginReadDeadline(()=>user.getIdToken(attempt>0));const url=new URL(path+'.json',firebaseConfig.databaseURL+'/');url.searchParams.set('auth',token);url.searchParams.set('check',Date.now().toString());const response=await fetch(url.href,{cache:'no-store',credentials:'omit',signal:controller.signal});if(!response.ok){const error=Error(response.status===401||response.status===403?'এই তথ্য পড়ার অনুমতি পাওয়া যায়নি। Admin-কে জানান।':'Server-এ সংযোগ হয়নি। আবার চেষ্টা করুন।');error.code='portal/server-read';throw error;}return await response.json();}
-        catch(error){if(attempt===1||error.code==='portal/server-read')throw Error(error.code==='portal/server-read'?error.message:'Server-এ সংযোগ হয়নি। Internet ঠিক রেখে আবার Login করুন।');}
+        const controller=new AbortController();let timer;
+        try{
+          const token=await loginReadDeadline(()=>user.getIdToken(attempt>0));const url=new URL(path+'.json',firebaseConfig.databaseURL+'/');url.searchParams.set('auth',token);
+          if(attempt===1)return await loginServerXHR(url.href);
+          timer=setTimeout(()=>controller.abort(),10000);const response=await fetch(url.href,{cache:'no-store',credentials:'omit',signal:controller.signal});
+          if(!response.ok){const error=Error('Server response HTTP '+response.status);error.httpStatus=response.status;throw error;}return await response.json();
+        }catch(error){last=error;if(error.httpStatus===403)break;if(error.code==='portal/server-timeout')break;}
         finally{clearTimeout(timer);}
       }
+      const status=last?.httpStatus;const error=Error(status===401||status===403?'Firebase permission পাওয়া যায়নি ('+stage+' / HTTP '+status+')। Admin-কে জানান।':status?'Firebase server-এর উত্তর সঠিক নয় ('+stage+' / HTTP '+status+')।':last?.code==='portal/server-timeout'?'Login token যাচাইয়ে সময় লাগছে ('+stage+')। আবার চেষ্টা করুন।':'এই app-এর Firebase সংযোগ সম্পন্ন হয়নি ('+stage+' / CONNECTION)। অন্য app চললেও এই server-এ সংযোগ ব্যর্থ হতে পারে।');error.code='portal/login-connection';throw error;
     }
     function accountEmail(id){return 'portal-'+String(id).toLowerCase()+'@collection-app-479e0.invalid';}
     async function getCredentialMeta(){
@@ -1203,7 +1210,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.15.04';
+    const APP_RELEASE_VERSION = '2026.10.15.05';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
