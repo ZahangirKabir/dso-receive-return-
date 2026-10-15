@@ -1086,7 +1086,20 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     let portalFinancialApp=null,devicePermissionRef=null,devicePermissionHandler=null,deviceSessionRef=null,deviceSessionHandler=null,deviceSessionExpiryTimer=null,portalDeviceUid='';
     function authReady(auth){return new Promise((resolve,reject)=>{let stop=null,finished=false;const timer=setTimeout(()=>{const error=Error('Login session যাচাইয়ে সময় লাগছে। আবার Login করুন।');error.code='portal/auth-timeout';done(error);},15000);const done=(error,user)=>{if(finished)return;finished=true;clearTimeout(timer);if(stop)stop();error?reject(error):resolve(user);};stop=auth.onAuthStateChanged(user=>done(null,user),error=>done(error));if(finished)stop();});}
     function loginReadDeadline(work,ms=10000){return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{const error=Error('Server-এর উত্তর পেতে সময় লাগছে। আবার Login করুন।');error.code='portal/server-timeout';reject(error);},ms);Promise.resolve().then(work).then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});});}
-    async function writeLoginServer(app,path,data){
+    function waitLoginDatabase(app,timeout=10000){return new Promise((resolve,reject)=>{
+      const ref=app.database().ref('.info/connected');let done=false;const finish=error=>{if(done)return;done=true;clearTimeout(timer);ref.off('value',handler);error?reject(error):resolve();};
+      const handler=snap=>{if(snap.val()===true)finish();};const timer=setTimeout(()=>{const error=Error('Firebase connection timeout');error.code='portal/database-offline';finish(error);},timeout);ref.on('value',handler,finish);
+    });}
+    async function readLoginSDK(app,path){
+      if(!app.auth().currentUser)throw Error('Login session পাওয়া যায়নি।');
+      await waitLoginDatabase(app);
+      const snapshot=await loginReadDeadline(()=>app.database().ref(path).get(),12000);
+      // Never accept a result after this connection has dropped.
+      const connected=await loginReadDeadline(()=>app.database().ref('.info/connected').once('value'),3000);
+      if(connected.val()!==true){const error=Error('Firebase connection interrupted');error.code='portal/database-offline';throw error;}
+      return snapshot.val();
+    }
+    async function writeLoginREST(app,path,data){
       const user=app.auth().currentUser;if(!user)throw Error('আবার Login করুন।');
       const token=await loginReadDeadline(()=>user.getIdToken());const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
       try{const url=new URL(path+'.json',firebaseConfig.databaseURL+'/');url.searchParams.set('auth',token);const response=await fetch(url.href,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),cache:'no-store',credentials:'omit',signal:controller.signal});if(!response.ok){const error=Error('নিরাপদ Login session সেভ হয়নি। Admin-কে জানান।');error.code='portal/session-write';throw error;}return await response.json();}
@@ -1094,7 +1107,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       finally{clearTimeout(timer);}
     }
     function loginServerXHR(url){return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('GET',url,true);xhr.timeout=12000;xhr.withCredentials=false;xhr.onload=()=>{if(xhr.status<200||xhr.status>=300){const error=Error('Server response HTTP '+xhr.status);error.httpStatus=xhr.status;reject(error);return;}try{resolve(JSON.parse(xhr.responseText));}catch{reject(Error('Server response JSON সঠিক নয়।'));}};xhr.onerror=()=>reject(Error('Firebase request blocked or unreachable'));xhr.ontimeout=()=>reject(Error('Firebase request timeout'));xhr.send();});}
-    async function readLoginServer(app,path){
+    async function readLoginREST(app,path){
       const user=app.auth().currentUser;if(!user)throw Error('Login session পাওয়া যায়নি। আবার Login করুন।');
       const stage=path.startsWith('accountMeta/')?'Account':path.startsWith('deviceAccess/')?'Device':'Request';let last;
       for(let attempt=0;attempt<2;attempt++){
@@ -1108,6 +1121,28 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         finally{clearTimeout(timer);}
       }
       const status=last?.httpStatus;const error=Error(status===401||status===403?'Firebase permission পাওয়া যায়নি ('+stage+' / HTTP '+status+')। Admin-কে জানান।':status?'Firebase server-এর উত্তর সঠিক নয় ('+stage+' / HTTP '+status+')।':last?.code==='portal/server-timeout'?'Login token যাচাইয়ে সময় লাগছে ('+stage+')। আবার চেষ্টা করুন।':'এই app-এর Firebase সংযোগ সম্পন্ন হয়নি ('+stage+' / CONNECTION)। অন্য app চললেও এই server-এ সংযোগ ব্যর্থ হতে পারে।');error.code='portal/login-connection';throw error;
+    }
+    let loginLongPollingSelected=false;
+    async function retryLoginPolling(app){
+      const force=firebase.database.INTERNAL?.forceLongPolling;
+      if(typeof force!=='function')throw Error('Alternative Firebase transport unavailable');
+      if(!loginLongPollingSelected){force();loginLongPollingSelected=true;}
+      const db=app.database();db.goOffline();db.goOnline();await waitLoginDatabase(app,10000);
+    }
+    async function readLoginServer(app,path){
+      try{return await readLoginSDK(app,path);}catch(error){
+        if(/permission.denied/i.test(String(error.code||'')+' '+String(error.message||''))){const denied=Error('Firebase Rules এই তথ্য পড়তে দিচ্ছে না। Admin-কে জানান।');denied.code='portal/database-permission';throw denied;}
+        if(error.code==='portal/database-offline'){
+          try{await retryLoginPolling(app);return await readLoginSDK(app,path);}catch(retryError){if(/permission.denied/i.test(String(retryError.code||'')+' '+String(retryError.message||''))){const denied=Error('Firebase Rules এই তথ্য পড়তে দিচ্ছে না। Admin-কে জানান।');denied.code='portal/database-permission';throw denied;}}
+        }
+        return readLoginREST(app,path);
+      }
+    }
+    async function writeLoginServer(app,path,data){
+      try{await waitLoginDatabase(app,7000);}catch{return writeLoginREST(app,path,data);}
+      // A write succeeds only after the SDK receives the server acknowledgement.
+      try{await loginReadDeadline(()=>app.database().ref(path).set(data),15000);return data;}
+      catch(error){if(/permission.denied/i.test(String(error.code||'')+' '+String(error.message||''))){const denied=Error('Firebase Rules Login session সেভ করতে দিচ্ছে না। Admin-কে জানান।');denied.code='portal/database-permission';throw denied;}throw error;}
     }
     function accountEmail(id){return 'portal-'+String(id).toLowerCase()+'@collection-app-479e0.invalid';}
     async function getCredentialMeta(){
@@ -1173,12 +1208,14 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     function watchDevicePermission(id){
       if(devicePermissionRef&&devicePermissionHandler)devicePermissionRef.off('value',devicePermissionHandler);
       devicePermissionRef=portalFinancialApp.database().ref('deviceAccess/'+portalDeviceUid);
-      devicePermissionHandler=snapshot=>{const a=snapshot.val();if(currentUser===id&&(a?.status!=='approved'||a.userId!==id)){logout();alert('এই ডিভাইসের অনুমতি বন্ধ বা মুছে দেওয়া হয়েছে।');}};
+      let checkingPermission=false,checkingSession=false;
+      const verifyPermission=async()=>{if(checkingPermission||currentUser!==id)return;checkingPermission=true;try{const value=await readLoginServer(portalFinancialApp,'deviceAccess/'+portalDeviceUid);if(currentUser===id&&(value?.status!=='approved'||value.userId!==id)){logout();alert('এই ডিভাইসের অনুমতি বন্ধ বা মুছে দেওয়া হয়েছে।');}}catch(error){console.warn('Device verification pending',error.code||'connection');}finally{checkingPermission=false;}};
+      devicePermissionHandler=snapshot=>{const a=snapshot.val();if(currentUser===id&&(a?.status!=='approved'||a.userId!==id))verifyPermission();};
       if(deviceSessionRef&&deviceSessionHandler)deviceSessionRef.off('value',deviceSessionHandler);
       deviceSessionRef=portalFinancialApp.database().ref('deviceSessions/'+portalDeviceUid);
-      deviceSessionHandler=s=>{const value=s.val();clearTimeout(deviceSessionExpiryTimer);if(value?.active&&value.expiresAt>Date.now())deviceSessionExpiryTimer=setTimeout(()=>{if(currentUser===id){logout();alert('Session-এর মেয়াদ শেষ। আবার Login করুন।');}},Math.min(value.expiresAt-Date.now(),86400000));if(currentUser===id&&(!value?.active||value.expiresAt<Date.now())){logout();alert('Session বন্ধ হয়েছে। আবার Login করুন।');}};
+      deviceSessionHandler=s=>{const value=s.val();clearTimeout(deviceSessionExpiryTimer);if(value?.active&&value.expiresAt>Date.now())deviceSessionExpiryTimer=setTimeout(()=>{if(currentUser===id){logout();alert('Session-এর মেয়াদ শেষ। আবার Login করুন।');}},Math.min(value.expiresAt-Date.now(),86400000));if(currentUser===id&&(!value?.active||value.expiresAt<=Date.now())&&!checkingSession){checkingSession=true;readLoginServer(portalFinancialApp,'deviceSessions/'+portalDeviceUid).then(verified=>{if(currentUser===id&&(!verified?.active||verified.expiresAt<=Date.now())){logout();alert('Session বন্ধ হয়েছে। আবার Login করুন।');}}).catch(error=>console.warn('Session verification pending',error.code||'connection')).finally(()=>{checkingSession=false;});}};
       deviceSessionRef.on('value',deviceSessionHandler);
-      devicePermissionRef.on('value',devicePermissionHandler,error=>{if(currentUser===id){logout();alert('ডিভাইস অনুমতি যাচাই হয়নি। আবার Login করুন।');}});
+      devicePermissionRef.on('value',devicePermissionHandler,error=>{if(currentUser!==id)return;if(/permission.denied/i.test(String(error.code||'')+' '+String(error.message||''))){logout();alert('ডিভাইসের access বন্ধ হয়েছে। Admin-কে জানান।');}else verifyPermission();});
     }
     function installFirebaseDeviceMenu(){
       if(currentUser!=='admin'||document.getElementById('deviceAdminButton'))return;
@@ -1210,7 +1247,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.15.05';
+    const APP_RELEASE_VERSION = '2026.10.15.07';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
