@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hisab360 · Investment</title>
-<meta name="investment-release-version" content="2026.10.16.8">
+<meta name="investment-release-version" content="2026.10.16.9">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -395,7 +395,7 @@ function balanceCalculator(){
  const results=node('div');results.className='card';form.append(results);
  const refresh=node('button','↻ Refresh Source Data');refresh.type='button';refresh.className='add-row';form.append(refresh);
  const {save,status}=submitTools(form,box);let loading=true,busy=false,loaded=false,sourceEpoch=0,bankDrafts={},previous=null,approved=[],withdrawalRows=[],maValue=0,bankValue=0;
- const numeric=x=>amount(x.value);let refundManual=false,liftingManual=false;lifting.addEventListener('input',()=>{liftingManual=true;delete netMA.dataset.testManual;});maRefund.addEventListener('input',()=>{refundManual=true;delete netMA.dataset.testManual;});
+ const numeric=x=>[netMA,cashHand,netCash,netBank,totalClosing].includes(x)?Number(String(x.value||'0').replace(/,/g,'')):amount(x.value);let refundManual=false,liftingManual=false;lifting.addEventListener('input',()=>{liftingManual=true;delete netMA.dataset.testManual;});maRefund.addEventListener('input',()=>{refundManual=true;delete netMA.dataset.testManual;});
  const refundTotal=()=>withdrawalRows.filter(x=>x?.type==='withdrawal'&&x.scope==='company'&&x.date===date.value).reduce((sum,x)=>sum+(Array.isArray(x.reasonAmounts)?x.reasonAmounts.filter(r=>r.reason==='Refund').reduce((n,r)=>n+Math.round(Number(r.amount||0)*100),0):x.purpose==='Refund'?Math.round(Number(x.amount||0)*100):0),0)/100;
 
  const prior=()=>Object.values(items).filter(x=>x?.scope==='company'&&x.type==='capital'&&x.date<date.value&&x.closing).sort((a,b)=>b.date.localeCompare(a.date))[0];
@@ -415,10 +415,10 @@ function balanceCalculator(){
   if(loading)return;
   try{
    [netMA,cashHand,netCash,netBank,totalClosing].forEach(input=>delete input.dataset.testManual);
-   const cashNet=Math.round((numeric(cashOpening)+numeric(cashBankReceived)-numeric(cashIssue)-numeric(cashLifting))*100)/100;cashHand.value=inputMoney(cashNet);delete netCash.dataset.testManual;netCash.value=inputMoney(numeric(cashHand)+numeric(marketTeam));
-   maValue=Math.round((numeric(maOpening)+numeric(lifting)+numeric(receive)-numeric(send)-numeric(maRefund))*100)/100;netMA.value=inputMoney(maValue);
-   if(choice.value){bankValue=Math.round((numeric(bankOpening)+numeric(deposit)-numeric(transfer)-numeric(withdraw))*100)/100;netBank.value=inputMoney(bankValue);bankDrafts[choice.value]={opening:numeric(bankOpening),deposit:numeric(deposit),fundTransfer:numeric(transfer),chequeWithdrawal:numeric(withdraw),net:bankValue};}
-   results.replaceChildren();results.className='card bank-net-grid';let bankSum=0;Object.entries(bankDrafts).forEach(([b,x])=>{bankSum+=Math.round(Number(x.net||0)*100);const card=node('div');card.className='bank-net-card';card.append(node('span',b),node('strong',''+money(x.net)));results.append(card);});const bankTotal=bankSum/100;const summary=node('div');summary.className='bank-net-sum';summary.append(node('span','Total Net Bank Balance'),node('strong',''+money(bankTotal)));results.append(summary);totalClosing.value=inputMoney(Math.round((maValue+numeric(netCash)+bankTotal)*100)/100);
+   const cashNet=Math.round((numeric(cashOpening)+numeric(cashBankReceived)-numeric(cashIssue)-numeric(cashLifting))*100)/100;cashHand.value=money(cashNet);delete netCash.dataset.testManual;netCash.value=money(Math.round((numeric(cashHand)+numeric(marketTeam))*100)/100);
+   maValue=Math.round((numeric(maOpening)+numeric(lifting)+numeric(receive)-numeric(send)-numeric(maRefund))*100)/100;netMA.value=money(maValue);
+   if(choice.value){bankValue=Math.round((numeric(bankOpening)+numeric(deposit)-numeric(transfer)-numeric(withdraw))*100)/100;netBank.value=money(bankValue);bankDrafts[choice.value]={opening:numeric(bankOpening),deposit:numeric(deposit),fundTransfer:numeric(transfer),chequeWithdrawal:numeric(withdraw),net:bankValue};}
+   results.replaceChildren();results.className='card bank-net-grid';let bankSum=0;Object.entries(bankDrafts).forEach(([b,x])=>{bankSum+=Math.round(Number(x.net||0)*100);const card=node('div');card.className='bank-net-card';card.append(node('span',b),node('strong',''+money(x.net)));results.append(card);});const bankTotal=bankSum/100;const summary=node('div');summary.className='bank-net-sum';summary.append(node('span','Total Net Bank Balance'),node('strong',''+money(bankTotal)));results.append(summary);totalClosing.value=money(Math.round((maValue+numeric(netCash)+bankTotal)*100)/100);
    netMA.closest('.field').style.color=maValue<0?'#b91c1c':'#00695c';
   }catch(e){status.textContent=e.message;}
  }
@@ -454,7 +454,7 @@ function balanceCalculator(){
    const net=Math.round((ma.opening+ma.lifting+ma.b2bReceive-ma.b2bSend-ma.refund)*100)/100;
    if(!window.INVESTMENT_MANUAL_TEST&&(net<0||Object.values(bankDrafts).some(x=>x.net<0)))throw Error('Net balance ঋণাত্মক। অঙ্কগুলো যাচাই করুন।');
    busy=true;date.disabled=true;paint();status.textContent='Saving…';
-   const record={type:'calculator',scope:'company',date:date.value,...ma,netMA:net,cashCalculation:{openingCash:numeric(cashOpening),cashReceivedFromBank:numeric(cashBankReceived),cashIssueDso:numeric(cashIssue),cashDepositLifting:numeric(cashLifting),cashInHand:numeric(cashHand),marketCash:{total:numeric(marketTeam)},netCash:numeric(netCash)},totalClosing:amount(totalClosing.value),bankCalculations:bankDrafts,updatedAt:bridge.serverTimestamp,updatedBy:owner};
+   const record={type:'calculator',scope:'company',date:date.value,...ma,netMA:net,cashCalculation:{openingCash:numeric(cashOpening),cashReceivedFromBank:numeric(cashBankReceived),cashIssueDso:numeric(cashIssue),cashDepositLifting:numeric(cashLifting),cashInHand:numeric(cashHand),marketCash:{total:numeric(marketTeam)},netCash:numeric(netCash)},totalClosing:numeric(totalClosing),bankCalculations:bankDrafts,updatedAt:bridge.serverTimestamp,updatedBy:owner};
    await database.ref('investmentEntries/'+date.value+'_calculator').set(record);
    const submittedDate=record.date;items[submittedDate+'_calculator']={...record,updatedAt:Date.now()};show('capital');const capitalDate=document.querySelector('#capitalForm [name=capital_date]');if(capitalDate){capitalDate.value=submittedDate;capitalDate.dispatchEvent(new Event('change',{bubbles:true}));}
   }catch(e){status.textContent='Submit হয়নি: '+e.message;}finally{busy=false;date.disabled=false;paint();}
