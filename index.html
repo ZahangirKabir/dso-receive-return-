@@ -609,14 +609,14 @@
 
         <div class="summary-cards">
           <div class="card"><h3>মোট এন্ট্রি সংখ্যা</h3><p id="totalEntriesCount">0</p></div>
-          <div class="card green"><h3>মোট রিসিভড</h3><p>৳ <span id="totalReceivedAllSum">0</span></p></div>
-          <div class="card red"><h3>মোট রিটার্ন</h3><p>৳ <span id="totalReturnAllSum">0</span></p></div>
-          <div class="card diff"><h3>মোট ব্যবধান (Diff)</h3><p>৳ <span id="totalDiffAllSum">0</span></p></div>
-          <div class="card cyan"><h3>DSO Rec Total</h3><p>৳ <span id="totalDsoRecAllSum">0</span></p></div>
-          <div class="card purple"><h3>DSO Trans Total</h3><p>৳ <span id="totalDsoTransAllSum">0</span></p></div>
-          <div class="card cyan"><h3>DSO ব্যবধান</h3><p>৳ <span id="totalDsoDiffAllSum">0</span></p></div>
-          <div class="card"><h3>মোট ব্যাংক ডিপোজিট</h3><p>৳ <span id="totalBankDepSum">0</span></p></div>
-          <div class="card green"><h3>মোট স্লিপ</h3><p>৳ <span id="totalSlipOcrSum">0</span></p></div>
+          <div class="card green"><h3>মোট রিসিভড</h3><p> <span id="totalReceivedAllSum">0</span></p></div>
+          <div class="card red"><h3>মোট রিটার্ন</h3><p> <span id="totalReturnAllSum">0</span></p></div>
+          <div class="card diff"><h3>মোট ব্যবধান (Diff)</h3><p> <span id="totalDiffAllSum">0</span></p></div>
+          <div class="card cyan"><h3>DSO Rec Total</h3><p> <span id="totalDsoRecAllSum">0</span></p></div>
+          <div class="card purple"><h3>DSO Trans Total</h3><p> <span id="totalDsoTransAllSum">0</span></p></div>
+          <div class="card cyan"><h3>DSO ব্যবধান</h3><p> <span id="totalDsoDiffAllSum">0</span></p></div>
+          <div class="card"><h3>মোট ব্যাংক ডিপোজিট</h3><p> <span id="totalBankDepSum">0</span></p></div>
+          <div class="card green"><h3>মোট স্লিপ</h3><p> <span id="totalSlipOcrSum">0</span></p></div>
         </div>
 
         <div class="table-container">
@@ -694,11 +694,11 @@
               <tr>
                 <th class="th-info">তারিখ</th>
                 <th class="th-info">DSO ID</th>
-                <th class="th-info">৳ 1000</th>
-                <th class="th-info">৳ 500</th>
-                <th class="th-info">৳ 200</th>
-                <th class="th-info">৳ 100</th>
-                <th class="th-info">৳ 50</th>
+                <th class="th-info"> 1000</th>
+                <th class="th-info"> 500</th>
+                <th class="th-info"> 200</th>
+                <th class="th-info"> 100</th>
+                <th class="th-info"> 50</th>
                 <th class="th-diff">মোট গণনা করা ক্যাশ (Total Cash)</th>
               </tr>
             </thead>
@@ -766,7 +766,7 @@
             </div>
             
             <div class="calculation-box">
-              <div class="calc-row"><strong>মোট রিসিভড:</strong> <span style="color:#2e7d32; font-weight:bold;">৳ <span id="formTotalReceived">0</span></span></div>
+              <div class="calc-row"><strong>মোট রিসিভড:</strong> <span style="color:#2e7d32; font-weight:bold;"> <span id="formTotalReceived">0</span></span></div>
             </div>
           </div>
 
@@ -792,20 +792,20 @@
             </div>
 
             <div class="calculation-box">
-              <div class="calc-row"><strong>মোট রিটার্ন:</strong> <span style="color:#c62828; font-weight:bold;">৳ <span id="formTotalReturn">0</span></span></div>
+              <div class="calc-row"><strong>মোট রিটার্ন:</strong> <span style="color:#c62828; font-weight:bold;"> <span id="formTotalReturn">0</span></span></div>
             </div>
           </div>
 
           <!-- DENOMINATION SECTION -->
           <div class="section-box" id="cashNoteBox">
             <div class="section-title" style="color: #37474f;">💵 ৩. ক্যাশ নোট গণনার হিসাব <span id="noteMandatoryBadge" style="color:red; font-size:11px;">(Cash Deposit থাকলে বাধ্যবাধক)</span></div>
-            <div class="form-group"><label>৳ 1000 ×</label><input type="text" inputmode="numeric" id="note1000" class="denom" data-value="1000" placeholder="টি" oninput="calcCash()"></div>
-            <div class="form-group"><label>৳ 500 ×</label><input type="text" inputmode="numeric" id="note500" class="denom" data-value="500" placeholder="টি" oninput="calcCash()"></div>
-            <div class="form-group"><label>৳ 200 ×</label><input type="text" inputmode="numeric" id="note200" class="denom" data-value="200" placeholder="টি" oninput="calcCash()"></div>
-            <div class="form-group"><label>৳ 100 ×</label><input type="text" inputmode="numeric" id="note100" class="denom" data-value="100" placeholder="টি" oninput="calcCash()"></div>
-            <div class="form-group"><label>৳ 50 ×</label><input type="text" inputmode="numeric" id="note50" class="denom" data-value="50" placeholder="টি" oninput="calcCash()"></div>
+            <div class="form-group"><label> 1000 ×</label><input type="text" inputmode="numeric" id="note1000" class="denom" data-value="1000" placeholder="টি" oninput="calcCash()"></div>
+            <div class="form-group"><label> 500 ×</label><input type="text" inputmode="numeric" id="note500" class="denom" data-value="500" placeholder="টি" oninput="calcCash()"></div>
+            <div class="form-group"><label> 200 ×</label><input type="text" inputmode="numeric" id="note200" class="denom" data-value="200" placeholder="টি" oninput="calcCash()"></div>
+            <div class="form-group"><label> 100 ×</label><input type="text" inputmode="numeric" id="note100" class="denom" data-value="100" placeholder="টি" oninput="calcCash()"></div>
+            <div class="form-group"><label> 50 ×</label><input type="text" inputmode="numeric" id="note50" class="denom" data-value="50" placeholder="টি" oninput="calcCash()"></div>
             
-            <p style="margin-top: 10px; font-size: 13px;"><strong>Total Calculated Cash: ৳ <span id="totalCashDisplay">0</span></strong></p>
+            <p style="margin-top: 10px; font-size: 13px;"><strong>Total Calculated Cash:  <span id="totalCashDisplay">0</span></strong></p>
             <div id="cashNoteValidationMsg"></div>
           </div>
         </div>
@@ -813,7 +813,7 @@
         <div class="calculation-box" style="background: #fff3e0; border: 2px solid #ffe0b2; margin-bottom: 15px; font-size: 15px;">
           <div class="calc-row">
             <span><strong>ব্যবধন / পার্থক্য (Received - Return):</strong></span>
-            <span style="font-weight: bold; color: #e65100;">৳ <span id="formDifference">0</span></span>
+            <span style="font-weight: bold; color: #e65100;"> <span id="formDifference">0</span></span>
           </div>
           <div id="diffValidationMsg"></div>
         </div>
@@ -1247,7 +1247,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       serverTimestamp: firebase.database.ServerValue.TIMESTAMP
     };
     // Increment on every index.html deployment. Open pages compare against this value.
-    const APP_RELEASE_VERSION = '2026.10.15.07';
+    const APP_RELEASE_VERSION = '2026.10.16.01';
     // Track Investment.html independently. Future Investment updates do not require changing index.html.
     let loadedInvestmentVersion = null;
     let firebaseReleaseMismatch = false, hostedReleaseMismatch = false, hostedReleaseCheckedAt = 0, releaseCheckPromise = null;
@@ -1460,7 +1460,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
 
     function normalizeMoneyText(value) {
-      return String(value ?? '').replace(/[০-৯]/g,c=>String('০১২৩৪৫৬৭৮৯'.indexOf(c))).replace(/[,৳\s]/g,'');
+      return String(value ?? '').replace(/[০-৯]/g,c=>String('০১২৩৪৫৬৭৮৯'.indexOf(c))).replace(/[,\u09f3\s]/g,'');
     }
     function parseRawNumber(value) {
       const normalized=normalizeMoneyText(value);
@@ -1967,7 +1967,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
           <div class="slip-field">
             <label class="slip-field-label">💰 Deposit Amount</label>
-            <input type="text" placeholder="৳ Amount" class="amt-field slip-amt-val" id="slipAmt_${slipCounter}" readonly inputmode="decimal" oninput="handleAmountInput(this); recalculateBankDepositFromSlips(); validateSlipManual(${slipCounter});">
+            <input type="text" placeholder=" Amount" class="amt-field slip-amt-val" id="slipAmt_${slipCounter}" readonly inputmode="decimal" oninput="handleAmountInput(this); recalculateBankDepositFromSlips(); validateSlipManual(${slipCounter});">
           </div>
           <div class="slip-field">
             <label class="slip-field-label">🔖 Transaction / Reference / Tracking ID</label>
@@ -2108,9 +2108,9 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const request=slipStatusItems[key];
       if(message.dataset.user!==String(currentUser)||!request){message.textContent='';return;}
       const amount=formatBD(request.amount||0);
-      if(request.status==='rejected'||request.status==='rejecting')message.textContent='❌ ৳'+amount+' Bank Slip Rejected।'+(request.rejectReason?' কারণ: '+request.rejectReason:'');
-      else if(request.status==='approved')message.textContent='✅ ৳'+amount+' Bank Slip Approved।';
-      else message.textContent='✅ ৳'+amount+' Bank Slip জমা হয়েছে। Admin Approval Pending।';
+      if(request.status==='rejected'||request.status==='rejecting')message.textContent='❌ '+amount+' Bank Slip Rejected।'+(request.rejectReason?' কারণ: '+request.rejectReason:'');
+      else if(request.status==='approved')message.textContent='✅ '+amount+' Bank Slip Approved।';
+      else message.textContent='✅ '+amount+' Bank Slip জমা হয়েছে। Admin Approval Pending।';
     }
     function refreshSubmittedBankAmount(){
       refreshSlipSubmitMessage();
@@ -2184,7 +2184,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       entries.forEach(([key,item])=>{const tr=body.insertRow();const banks=[...new Set((item.slips||[]).map(s=>`${s.bankName||''} ${s.accountNumber||''}`).filter(Boolean))].join(', ');
         const transactionIds=[...new Set((item.slips||[]).map(s=>s.transactionId).filter(Boolean))].join(', ')||'—';
         const uploaded=Number(item.submittedAt)>0?new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dhaka',hour:'2-digit',minute:'2-digit',hour12:true}).format(new Date(Number(item.submittedAt))):'—';
-        const fields=user==='admin'?[item.date,uploaded,item.userId,banks,transactionIds,`৳${formatBD(item.amount)}`,slipStatusLabel(item.status),item.rejectReason||'—']:[item.date,uploaded,banks,transactionIds,`৳${formatBD(item.amount)}`,slipStatusLabel(item.status),item.rejectReason||'—'];
+        const fields=user==='admin'?[item.date,uploaded,item.userId,banks,transactionIds,`${formatBD(item.amount)}`,slipStatusLabel(item.status),item.rejectReason||'—']:[item.date,uploaded,banks,transactionIds,`${formatBD(item.amount)}`,slipStatusLabel(item.status),item.rejectReason||'—'];
         fields.forEach(value=>{tr.insertCell().textContent=String(value??'');});const slipCell=tr.insertCell();
         let thumbList=null;
         if(user==='admin'){slipCell.className='approval-slip-thumbs';thumbList=document.createElement('div');thumbList.className='thumb-list';slipCell.append(thumbList);}
@@ -2410,7 +2410,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         .replace(/[|\\]/g, " ")
         .replace(/[–—−]/g, "-")
         .replace(/\u00a0/g, " ")
-        .replace(/[^a-zA-Z0-9\u0980-\u09ff\s.,:/\-৳]/g, " ")
+        .replace(/[^a-zA-Z0-9\u0980-\u09ff\s.,:/\-\u09f3]/g, " ")
         .replace(/\s+/g, " ")
         .trim()
         .toLowerCase();
@@ -2548,7 +2548,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
     function parseMoneyCandidate(raw) {
       let x = normalizeOCRDigits(raw)
-        .replace(/[৳]/g, "")
+        .replace(/[\u09f3]/g, "")
         .replace(/,/g, "")
         .replace(/\s/g, "")
         .replace(/[^0-9.]/g, "");
@@ -2565,7 +2565,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
     function moneyTokensFromLine(line) {
       const x = normalizeOCRDigits(String(line || ""));
-      const re = /(?:৳|tk\.?|taka|bdt)?\s*(\d{1,3}(?:[,.\s]\d{2,3})+(?:\.\d{1,2})?|\d{1,9}(?:\.\d{1,2})?)\s*(?:tk\.?|taka|bdt|৳)?/gi;
+      const re = /(?:|tk\.?|taka|bdt)?\s*(\d{1,3}(?:[,.\s]\d{2,3})+(?:\.\d{1,2})?|\d{1,9}(?:\.\d{1,2})?)\s*(?:tk\.?|taka|bdt|)?/gi;
       const out = [];
       let m;
       while ((m = re.exec(x)) !== null) {
@@ -2592,20 +2592,20 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         // Read after the label only: numbers to its left may be account IDs.
         const tail=line.slice(match.index+match[0].length)
           .replace(/^\s*(?:in\s*(?:taka|bdt))?\s*[:：=\-–]?\s*/i,'')
-          .replace(/^(?:৳|tk\.?|taka|bdt)\s*/i,'')
-          .replace(/\s*(?:৳|tk\.?|taka|bdt)\s*$/i,'');
+          .replace(/^(?:\u09f3|tk\.?|taka|bdt)\s*/i,'')
+          .replace(/\s*(?:\u09f3|tk\.?|taka|bdt)\s*$/i,'');
         let tokens=moneyTokensFromLine(tail);
         if(!tokens.length && i+1<lines.length){
           const next=lines[i+1];
           // Adjacent OCR line must contain just the number and optional currency.
-          if(/^\s*(?:৳|tk\.?|taka|bdt)?\s*[০-৯0-9][০-৯0-9,.\s]*(?:৳|tk\.?|taka|bdt)?\s*$/i.test(next))tokens=moneyTokensFromLine(next.replace(/^\s*(?:৳|tk\.?|taka|bdt)\s*/i,'').replace(/\s*(?:৳|tk\.?|taka|bdt)\s*$/i,''));
+          if(/^\s*(?:\u09f3|tk\.?|taka|bdt)?\s*[০-৯0-9][০-৯0-9,.\s]*(?:\u09f3|tk\.?|taka|bdt)?\s*$/i.test(next))tokens=moneyTokensFromLine(next.replace(/^\s*(?:\u09f3|tk\.?|taka|bdt)\s*/i,'').replace(/\s*(?:\u09f3|tk\.?|taka|bdt)\s*$/i,''));
         }
         if(tokens.length===1)results.push({value:tokens[0].value,priority,line,source:priority===2?'transfer-amount':'amount'});
       }
       // Currency-only values are lower priority than explicit deposit/transfer labels.
       for(const line of lines){
         if(disallowed.test(line)||isExcludedAmountLine(line))continue;
-        const currency=/(?:৳|\btk\.?|\btaka\b|\bbdt\b)\s*([০-৯0-9][০-৯0-9,.]*(?:\s+[০-৯0-9]{2,3})*)/gi;
+        const currency=/(?:\u09f3|\btk\.?|\btaka\b|\bbdt\b)\s*([০-৯0-9][০-৯0-9,.]*(?:\s+[০-৯0-9]{2,3})*)/gi;
         let match;while((match=currency.exec(line))!==null){const value=parseMoneyCandidate(normalizeOCRDigits(match[1]));if(value>0)results.push({value,priority:0,line,source:'currency'});}
       }
       return results;
@@ -2628,17 +2628,17 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if (/\bamount\b/i.test(s) && !/total\s+amount/i.test(s)) return 14;
       if (/\bdeposit\b/i.test(s) && !/total/i.test(s)) return 14;
       if (/\b(credited|credit|paid)\b/i.test(s) && !/total/i.test(s)) return 11;
-      if (/\b(bdt|taka|tk|৳)\b/i.test(s)) return 5;
+      if (/\b(bdt|taka|tk|\u09f3)\b/i.test(s)) return 5;
       return 0;
     }
 
     // Currency-first amount detection: when a deposit slip prints the amount
-    // immediately after the Taka sign (৳ / Tk / Taka / BDT), prefer that value.
+    // immediately after the Taka sign ( / Tk / Taka / BDT), prefer that value.
     // This is only used when the line itself is not a total/fee/balance/etc. line.
     function currencySignAmountCandidates(text) {
       const lines = String(text || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
       const out = [];
-      const currencyRe = /(?:৳|\btk\.?|\btaka\b|\bbdt\b)\s*([0-9০-৯][0-9০-৯,\.\s]*)/gi;
+      const currencyRe = /(?:\u09f3|\btk\.?|\btaka\b|\bbdt\b)\s*([0-9০-৯][0-9০-৯,\.\s]*)/gi;
       lines.forEach((line, lineIndex) => {
         if (isExcludedAmountLine(line)) return;
         let m;
@@ -2905,7 +2905,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       // Prefer an explicit Taka/currency sign immediately before the number.
       lines.forEach((line,i)=>{
         if(isExcludedAmountLine(line)) return;
-        const re=/(?:৳|\btk\.?|\btaka\b|\bbdt\b)\s*([0-9০-৯][0-9০-৯,\.\s]*)/gi;
+        const re=/(?:|\btk\.?|\btaka\b|\bbdt\b)\s*([0-9০-৯][0-9০-৯,\.\s]*)/gi;
         let m;
         while((m=re.exec(line))!==null){
           const v=parseMoneyCandidate(m[1]);
@@ -3662,27 +3662,27 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       let isDiffValid = true;
 
       if (diff !== 0) {
-        diffMsgBox.innerHTML = `<p class="note-warning">❌ Receive ও Return এর মধ্যে ব্যবধান (৳${formatBD(diff)}) রয়েছে! ব্যবধান থাকলে Submit অফ থাকবে।</p>`;
+        diffMsgBox.innerHTML = `<p class="note-warning">❌ Receive ও Return এর মধ্যে ব্যবধান (${formatBD(diff)}) রয়েছে! ব্যবধান থাকলে Submit অফ থাকবে।</p>`;
         isDiffValid = false;
       } else {
-        diffMsgBox.innerHTML = `<p class="note-success">✅ Receive ও Return হুবহু মিলেছে (ব্যবধান ৳0)</p>`;
+        diffMsgBox.innerHTML = `<p class="note-success">✅ Receive ও Return হুবহু মিলেছে (ব্যবধান 0)</p>`;
       }
 
       const minimumBad = validateMainAmountMinimums();
       if(minimumBad.length){
-        diffMsgBox.innerHTML = `<p class="note-warning">❌ B2B Received, Cash Received ও Bank Amount-এ ৳1,000-এর কম amount গ্রহণযোগ্য নয়। Submit বন্ধ।</p>`;
+        diffMsgBox.innerHTML = `<p class="note-warning">❌ B2B Received, Cash Received ও Bank Amount-এ 1,000-এর কম amount গ্রহণযোগ্য নয়। Submit বন্ধ।</p>`;
         isDiffValid = false;
       }
 
       if (cashDepositAmt > 0) {
         if (totalCashCalculated === 0) {
-          msgBox.innerHTML = `<p class="note-warning">⚠️ Cash Deposit ৳${formatBD(cashDepositAmt)} করা হয়েছে। ক্যাশ নোটের বিবরণ প্রদান করা বাধ্যতামূলক!</p>`;
+          msgBox.innerHTML = `<p class="note-warning">⚠️ Cash Deposit ${formatBD(cashDepositAmt)} করা হয়েছে। ক্যাশ নোটের বিবরণ প্রদান করা বাধ্যতামূলক!</p>`;
           isCashValid = false;
         } else if (!moneyMatches(totalCashCalculated,cashDepositAmt)) {
-          msgBox.innerHTML = `<p class="note-warning">❌ ক্যাশ নোটের মোট পরিমাণ (৳${formatBD(totalCashCalculated)}) এবং Cash Deposit (৳${formatBD(cashDepositAmt)}) সমান নয়! Submit বন্ধ রয়েছে।</p>`;
+          msgBox.innerHTML = `<p class="note-warning">❌ ক্যাশ নোটের মোট পরিমাণ (${formatBD(totalCashCalculated)}) এবং Cash Deposit (${formatBD(cashDepositAmt)}) সমান নয়! Submit বন্ধ রয়েছে।</p>`;
           isCashValid = false;
         } else {
-          msgBox.innerHTML = `<p class="note-success">✅ ক্যাশ নোটের বিবরণ সঠিকভাবে মিলেছে (৳${formatBD(totalCashCalculated)})</p>`;
+          msgBox.innerHTML = `<p class="note-success">✅ ক্যাশ নোটের বিবরণ সঠিকভাবে মিলেছে (${formatBD(totalCashCalculated)})</p>`;
         }
       } else {
         msgBox.innerHTML = "";
@@ -3698,7 +3698,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       subBtn.disabled = isSubmittingData || bankSlipSubmitInProgress || !(isCashValid && isBankValid && isDiffValid);
       const slipButton=document.getElementById('submitSlipBtn');
       if(slipButton)slipButton.disabled=isSubmittingData||bankSlipSubmitInProgress;
-      subBtn.title = diff !== 0 ? `Received - Return ব্যবধান ৳${formatBD(diff)}; হিসাব মিললে Submit চালু হবে` : '';
+      subBtn.title = diff !== 0 ? `Received - Return ব্যবধান ${formatBD(diff)}; হিসাব মিললে Submit চালু হবে` : '';
     }
 
     function calcCash() {
@@ -4056,7 +4056,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
       const minimumBad = validateMainAmountMinimums();
       if (minimumBad.length) {
-        alert("❌ B2B Received, Cash Received ও Bank Amount-এ ৳1,000-এর কম amount গ্রহণযোগ্য নয়।");
+        alert("❌ B2B Received, Cash Received ও Bank Amount-এ 1,000-এর কম amount গ্রহণযোগ্য নয়।");
         validateFormAndSubmitBtn();
         return;
       }
@@ -4082,7 +4082,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         + bankDepositVal + cashDepositAmt
         + getDsoTransferList().reduce((s,x)=>s+(Number(x.amount)||0),0);
       if (!moneyMatches(totalRec,totalRet)) {
-        alert(`❌ Receive ৳${formatBD(totalRec)} এবং Return/Deposit ৳${formatBD(totalRet)} সমান নয়।`);
+        alert(`❌ Receive ${formatBD(totalRec)} এবং Return/Deposit ${formatBD(totalRet)} সমান নয়।`);
         return;
       }
 
@@ -4172,12 +4172,12 @@ global.PortalLedger={create,sync,balance,same,snapshot};
     }
     function assertDailyBalance(fields,bankAmount){
       if([fields.emReceived,fields.cashReceived,bankAmount].some(value=>value>0&&value<1000))
-        throw new Error('B2B Received, Cash Received ও Bank Amount ন্যূনতম ৳1,000 হতে হবে।');
+        throw new Error('B2B Received, Cash Received ও Bank Amount ন্যূনতম 1,000 হতে হবে।');
       if(fields.cashDeposit>0 && !moneyMatches(fields.totalCash,fields.cashDeposit))
         throw new Error('Cash Deposit ও ক্যাশ নোটের মোট পরিমাণ মিলিয়ে দিন।');
       const received=roundMoney(fields.emReceived+fields.cashReceived+fields.dsoReceivedList.reduce((sum,row)=>sum+Number(row.amount||0),0));
       const returned=roundMoney(fields.emReturn+fields.cashDeposit+bankAmount+fields.dsoTransferList.reduce((sum,row)=>sum+Number(row.amount||0),0));
-      if(!moneyMatches(received,returned))throw new Error('Receive ৳'+formatBD(received)+' এবং Return/Deposit ৳'+formatBD(returned)+' সমান নয়।');
+      if(!moneyMatches(received,returned))throw new Error('Receive '+formatBD(received)+' এবং Return/Deposit '+formatBD(returned)+' সমান নয়।');
     }
     async function submitData() {
       if(isSubmittingData)return;
@@ -4542,10 +4542,10 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
         let diff = roundMoney(totalRec - totalRet);
 
-        let bankInfoText = item.bankName ? `${item.bankName} (৳${formatBD(bankDep)})` : (bankDep > 0 ? `৳${formatBD(bankDep)}` : 'N/A');
-         if (Array.isArray(item.slips) && item.slips.length) { bankInfoText += '<br>' + item.slips.map(s => `${escapeHtml(s.bankName || '')}: ৳${formatBD(s.amt || 0)} — ${escapeHtml(s.accountName || 'Account Name N/A')}`).join('<br>'); }
+        let bankInfoText = item.bankName ? `${item.bankName} (${formatBD(bankDep)})` : (bankDep > 0 ? `${formatBD(bankDep)}` : 'N/A');
+         if (Array.isArray(item.slips) && item.slips.length) { bankInfoText += '<br>' + item.slips.map(s => `${escapeHtml(s.bankName || '')}: ${formatBD(s.amt || 0)} — ${escapeHtml(s.accountName || 'Account Name N/A')}`).join('<br>'); }
 
-        let noteSummaryText = `ক্যাশ: ৳${formatBD(item.totalCash || 0)}`;
+        let noteSummaryText = `ক্যাশ: ${formatBD(item.totalCash || 0)}`;
 
         let slipsList = item.slips || [];
         let slipPreviewHtml = slipsList.length > 0 
@@ -4570,9 +4570,9 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         let tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${item.date || '-'}</td>
-          <td class="bg-received">৳ ${formatBD(totalRec)}</td>
-          <td class="bg-return">৳ ${formatBD(totalRet)}</td>
-          <td class="bg-diff">৳ ${formatBD(diff)}</td>
+          <td class="bg-received"> ${formatBD(totalRec)}</td>
+          <td class="bg-return"> ${formatBD(totalRet)}</td>
+          <td class="bg-diff"> ${formatBD(diff)}</td>
           <td>${bankInfoText}</td>
           <td>${noteSummaryText}</td>
           <td>${slipPreviewHtml}</td>
@@ -4948,9 +4948,9 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         if (Array.isArray(item.dsoReceivedList)) {
           item.dsoReceivedList.forEach(d => {
             dsoRecSum += d.amount || 0;
-            dsoRecText += `<span class="dso-badge">DSO ${d.dsoId}: ৳${formatBD(d.amount)}</span> `;
+            dsoRecText += `<span class="dso-badge">DSO ${d.dsoId}: ${formatBD(d.amount)}</span> `;
           });
-        } else { dsoRecSum = item.dsoReceived || 0; if (dsoRecSum > 0) dsoRecText = `৳ ${formatBD(dsoRecSum)}`; }
+        } else { dsoRecSum = item.dsoReceived || 0; if (dsoRecSum > 0) dsoRecText = ` ${formatBD(dsoRecSum)}`; }
 
         let totalRec = emRec + cashRec + dsoRecSum;
         let emRet = item.emReturn || 0;
@@ -4961,9 +4961,9 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         if (Array.isArray(item.dsoTransferList)) {
           item.dsoTransferList.forEach(d => {
             dsoTransSum += d.amount || 0;
-            dsoTransText += `<span class="dso-badge">DSO ${d.dsoId}: ৳${formatBD(d.amount)}</span> `;
+            dsoTransText += `<span class="dso-badge">DSO ${d.dsoId}: ${formatBD(d.amount)}</span> `;
           });
-        } else { dsoTransSum = item.dsoTransfer || 0; if (dsoTransSum > 0) dsoTransText = `৳ ${formatBD(dsoTransSum)}`; }
+        } else { dsoTransSum = item.dsoTransfer || 0; if (dsoTransSum > 0) dsoTransText = ` ${formatBD(dsoTransSum)}`; }
 
         let cashDep = item.cashDeposit || 0;
         sumCashDep += cashDep;
@@ -5009,24 +5009,24 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         tr.innerHTML = `
           <td class="sticky-col-1">${item.date || '-'}</td>
           <td class="sticky-col-2"><strong>DSO ${item.userId || '-'}</strong></td>
-          <td>৳ ${formatBD(cashRec)}</td>
+          <td> ${formatBD(cashRec)}</td>
           <td style="text-align: left;">${dsoRecText || '-'}</td>
-          <td class="bg-received">৳ ${formatBD(emRec)}</td>
+          <td class="bg-received"> ${formatBD(emRec)}</td>
           
-          <td>৳ ${formatBD(emRet)}</td>
-          <td>৳ ${formatBD(cashDep)}</td>
-          <td>৳ ${formatBD(bankDep)}</td>
+          <td> ${formatBD(emRet)}</td>
+          <td> ${formatBD(cashDep)}</td>
+          <td> ${formatBD(bankDep)}</td>
           <td style="text-align: left;">${dsoTransText || '-'}</td>
 
-          <td>৳ ${formatBD(dsoRecSum)}</td>
-          <td>৳ ${formatBD(dsoTransSum)}</td>
-          <td class="bg-dso-diff">৳ ${formatBD(dsoDiff)}</td>
+          <td> ${formatBD(dsoRecSum)}</td>
+          <td> ${formatBD(dsoTransSum)}</td>
+          <td class="bg-dso-diff"> ${formatBD(dsoDiff)}</td>
 
-          <td class="bg-received">৳ ${formatBD(totalRec)}</td>
-          <td class="bg-return">৳ ${formatBD(totalRet)}</td>
-          <td class="bg-diff">৳ ${formatBD(diff)}</td>
+          <td class="bg-received"> ${formatBD(totalRec)}</td>
+          <td class="bg-return"> ${formatBD(totalRet)}</td>
+          <td class="bg-diff"> ${formatBD(diff)}</td>
 
-          <td style="font-weight:bold; color:#00695c;">${slipsList.length} Slips (৳ ${formatBD(totalSlipAmt)})</td>
+          <td style="font-weight:bold; color:#00695c;">${slipsList.length} Slips ( ${formatBD(totalSlipAmt)})</td>
           <td>${statusBadge}</td>
           <td style="white-space: nowrap;">${actionButtons}</td>
         `;
@@ -5039,20 +5039,20 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       tfootRow.style.fontWeight = "bold"; tfootRow.style.background = "#eceff1";
       tfootRow.innerHTML = `
         <td colspan="2" class="sticky-col-1" style="text-align:center;">TOTAL SUMMARY</td>
-        <td>৳ ${formatBD(sumCashRec)}</td>
-        <td style="color:#00838f;">৳ ${formatBD(totalDsoRecSum)}</td>
-        <td class="bg-received">৳ ${formatBD(sumEmRec)}</td>
-        <td>৳ ${formatBD(sumEmRet)}</td>
-        <td>৳ ${formatBD(sumCashDep)}</td>
-        <td>৳ ${formatBD(totalBankDepSum)}</td>
-        <td style="color:#6a1b9a;">৳ ${formatBD(totalDsoTransSum)}</td>
-        <td style="color:#00838f;">৳ ${formatBD(totalDsoRecSum)}</td>
-        <td style="color:#6a1b9a;">৳ ${formatBD(totalDsoTransSum)}</td>
-        <td class="bg-dso-diff">৳ ${formatBD(totalDsoDiffSum)}</td>
-        <td class="bg-received">৳ ${formatBD(totalRecSum)}</td>
-        <td class="bg-return">৳ ${formatBD(totalRetSum)}</td>
-        <td class="bg-diff">৳ ${formatBD(totalDiffSum)}</td>
-        <td style="color:#00695c;">৳ ${formatBD(totalSlipOcrSum)}</td>
+        <td> ${formatBD(sumCashRec)}</td>
+        <td style="color:#00838f;"> ${formatBD(totalDsoRecSum)}</td>
+        <td class="bg-received"> ${formatBD(sumEmRec)}</td>
+        <td> ${formatBD(sumEmRet)}</td>
+        <td> ${formatBD(sumCashDep)}</td>
+        <td> ${formatBD(totalBankDepSum)}</td>
+        <td style="color:#6a1b9a;"> ${formatBD(totalDsoTransSum)}</td>
+        <td style="color:#00838f;"> ${formatBD(totalDsoRecSum)}</td>
+        <td style="color:#6a1b9a;"> ${formatBD(totalDsoTransSum)}</td>
+        <td class="bg-dso-diff"> ${formatBD(totalDsoDiffSum)}</td>
+        <td class="bg-received"> ${formatBD(totalRecSum)}</td>
+        <td class="bg-return"> ${formatBD(totalRetSum)}</td>
+        <td class="bg-diff"> ${formatBD(totalDiffSum)}</td>
+        <td style="color:#00695c;"> ${formatBD(totalSlipOcrSum)}</td>
         <td>-</td>
         <td>-</td>
       `;
@@ -5125,7 +5125,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const changes = fields.map(([label,id,prop]) => {
         const oldV = Number(original[prop]) || 0;
         const newV = parseRawNumber(document.getElementById(id)?.value || "0");
-        return oldV !== newV ? `<div>• <strong>${label}</strong>: ৳ ${formatBD(oldV)} → <strong>৳ ${formatBD(newV)}</strong></div>` : "";
+        return oldV !== newV ? `<div>• <strong>${label}</strong>:  ${formatBD(oldV)} → <strong> ${formatBD(newV)}</strong></div>` : "";
       }).filter(Boolean).join("");
       box.innerHTML = changes ? `<strong>পরিবর্তন:</strong>${changes}` : `<span style="color:#757575;">কোনো amount পরিবর্তন করা হয়নি।</span>`;
     }
@@ -5154,7 +5154,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       if (!changed.length) { alert("কোনো পরিবর্তন করা হয়নি।"); return; }
 
       if (Object.values(values).some(v => !Number.isFinite(v) || v < 0 || (v > 0 && v < 1000))) {
-        alert("❌ Amount ৳1,000-এর কম গ্রহণযোগ্য নয় (0/খালি হলে গ্রহণযোগ্য)।"); return;
+        alert("❌ Amount 1,000-এর কম গ্রহণযোগ্য নয় (0/খালি হলে গ্রহণযোগ্য)।"); return;
       }
 
       // Keep every other record field untouched. Recalculate only derived totals.
@@ -5163,10 +5163,10 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       const totalReceived = values.emReceived + values.cashReceived + dsoRec;
       const totalReturn = values.emReturn + (Number(original.cashDeposit) || 0) + values.bankDeposit + dsoTrans;
       if (!moneyMatches(totalReceived,totalReturn)) {
-        alert(`❌ Receive ৳${formatBD(totalReceived)} এবং Return/Deposit ৳${formatBD(totalReturn)} সমান নয়। হিসাব ঠিক করে Update করুন।`); return;
+        alert(`❌ Receive ${formatBD(totalReceived)} এবং Return/Deposit ${formatBD(totalReturn)} সমান নয়। হিসাব ঠিক করে Update করুন।`); return;
       }
 
-      const changeLines = changed.map(k => `${labels[k]}: ৳${formatBD(original[k] || 0)} → ৳${formatBD(values[k])}`);
+      const changeLines = changed.map(k => `${labels[k]}: ${formatBD(original[k] || 0)} → ${formatBD(values[k])}`);
       const historyEntry = { by: currentUser, at: Date.now(), changes: changeLines };
       const oldHistory = Array.isArray(original.adminEditHistory) ? original.adminEditHistory.slice(-19) : [];
 
@@ -5291,7 +5291,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         card.className = "card bank-card";
         card.innerHTML = `
           <h3>${escapeHtml(bName)}</h3>
-          <p>৳ ${formatBD(bankTotals[bName].amount)}</p>
+          <p> ${formatBD(bankTotals[bName].amount)}</p>
           <span style="font-size: 10px; color: #555;">(${bankTotals[bName].slipsCount} টি স্লিপ)</span>
         `;
         cardsContainer.appendChild(card);
@@ -5301,7 +5301,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       totalCard.className = "card green";
       totalCard.innerHTML = `
         <h3>সর্বমোট ব্যাংক ডিপোজিট</h3>
-        <p>৳ ${formatBD(totalBankDepositAll)}</p>
+        <p> ${formatBD(totalBankDepositAll)}</p>
         <span style="font-size: 10px; color: #2e7d32;">(${uniqueBanks.length} টি ব্যাংকে)</span>
       `;
       cardsContainer.insertBefore(totalCard, cardsContainer.firstChild);
@@ -5335,7 +5335,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
 
         uniqueBanks.forEach(bName => {
           if (entry.bankName === bName) {
-            rowHtml += `<td style="font-weight:bold; color:#1a237e;">৳ ${formatBD(entry.amt)}</td>`;
+            rowHtml += `<td style="font-weight:bold; color:#1a237e;"> ${formatBD(entry.amt)}</td>`;
             bankColumnSums[bName] += entry.amt;
           } else {
             rowHtml += `<td style="color:#ccc;">-</td>`;
@@ -5347,7 +5347,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
         // string inside an inline onclick attribute. This fixes missing images
         // on the Bank Details page for large slip images.
         rowHtml += `
-          <td style="font-weight:bold; color:#2e7d32; background:#e8f5e9;">৳ ${formatBD(entry.amt)}</td>
+          <td style="font-weight:bold; color:#2e7d32; background:#e8f5e9;"> ${formatBD(entry.amt)}</td>
           <td class="bank-slip-image-cell"></td>
         `;
 
@@ -5377,10 +5377,10 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       footTr.style.background = "#eceff1";
       let footHtml = `<td colspan="3">TOTAL BANK SUMMARY</td>`;
       uniqueBanks.forEach(bName => {
-        footHtml += `<td style="color:#1a237e;">৳ ${formatBD(bankColumnSums[bName])}</td>`;
+        footHtml += `<td style="color:#1a237e;"> ${formatBD(bankColumnSums[bName])}</td>`;
       });
       footHtml += `
-        <td style="color:#2e7d32; background:#c8e6c9;">৳ ${formatBD(grandTotalRowSum)}</td>
+        <td style="color:#2e7d32; background:#c8e6c9;"> ${formatBD(grandTotalRowSum)}</td>
         <td>-</td>
       `;
       footTr.innerHTML = footHtml;
@@ -5422,12 +5422,12 @@ global.PortalLedger={create,sync,balance,same,snapshot};
           tr.innerHTML = `
             <td>${item.date || '-'}</td>
             <td><strong>DSO ${item.userId || '-'}</strong></td>
-            <td>${n1000} টি <span style="font-size:10px; color:#777;">(৳${formatBD(n1000*1000)})</span></td>
-            <td>${n500} টি <span style="font-size:10px; color:#777;">(৳${formatBD(n500*500)})</span></td>
-            <td>${n200} টি <span style="font-size:10px; color:#777;">(৳${formatBD(n200*200)})</span></td>
-            <td>${n100} টি <span style="font-size:10px; color:#777;">(৳${formatBD(n100*100)})</span></td>
-            <td>${n50} টি <span style="font-size:10px; color:#777;">(৳${formatBD(n50*50)})</span></td>
-            <td style="font-weight:bold; color:#2e7d32; background:#e8f5e9;">৳ ${formatBD(totalCash)}</td>
+            <td>${n1000} টি <span style="font-size:10px; color:#777;">(${formatBD(n1000*1000)})</span></td>
+            <td>${n500} টি <span style="font-size:10px; color:#777;">(${formatBD(n500*500)})</span></td>
+            <td>${n200} টি <span style="font-size:10px; color:#777;">(${formatBD(n200*200)})</span></td>
+            <td>${n100} টি <span style="font-size:10px; color:#777;">(${formatBD(n100*100)})</span></td>
+            <td>${n50} টি <span style="font-size:10px; color:#777;">(${formatBD(n50*50)})</span></td>
+            <td style="font-weight:bold; color:#2e7d32; background:#e8f5e9;"> ${formatBD(totalCash)}</td>
           `;
           tbody.appendChild(tr);
         }
@@ -5443,12 +5443,12 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       footTr.style.background = "#eceff1";
       footTr.innerHTML = `
         <td colspan="2">TOTAL NOTES SUMMARY</td>
-        <td>${sumN1000} টি <br><span style="font-size:10px; color:#00695c;">৳${formatBD(sumN1000*1000)}</span></td>
-        <td>${sumN500} টি <br><span style="font-size:10px; color:#00695c;">৳${formatBD(sumN500*500)}</span></td>
-        <td>${sumN200} টি <br><span style="font-size:10px; color:#00695c;">৳${formatBD(sumN200*200)}</span></td>
-        <td>${sumN100} টি <br><span style="font-size:10px; color:#00695c;">৳${formatBD(sumN100*100)}</span></td>
-        <td>${sumN50} টি <br><span style="font-size:10px; color:#00695c;">৳${formatBD(sumN50*50)}</span></td>
-        <td style="color:#2e7d32; background:#c8e6c9;">৳ ${formatBD(sumTotalCash)}</td>
+        <td>${sumN1000} টি <br><span style="font-size:10px; color:#00695c;">${formatBD(sumN1000*1000)}</span></td>
+        <td>${sumN500} টি <br><span style="font-size:10px; color:#00695c;">${formatBD(sumN500*500)}</span></td>
+        <td>${sumN200} টি <br><span style="font-size:10px; color:#00695c;">${formatBD(sumN200*200)}</span></td>
+        <td>${sumN100} টি <br><span style="font-size:10px; color:#00695c;">${formatBD(sumN100*100)}</span></td>
+        <td>${sumN50} টি <br><span style="font-size:10px; color:#00695c;">${formatBD(sumN50*50)}</span></td>
+        <td style="color:#2e7d32; background:#c8e6c9;"> ${formatBD(sumTotalCash)}</td>
       `;
       tfoot.appendChild(footTr);
     }
@@ -5480,14 +5480,14 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       let dsoRecHtml = "";
       if (Array.isArray(item.dsoReceivedList) && item.dsoReceivedList.length > 0) {
         item.dsoReceivedList.forEach(d => {
-          dsoRecHtml += `<div class="detail-row"><span>Received from DSO ${d.dsoId}:</span><strong>৳ ${formatBD(d.amount)}</strong></div>`;
+          dsoRecHtml += `<div class="detail-row"><span>Received from DSO ${d.dsoId}:</span><strong> ${formatBD(d.amount)}</strong></div>`;
         });
       }
 
       let dsoTransHtml = "";
       if (Array.isArray(item.dsoTransferList) && item.dsoTransferList.length > 0) {
         item.dsoTransferList.forEach(d => {
-          dsoTransHtml += `<div class="detail-row"><span>Transferred to DSO ${d.dsoId}:</span><strong>৳ ${formatBD(d.amount)}</strong></div>`;
+          dsoTransHtml += `<div class="detail-row"><span>Transferred to DSO ${d.dsoId}:</span><strong> ${formatBD(d.amount)}</strong></div>`;
         });
       }
 
@@ -5507,7 +5507,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
               ${imgHtml}
               <div style="font-weight:bold; font-size:11px; margin-top:4px; color:#00695c;">${escapeHtml(bName)}</div>
               <div style="font-size:11px; color:#37474f;">${escapeHtml(s.accountName || 'Account Name not detected')}</div>
-              <div style="font-size:11px; color:#2e7d32;">৳ ${formatBD(s.amt || 0)}</div>
+              <div style="font-size:11px; color:#2e7d32;"> ${formatBD(s.amt || 0)}</div>
             </div>
           `;
         });
@@ -5519,44 +5519,44 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       body.innerHTML = `
         <div class="detail-section">
           <h4>📥 Received Details</h4>
-          <div class="detail-row"><span>B2B Received:</span><strong>৳ ${formatBD(emRec)}</strong></div>
-          <div class="detail-row"><span>Cash Received:</span><strong>৳ ${formatBD(cashRec)}</strong></div>
+          <div class="detail-row"><span>B2B Received:</span><strong> ${formatBD(emRec)}</strong></div>
+          <div class="detail-row"><span>Cash Received:</span><strong> ${formatBD(cashRec)}</strong></div>
           ${dsoRecHtml}
           <div class="detail-row" style="border-top:1px solid #ccc; padding-top:4px; margin-top:4px;">
             <span><strong>Total Received:</strong></span>
-            <strong style="color:#2e7d32;">৳ ${formatBD(totalRec)}</strong>
+            <strong style="color:#2e7d32;"> ${formatBD(totalRec)}</strong>
           </div>
         </div>
 
         <div class="detail-section">
           <h4>📤 Return Details</h4>
-          <div class="detail-row"><span>B2B Return:</span><strong>৳ ${formatBD(emRet)}</strong></div>
-          <div class="detail-row"><span>Cash Deposit:</span><strong>৳ ${formatBD(cashDep)}</strong></div>
-          <div class="detail-row"><span>Bank Deposit Total:</span><strong>৳ ${formatBD(bankDep)}</strong></div>
+          <div class="detail-row"><span>B2B Return:</span><strong> ${formatBD(emRet)}</strong></div>
+          <div class="detail-row"><span>Cash Deposit:</span><strong> ${formatBD(cashDep)}</strong></div>
+          <div class="detail-row"><span>Bank Deposit Total:</span><strong> ${formatBD(bankDep)}</strong></div>
           ${dsoTransHtml}
           <div class="detail-row" style="border-top:1px solid #ccc; padding-top:4px; margin-top:4px;">
             <span><strong>Total Return:</strong></span>
-            <strong style="color:#c62828;">৳ ${formatBD(totalRet)}</strong>
+            <strong style="color:#c62828;"> ${formatBD(totalRet)}</strong>
           </div>
         </div>
 
         <div class="detail-section" style="background:#fff3e0; border-color:#ffe0b2;">
           <div class="detail-row">
             <span><strong>Difference (Rec - Ret):</strong></span>
-            <strong style="color:#e65100;">৳ ${formatBD(diff)}</strong>
+            <strong style="color:#e65100;"> ${formatBD(diff)}</strong>
           </div>
         </div>
 
         <div class="detail-section">
           <h4>💵 Cash Note Breakdown</h4>
-          <div class="detail-row"><span>৳ 1000 × ${n.n1000 || 0}</span><strong>৳ ${formatBD((n.n1000 || 0) * 1000)}</strong></div>
-          <div class="detail-row"><span>৳ 500 × ${n.n500 || 0}</span><strong>৳ ${formatBD((n.n500 || 0) * 500)}</strong></div>
-          <div class="detail-row"><span>৳ 200 × ${n.n200 || 0}</span><strong>৳ ${formatBD((n.n200 || 0) * 200)}</strong></div>
-          <div class="detail-row"><span>৳ 100 × ${n.n100 || 0}</span><strong>৳ ${formatBD((n.n100 || 0) * 100)}</strong></div>
-          <div class="detail-row"><span>৳ 50 × ${n.n50 || 0}</span><strong>৳ ${formatBD((n.n50 || 0) * 50)}</strong></div>
+          <div class="detail-row"><span> 1000 × ${n.n1000 || 0}</span><strong> ${formatBD((n.n1000 || 0) * 1000)}</strong></div>
+          <div class="detail-row"><span> 500 × ${n.n500 || 0}</span><strong> ${formatBD((n.n500 || 0) * 500)}</strong></div>
+          <div class="detail-row"><span> 200 × ${n.n200 || 0}</span><strong> ${formatBD((n.n200 || 0) * 200)}</strong></div>
+          <div class="detail-row"><span> 100 × ${n.n100 || 0}</span><strong> ${formatBD((n.n100 || 0) * 100)}</strong></div>
+          <div class="detail-row"><span> 50 × ${n.n50 || 0}</span><strong> ${formatBD((n.n50 || 0) * 50)}</strong></div>
           <div class="detail-row" style="border-top:1px solid #ccc; padding-top:4px; margin-top:4px;">
             <span><strong>Total Cash Note Sum:</strong></span>
-            <strong style="color:#2e7d32;">৳ ${formatBD(item.totalCash || 0)}</strong>
+            <strong style="color:#2e7d32;"> ${formatBD(item.totalCash || 0)}</strong>
           </div>
         </div>
 
@@ -5619,7 +5619,7 @@ global.PortalLedger={create,sync,balance,same,snapshot};
       document.getElementById("zoomImageDetails").innerHTML = `
         <span>DSO: ${escapeHtml(dsoId)}</span>
         <span>Bank: ${escapeHtml(bankName || "-")}</span>
-        <span>Amount: ৳ ${formatBD(amt)}</span>
+        <span>Amount:  ${formatBD(amt)}</span>
         ${depositDate ? `<span>Deposit Date: ${escapeHtml(depositDate)}</span>` : ""}
       `;
       if(img.complete&&img.naturalWidth)requestAnimationFrame(()=>changeSlipZoom(0));
@@ -5812,11 +5812,11 @@ global.PortalLedger={create,sync,balance,same,snapshot};
                 rows.push({
                   "Date": item.date || "-",
                   "DSO ID": item.userId || "-",
-                  "৳ 1000": n1000,
-                  "৳ 500": n500,
-                  "৳ 200": n200,
-                  "৳ 100": n100,
-                  "৳ 50": n50,
+                  " 1000": n1000,
+                  " 500": n500,
+                  " 200": n200,
+                  " 100": n100,
+                  " 50": n50,
                   "Total Calculated Cash": totalCash
                 });
               }
@@ -5825,11 +5825,11 @@ global.PortalLedger={create,sync,balance,same,snapshot};
           if (rows.length) rows.push({
             "Date": "",
             "DSO ID": "TOTAL NOTES SUMMARY",
-            "৳ 1000": t1000,
-            "৳ 500": t500,
-            "৳ 200": t200,
-            "৳ 100": t100,
-            "৳ 50": t50,
+            " 1000": t1000,
+            " 500": t500,
+            " 200": t200,
+            " 100": t100,
+            " 50": t50,
             "Total Calculated Cash": tCash
           });
         }
