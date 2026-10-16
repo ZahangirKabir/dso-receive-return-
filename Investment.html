@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hisab360 · Investment</title>
-<meta name="investment-release-version" content="2026.10.16.9">
+<meta name="investment-release-version" content="2026.10.17.01">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -376,7 +376,7 @@ function selectedDateDsoTotals(legacy,ledger,selectedDate){
 }
 
 function selectedDateLiftingTotal(entries,date){return Object.values(entries||{}).filter(x=>x?.type==='withdrawal'&&x.scope==='company'&&x.date===date).reduce((sum,x)=>sum+(Array.isArray(x.reasonAmounts)?x.reasonAmounts.filter(r=>String(r.reason||'').trim().toLowerCase()==='for lifting').reduce((n,r)=>n+Math.round((Number(r.amount)||0)*100),0):String(x.purpose||'').trim().toLowerCase()==='for lifting'?Math.round((Number(x.amount)||0)*100):0),0)/100;}
-function selectedDateBankCashReceived(entries,date){const accepted=reason=>['dh volt'].includes(String(reason||'').trim().toLowerCase());return Object.values(entries||{}).filter(x=>x?.type==='withdrawal'&&x.scope==='company'&&x.date===date).reduce((sum,x)=>sum+(Array.isArray(x.reasonAmounts)?x.reasonAmounts.filter(r=>accepted(r.reason)).reduce((n,r)=>n+Math.round((Number(r.amount)||0)*100),0):accepted(x.purpose)?Math.round((Number(x.amount)||0)*100):0),0)/100;}
+function selectedDateBankCashReceived(entries,date){const accepted=reason=>['for dso cash','for dso','dh volt','refund'].includes(String(reason||'').trim().toLowerCase().replace(/\s+/g,' '));return Object.values(entries||{}).filter(x=>x?.type==='withdrawal'&&x.scope==='company'&&x.date===date).reduce((sum,x)=>sum+(Array.isArray(x.reasonAmounts)?x.reasonAmounts.filter(r=>accepted(r.reason)).reduce((n,r)=>n+Math.round((Number(r.amount)||0)*100),0):accepted(x.purpose)?Math.round((Number(x.amount)||0)*100):0),0)/100;}
 function balanceCalculator(){
  const box=card('MA | Cash | Bank Balance Calculator'),form=node('form');form.id='balanceCalculatorForm';
  const top=section(form,'Date'),date=field(top,'Date','calc_date','date',true);date.readOnly=false;date.value='';top.classList.add('compact-capital-date');
