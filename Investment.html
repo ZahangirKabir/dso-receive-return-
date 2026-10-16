@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hisab360 · Investment</title>
-<meta name="investment-release-version" content="2026.10.17.01">
+<meta name="investment-release-version" content="2026.10.17.02">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -377,6 +377,7 @@ function selectedDateDsoTotals(legacy,ledger,selectedDate){
 
 function selectedDateLiftingTotal(entries,date){return Object.values(entries||{}).filter(x=>x?.type==='withdrawal'&&x.scope==='company'&&x.date===date).reduce((sum,x)=>sum+(Array.isArray(x.reasonAmounts)?x.reasonAmounts.filter(r=>String(r.reason||'').trim().toLowerCase()==='for lifting').reduce((n,r)=>n+Math.round((Number(r.amount)||0)*100),0):String(x.purpose||'').trim().toLowerCase()==='for lifting'?Math.round((Number(x.amount)||0)*100):0),0)/100;}
 function selectedDateBankCashReceived(entries,date){const accepted=reason=>['for dso cash','for dso','dh volt','refund'].includes(String(reason||'').trim().toLowerCase().replace(/\s+/g,' '));return Object.values(entries||{}).filter(x=>x?.type==='withdrawal'&&x.scope==='company'&&x.date===date).reduce((sum,x)=>sum+(Array.isArray(x.reasonAmounts)?x.reasonAmounts.filter(r=>accepted(r.reason)).reduce((n,r)=>n+Math.round((Number(r.amount)||0)*100),0):accepted(x.purpose)?Math.round((Number(x.amount)||0)*100):0),0)/100;}
+function bankCalculationTotals(drafts){const totals={opening:0,deposit:0,fundTransfer:0,chequeWithdrawal:0};for(const value of Object.values(drafts||{}))for(const key of Object.keys(totals))totals[key]+=Math.round((Number(value?.[key])||0)*100);for(const key of Object.keys(totals))totals[key]/=100;totals.net=Math.round((totals.opening+totals.deposit-totals.fundTransfer-totals.chequeWithdrawal)*100)/100;return totals;}
 function balanceCalculator(){
  const box=card('MA | Cash | Bank Balance Calculator'),form=node('form');form.id='balanceCalculatorForm';
  const top=section(form,'Date'),date=field(top,'Date','calc_date','date',true);date.readOnly=false;date.value='';top.classList.add('compact-capital-date');
@@ -388,7 +389,7 @@ function balanceCalculator(){
  cashOpening.readOnly=true;cashBankReceived.readOnly=true;cashHand.readOnly=true;
  const marketTeam=field(cashArea,'Market Cash','calc_market_team'),netCash=field(cashArea,'Net Cash','calc_net_cash');
  [marketTeam,netCash].forEach(input=>input.readOnly=true);
- const bankArea=section(form,'Bank Balance Calculation'),choice=select(bankArea,'Bank','calc_bank',[['','—'],...banks.map(b=>[b,b])]);choice.required=false;
+ const bankArea=section(form,'Bank Balance Calculation'),choice=select(bankArea,'Bank','calc_bank',[['','All Bank'],...banks.map(b=>[b,b])]);choice.required=false;
  const bankOpening=field(bankArea,'Opening Balance','calc_bank_opening'),deposit=field(bankArea,'Bank Deposit','calc_bank_deposit'),transfer=field(bankArea,'Fund Transfer','calc_bank_transfer'),withdraw=field(bankArea,'Withdraw by Cheque','calc_bank_withdraw'),netBank=field(bankArea,'Net Bank Balance','calc_net_bank');
  [bankOpening,deposit,transfer,withdraw,netBank].forEach(x=>x.readOnly=true);
  const closingArea=section(form,'Closing Working Capital');const totalClosing=field(closingArea,'Total Closing','calc_total_closing');totalClosing.disabled=true;
@@ -417,12 +418,12 @@ function balanceCalculator(){
    [netMA,cashHand,netCash,netBank,totalClosing].forEach(input=>delete input.dataset.testManual);
    const cashNet=Math.round((numeric(cashOpening)+numeric(cashBankReceived)-numeric(cashIssue)-numeric(cashLifting))*100)/100;cashHand.value=money(cashNet);delete netCash.dataset.testManual;netCash.value=money(Math.round((numeric(cashHand)+numeric(marketTeam))*100)/100);
    maValue=Math.round((numeric(maOpening)+numeric(lifting)+numeric(receive)-numeric(send)-numeric(maRefund))*100)/100;netMA.value=money(maValue);
-   if(choice.value){bankValue=Math.round((numeric(bankOpening)+numeric(deposit)-numeric(transfer)-numeric(withdraw))*100)/100;netBank.value=money(bankValue);bankDrafts[choice.value]={opening:numeric(bankOpening),deposit:numeric(deposit),fundTransfer:numeric(transfer),chequeWithdrawal:numeric(withdraw),net:bankValue};}
+   if(choice.value){bankValue=Math.round((numeric(bankOpening)+numeric(deposit)-numeric(transfer)-numeric(withdraw))*100)/100;netBank.value=money(bankValue);bankDrafts[choice.value]={opening:numeric(bankOpening),deposit:numeric(deposit),fundTransfer:numeric(transfer),chequeWithdrawal:numeric(withdraw),net:bankValue};}else{const all=bankCalculationTotals(bankDrafts);for(const [input,key]of [[bankOpening,'opening'],[deposit,'deposit'],[transfer,'fundTransfer'],[withdraw,'chequeWithdrawal'],[netBank,'net']]){delete input.dataset.testManual;input.value=money(all[key]);}bankValue=all.net;}
    results.replaceChildren();results.className='card bank-net-grid';let bankSum=0;Object.entries(bankDrafts).forEach(([b,x])=>{bankSum+=Math.round(Number(x.net||0)*100);const card=node('div');card.className='bank-net-card';card.append(node('span',b),node('strong',''+money(x.net)));results.append(card);});const bankTotal=bankSum/100;const summary=node('div');summary.className='bank-net-sum';summary.append(node('span','Total Net Bank Balance'),node('strong',''+money(bankTotal)));results.append(summary);totalClosing.value=money(Math.round((maValue+numeric(netCash)+bankTotal)*100)/100);
    netMA.closest('.field').style.color=maValue<0?'#b91c1c':'#00695c';
   }catch(e){status.textContent=e.message;}
  }
- choice.onchange=()=>{const b=choice.value,x=bankDrafts[b]||{};bankOpening.value=inputMoney(previous?.closing?.banks?.[b]||0);deposit.value=inputMoney(countBank(b));transfer.value=inputMoney(withdrawalTotal(b,'APP'));withdraw.value=inputMoney(withdrawalTotal(b,'Cheque'));netBank.closest('.field').querySelector('label').textContent=b?'Net '+b+' Balance':'Net Bank Balance';paint();};
+ choice.onchange=()=>{const b=choice.value;[bankOpening,deposit,transfer,withdraw,netBank].forEach(input=>delete input.dataset.testManual);if(b){const x=bankDrafts[b]||{};bankOpening.value=inputMoney(x.opening||0);deposit.value=inputMoney(x.deposit||0);transfer.value=inputMoney(x.fundTransfer||0);withdraw.value=inputMoney(x.chequeWithdrawal||0);}netBank.closest('.field').querySelector('label').textContent=b?'Net '+b+' Balance':'Net Bank Balance';paint();};
  form.addEventListener('input',paint);
  async function source(){
   window.stopCalculatorWithdrawalSync?.();withdrawalRows=[];
