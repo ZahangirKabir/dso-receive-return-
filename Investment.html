@@ -1,5 +1,5 @@
 <!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hisab360 · Investment</title>
-<meta name="investment-release-version" content="2026.10.16.7">
+<meta name="investment-release-version" content="2026.10.16.8">
 <style>
 :root{--teal:#00695c;--deep:#004d40;--light:#e0f2f1;--ink:#17342e;--muted:#58736b;--line:#d9e8e3;--canvas:#f4f7f6;--white:#fff;--focus:#00897b}
 *{box-sizing:border-box}
@@ -414,9 +414,10 @@ function balanceCalculator(){
   save.disabled=preview||loading||busy||!loaded;
   if(loading)return;
   try{
+   [netMA,cashHand,netCash,netBank,totalClosing].forEach(input=>delete input.dataset.testManual);
    const cashNet=Math.round((numeric(cashOpening)+numeric(cashBankReceived)-numeric(cashIssue)-numeric(cashLifting))*100)/100;cashHand.value=inputMoney(cashNet);delete netCash.dataset.testManual;netCash.value=inputMoney(numeric(cashHand)+numeric(marketTeam));
-   maValue=netMA.dataset.testManual==='true'?numeric(netMA):Math.round((numeric(maOpening)+numeric(lifting)+numeric(receive)-numeric(send)-numeric(maRefund))*100)/100;netMA.value=inputMoney(maValue);
-   if(choice.value){bankValue=netBank.dataset.testManual==='true'?numeric(netBank):Math.round((numeric(bankOpening)+numeric(deposit)-numeric(transfer)-numeric(withdraw))*100)/100;netBank.value=inputMoney(bankValue);bankDrafts[choice.value]={opening:numeric(bankOpening),deposit:numeric(deposit),fundTransfer:numeric(transfer),chequeWithdrawal:numeric(withdraw),net:bankValue};}
+   maValue=Math.round((numeric(maOpening)+numeric(lifting)+numeric(receive)-numeric(send)-numeric(maRefund))*100)/100;netMA.value=inputMoney(maValue);
+   if(choice.value){bankValue=Math.round((numeric(bankOpening)+numeric(deposit)-numeric(transfer)-numeric(withdraw))*100)/100;netBank.value=inputMoney(bankValue);bankDrafts[choice.value]={opening:numeric(bankOpening),deposit:numeric(deposit),fundTransfer:numeric(transfer),chequeWithdrawal:numeric(withdraw),net:bankValue};}
    results.replaceChildren();results.className='card bank-net-grid';let bankSum=0;Object.entries(bankDrafts).forEach(([b,x])=>{bankSum+=Math.round(Number(x.net||0)*100);const card=node('div');card.className='bank-net-card';card.append(node('span',b),node('strong',''+money(x.net)));results.append(card);});const bankTotal=bankSum/100;const summary=node('div');summary.className='bank-net-sum';summary.append(node('span','Total Net Bank Balance'),node('strong',''+money(bankTotal)));results.append(summary);totalClosing.value=inputMoney(Math.round((maValue+numeric(netCash)+bankTotal)*100)/100);
    netMA.closest('.field').style.color=maValue<0?'#b91c1c':'#00695c';
   }catch(e){status.textContent=e.message;}
@@ -442,7 +443,7 @@ function balanceCalculator(){
    cashOpening.value=inputMoney(previous?.closing?.cashInHand);delete cashBankReceived.dataset.testManual;cashBankReceived.value=inputMoney(selectedDateBankCashReceived(withdrawalRows,selectedDate));delete cashIssue.dataset.testManual;cashIssue.value=inputMoney(totals.cashIssueDso);cashLifting.value=inputMoney(saved?.cashCalculation?.cashDepositLifting);
    delete marketTeam.dataset.testManual;marketTeam.value=inputMoney(Math.round((totals.marketCash.Sadar+totals.marketCash.Saturia+totals.marketCash.Singair+totals.marketCash.Shivalaya)*100)/100);
    Object.entries(bankDrafts).forEach(([b,x])=>{x.opening=Number(previous?.closing?.banks?.[b]||0);x.deposit=countBank(b);x.net=Math.round((x.opening+x.deposit-Number(x.fundTransfer||0)-Number(x.chequeWithdrawal||0))*100)/100;});syncWithdrawalDrafts();loaded=true;loading=false;choice.onchange();paint();watchWithdrawals(selectedDate,epoch);
-   status.textContent=(previous?'Opening source: '+previous.date:'আগের Working Capital নেই; Opening ০।')+' · '+totals.count+' DSO reports · Bank Details থেকে তারিখভিত্তিক Deposit · একই তারিখের APP → Fund Transfer, Cheque → Withdraw by Cheque। Bank Withdrawal-এর For lifting থেকে Lifting নেওয়া হয়েছে।';
+   status.textContent='';
   }catch(e){if(epoch!==sourceEpoch)return;loading=false;status.textContent='ডাটা পাওয়া যায়নি: '+e.message;paint();}finally{clearTimeout(timer);if(epoch===sourceEpoch)refresh.disabled=false;}
  }
  refresh.onclick=source;
@@ -450,7 +451,7 @@ function balanceCalculator(){
  form.onsubmit=async event=>{
   event.preventDefault();if(busy||!loaded||loading||preview||!form.reportValidity()||String(bridge.getUser())!==owner)return;
   try{paint();const ma={opening:numeric(maOpening),lifting:numeric(lifting),b2bReceive:numeric(receive),b2bSend:numeric(send),refund:numeric(maRefund)};
-   const net=netMA.dataset.testManual==='true'?numeric(netMA):Math.round((ma.opening+ma.lifting+ma.b2bReceive-ma.b2bSend-ma.refund)*100)/100;
+   const net=Math.round((ma.opening+ma.lifting+ma.b2bReceive-ma.b2bSend-ma.refund)*100)/100;
    if(!window.INVESTMENT_MANUAL_TEST&&(net<0||Object.values(bankDrafts).some(x=>x.net<0)))throw Error('Net balance ঋণাত্মক। অঙ্কগুলো যাচাই করুন।');
    busy=true;date.disabled=true;paint();status.textContent='Saving…';
    const record={type:'calculator',scope:'company',date:date.value,...ma,netMA:net,cashCalculation:{openingCash:numeric(cashOpening),cashReceivedFromBank:numeric(cashBankReceived),cashIssueDso:numeric(cashIssue),cashDepositLifting:numeric(cashLifting),cashInHand:numeric(cashHand),marketCash:{total:numeric(marketTeam)},netCash:numeric(netCash)},totalClosing:amount(totalClosing.value),bankCalculations:bankDrafts,updatedAt:bridge.serverTimestamp,updatedBy:owner};
